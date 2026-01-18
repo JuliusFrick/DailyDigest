@@ -3,7 +3,7 @@ import SwiftUI
 /// Slack integration for fetching messages and mentions
 @MainActor
 final class SlackSource: BriefingSource, ObservableObject {
-    static let sourceId = "slack"
+    nonisolated static let sourceId = "slack"
     static let displayName = "Slack"
     static let iconName = "bubble.left.and.bubble.right.fill"
     static let brandColor = Color(red: 0.32, green: 0.15, blue: 0.46)

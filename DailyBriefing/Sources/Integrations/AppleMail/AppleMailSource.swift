@@ -4,7 +4,7 @@ import AppKit
 /// Apple Mail integration using AppleScript for macOS Mail access
 @MainActor
 final class AppleMailSource: BriefingSource, ObservableObject {
-    static let sourceId = "apple_mail"
+    nonisolated static let sourceId = "apple_mail"
     static let displayName = "Apple Mail"
     static let iconName = "envelope.fill"
     static let brandColor = Color(red: 0.0, green: 0.48, blue: 1.0)
@@ -196,12 +196,10 @@ final class AppleMailSource: BriefingSource, ObservableObject {
     private func parseAppleScriptResult(_ result: String) -> [AppleMailMessage] {
         // AppleScript returns a list of records, parse them
         // This is a simplified parser - in production you'd want more robust parsing
-        var messages: [AppleMailMessage] = []
-
         // For now, return empty array if parsing fails
         // In a real implementation, you would parse the AppleScript record format
 
-        return messages
+        return []
     }
 }
 

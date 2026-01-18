@@ -3,7 +3,7 @@ import SwiftUI
 /// Google Calendar integration for fetching calendar events
 @MainActor
 final class GoogleCalendarSource: BriefingSource, ObservableObject {
-    static let sourceId = "google_calendar"
+    nonisolated static let sourceId = "google_calendar"
     static let displayName = "Google Calendar"
     static let iconName = "calendar"
     static let brandColor = Color(red: 0.26, green: 0.52, blue: 0.96) // Google Blue

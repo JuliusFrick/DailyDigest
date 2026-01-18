@@ -5,7 +5,7 @@ import AppKit
 /// Apple Reminders integration using native EventKit APIs
 @MainActor
 final class AppleRemindersSource: BriefingSource, ObservableObject {
-    static let sourceId = "apple_reminders"
+    nonisolated static let sourceId = "apple_reminders"
     static let displayName = "Apple Reminders"
     static let iconName = "checklist"
     static let brandColor = Color(red: 1.0, green: 0.58, blue: 0.0)
