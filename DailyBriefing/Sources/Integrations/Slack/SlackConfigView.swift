@@ -3,16 +3,33 @@ import SwiftUI
 /// Configuration view for Slack integration
 struct SlackConfigView: View {
     @ObservedObject var source: SlackSource
+    @State private var channelSearchText = ""
 
     var body: some View {
         Form {
             connectionSection
             if source.isAuthenticated {
                 workspaceSection
+                channelSelectionSection
                 filterSection
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// Channels filtered by search text
+    private var filteredChannels: [SlackChannel] {
+        if channelSearchText.isEmpty {
+            return source.availableChannels
+        }
+        return source.availableChannels.filter {
+            $0.name.localizedCaseInsensitiveContains(channelSearchText)
+        }
+    }
+
+    /// Number of selected channels
+    private var selectedChannelCount: Int {
+        source.selectedChannelIds.count
     }
 
     // MARK: - Connection Section
@@ -110,6 +127,89 @@ struct SlackConfigView: View {
         }
     }
 
+    // MARK: - Channel Selection Section
+
+    private var channelSelectionSection: some View {
+        Section {
+            // Search field
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Channels suchen...", text: $channelSearchText)
+                    .textFieldStyle(.plain)
+                if !channelSearchText.isEmpty {
+                    Button {
+                        channelSearchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            // Select/Deselect all buttons
+            if !source.availableChannels.isEmpty {
+                HStack {
+                    Button("Alle auswählen") {
+                        source.selectAllChannels()
+                    }
+                    .font(.caption)
+                    .buttonStyle(.borderless)
+
+                    Spacer()
+
+                    Button("Alle abwählen") {
+                        source.deselectAllChannels()
+                    }
+                    .font(.caption)
+                    .buttonStyle(.borderless)
+                }
+            }
+
+            // Channel list
+            if source.availableChannels.isEmpty {
+                HStack {
+                    Spacer()
+                    if source.isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Channels werden geladen...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Keine Channels verfügbar")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+            } else {
+                ForEach(filteredChannels) { channel in
+                    ChannelToggleRow(
+                        channel: channel,
+                        isSelected: source.isChannelSelected(channel.id),
+                        onToggle: { source.toggleChannel(channel.id) }
+                    )
+                }
+            }
+        } header: {
+            HStack {
+                Text("Channels")
+                Spacer()
+                Text("\(selectedChannelCount) ausgewählt")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } footer: {
+            if selectedChannelCount == 0 && !source.availableChannels.isEmpty {
+                Text("Wenn keine Channels ausgewählt sind, werden alle Channels einbezogen.")
+            } else {
+                Text("Wähle die Channels aus, die in deinem Briefing erscheinen sollen.")
+            }
+        }
+    }
+
     // MARK: - Filter Section
 
     private var filterSection: some View {
@@ -121,6 +221,45 @@ struct SlackConfigView: View {
             Text("Filter")
         } footer: {
             Text("Konfiguriere, welche Nachrichten in deinem Briefing erscheinen sollen.")
+        }
+    }
+}
+
+// MARK: - Channel Toggle Row
+
+private struct ChannelToggleRow: View {
+    let channel: SlackChannel
+    let isSelected: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: channel.isPrivate ? "lock.fill" : "number")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(channel.name)
+                    .font(.body)
+                if channel.memberCount > 0 {
+                    Text("\(channel.memberCount) Mitglieder")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            Spacer()
+
+            Toggle("", isOn: Binding(
+                get: { isSelected },
+                set: { _ in onToggle() }
+            ))
+            .labelsHidden()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onToggle()
         }
     }
 }

@@ -51,11 +51,57 @@ final class SlackSource: BriefingSource, ObservableObject {
     @Published var includeChannels: Bool = true
     @Published var includeMentions: Bool = true
 
+    /// IDs of channels that are selected for inclusion in the briefing
+    @Published var selectedChannelIds: Set<String> {
+        didSet {
+            saveSelectedChannels()
+        }
+    }
+
+    private static let selectedChannelsKey = "slack_selected_channel_ids"
+
     // MARK: - Initialization
 
     init() {
+        // Load selected channels from UserDefaults before calling super
+        if let savedIds = UserDefaults.standard.array(forKey: Self.selectedChannelsKey) as? [String] {
+            selectedChannelIds = Set(savedIds)
+        } else {
+            selectedChannelIds = []
+        }
+
         isAuthenticated = oauthService.isAuthenticated
         connectionStatus = isAuthenticated ? .connected : .disconnected
+    }
+
+    // MARK: - Channel Selection Persistence
+
+    private func saveSelectedChannels() {
+        UserDefaults.standard.set(Array(selectedChannelIds), forKey: Self.selectedChannelsKey)
+    }
+
+    /// Toggle whether a channel is selected
+    func toggleChannel(_ channelId: String) {
+        if selectedChannelIds.contains(channelId) {
+            selectedChannelIds.remove(channelId)
+        } else {
+            selectedChannelIds.insert(channelId)
+        }
+    }
+
+    /// Check if a channel is selected
+    func isChannelSelected(_ channelId: String) -> Bool {
+        selectedChannelIds.contains(channelId)
+    }
+
+    /// Select all available channels
+    func selectAllChannels() {
+        selectedChannelIds = Set(availableChannels.map(\.id))
+    }
+
+    /// Deselect all channels
+    func deselectAllChannels() {
+        selectedChannelIds = []
     }
 
     // MARK: - BriefingSource Protocol
@@ -111,9 +157,14 @@ final class SlackSource: BriefingSource, ObservableObject {
         // Fetch recent messages from each conversation
         for conversation in conversations {
             let shouldFetch: Bool
-            switch conversation.isIm {
-            case true: shouldFetch = includeDMs
-            case false: shouldFetch = includeChannels
+            if conversation.isIm {
+                // DMs: check includeDMs setting
+                shouldFetch = includeDMs
+            } else {
+                // Channels: check includeChannels AND if channel is selected
+                // If no channels are selected, include all channels (default behavior)
+                let isChannelSelected = selectedChannelIds.isEmpty || selectedChannelIds.contains(conversation.id)
+                shouldFetch = includeChannels && isChannelSelected
             }
 
             if shouldFetch {
