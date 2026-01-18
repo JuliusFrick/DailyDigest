@@ -1,10 +1,8 @@
 import SwiftUI
-import SwiftData
 
 /// Settings view for LLM provider configuration
 struct LLMSettingsView: View {
-    @Query private var settings: [UserSettings]
-    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var settingsStore: UserSettingsStore
 
     @State private var selectedProvider: LLMProvider = .openai
     @State private var selectedModelId: String = ""
@@ -268,11 +266,9 @@ struct LLMSettingsView: View {
     // MARK: - Settings Persistence
 
     private func loadSettings() {
-        if let userSettings = settings.first {
-            if let provider = LLMProvider(rawValue: userSettings.llmProvider) {
-                selectedProvider = provider
-                loadAPIKey(for: provider)
-            }
+        if let provider = LLMProvider(rawValue: settingsStore.settings.llmProvider) {
+            selectedProvider = provider
+            loadAPIKey(for: provider)
         }
 
         // Load LLM configuration from UserDefaults for model and URL
@@ -308,10 +304,9 @@ struct LLMSettingsView: View {
     }
 
     private func saveSettings() {
-        // Save provider to SwiftData
-        if let userSettings = settings.first {
-            userSettings.llmProvider = selectedProvider.rawValue
-            try? modelContext.save()
+        // Save provider to app settings
+        settingsStore.update { s in
+            s.llmProvider = selectedProvider.rawValue
         }
 
         // Save configuration to UserDefaults
@@ -420,6 +415,3 @@ private struct ConnectionTestResultView: View {
     }
 }
 
-#Preview {
-    LLMSettingsView()
-}

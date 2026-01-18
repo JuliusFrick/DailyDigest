@@ -1,11 +1,7 @@
 import Foundation
-import SwiftData
 
-/// Persisted user settings
-@Model
-final class UserSettings {
-    var id: UUID
-
+/// Persisted user settings (stored as JSON in UserDefaults so `swift build` works without Xcode/SwiftData).
+struct UserSettings: Codable, Equatable {
     // Briefing preferences
     var defaultDetailLevel: String
     var preferredLanguage: String
@@ -19,7 +15,6 @@ final class UserSettings {
 
     // LLM preferences
     var llmProvider: String
-    var llmApiKey: String?
 
     // UI preferences
     var sourceOrder: [String]
@@ -28,7 +23,7 @@ final class UserSettings {
     // Keyboard Shortcut preferences
     var globalShortcutEnabled: Bool
     var globalShortcutKeyCode: UInt16
-    var globalShortcutModifiers: UInt
+    var globalShortcutModifiers: UInt64
 
     // Notification preferences
     var notificationsEnabled: Bool
@@ -36,7 +31,6 @@ final class UserSettings {
     var morningReminderTime: Date?
 
     init(
-        id: UUID = UUID(),
         defaultDetailLevel: String = "quick",
         preferredLanguage: String = "de",
         autoRefreshTime: Date? = nil,
@@ -45,17 +39,15 @@ final class UserSettings {
         ttsVoiceId: String? = nil,
         playbackSpeed: Double = 1.0,
         llmProvider: String = "openai",
-        llmApiKey: String? = nil,
         sourceOrder: [String] = [],
         theme: String = "system",
         globalShortcutEnabled: Bool = false,
         globalShortcutKeyCode: UInt16 = 0x02,  // D key
-        globalShortcutModifiers: UInt = 0x180100,  // Cmd + Shift
+        globalShortcutModifiers: UInt64 = 0x180100,  // Cmd + Shift
         notificationsEnabled: Bool = true,
         morningReminderEnabled: Bool = false,
         morningReminderTime: Date? = nil
     ) {
-        self.id = id
         self.defaultDetailLevel = defaultDetailLevel
         self.preferredLanguage = preferredLanguage
         self.autoRefreshTime = autoRefreshTime
@@ -64,7 +56,6 @@ final class UserSettings {
         self.ttsVoiceId = ttsVoiceId
         self.playbackSpeed = playbackSpeed
         self.llmProvider = llmProvider
-        self.llmApiKey = llmApiKey
         self.sourceOrder = sourceOrder
         self.theme = theme
         self.globalShortcutEnabled = globalShortcutEnabled
@@ -73,50 +64,5 @@ final class UserSettings {
         self.notificationsEnabled = notificationsEnabled
         self.morningReminderEnabled = morningReminderEnabled
         self.morningReminderTime = morningReminderTime
-    }
-}
-
-/// Configuration for an individual source
-@Model
-final class SourceConfiguration {
-    var id: UUID
-    var sourceId: String
-    var isEnabled: Bool
-    var displayOrder: Int
-    var lastSyncDate: Date?
-    var configurationData: Data?
-
-    init(
-        id: UUID = UUID(),
-        sourceId: String,
-        isEnabled: Bool = true,
-        displayOrder: Int = 0,
-        lastSyncDate: Date? = nil,
-        configurationData: Data? = nil
-    ) {
-        self.id = id
-        self.sourceId = sourceId
-        self.isEnabled = isEnabled
-        self.displayOrder = displayOrder
-        self.lastSyncDate = lastSyncDate
-        self.configurationData = configurationData
-    }
-}
-
-/// Cached briefing for offline access
-@Model
-final class CachedBriefing {
-    var id: UUID
-    var generatedAt: Date
-    var briefingData: Data
-
-    init(
-        id: UUID = UUID(),
-        generatedAt: Date = Date(),
-        briefingData: Data
-    ) {
-        self.id = id
-        self.generatedAt = generatedAt
-        self.briefingData = briefingData
     }
 }

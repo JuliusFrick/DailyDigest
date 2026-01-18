@@ -3,6 +3,9 @@ import SwiftUI
 /// Protocol that all briefing sources must implement
 /// This enables a modular plugin architecture for adding new data sources
 protocol BriefingSource: Identifiable, ObservableObject {
+    /// Sources must be constructible without parameters (used by `SourceRegistry`).
+    init()
+
     /// Unique identifier for this source type
     static var sourceId: String { get }
 

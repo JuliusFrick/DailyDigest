@@ -245,9 +245,3 @@ struct ExportedConnection: Codable {
     let connectedAt: Date
     let lastSyncAt: Date?
 }
-
-#Preview {
-    NavigationStack {
-        PrivacySettingsView()
-    }
-}

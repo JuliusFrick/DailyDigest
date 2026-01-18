@@ -1,9 +1,7 @@
 import SwiftUI
-import SwiftData
 
 struct TTSSettingsView: View {
-    @Query private var settings: [UserSettings]
-    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var settingsStore: UserSettingsStore
     @StateObject private var ttsService = TTSService.shared
 
     @State private var selectedProvider: String = "apple"
@@ -11,8 +9,8 @@ struct TTSSettingsView: View {
     @State private var playbackSpeed: Double = 1.0
     @State private var isPreviewing: Bool = false
 
-    private var userSettings: UserSettings? {
-        settings.first
+    private var userSettings: UserSettings {
+        settingsStore.settings
     }
 
     var body: some View {
@@ -233,11 +231,6 @@ struct TTSSettingsView: View {
     // MARK: - Actions
 
     private func loadSettings() {
-        guard let userSettings else {
-            createDefaultSettings()
-            return
-        }
-
         selectedProvider = userSettings.ttsProvider
         playbackSpeed = userSettings.playbackSpeed
 
@@ -256,12 +249,11 @@ struct TTSSettingsView: View {
     }
 
     private func createDefaultSettings() {
-        let defaultSettings = UserSettings()
-        modelContext.insert(defaultSettings)
-        try? modelContext.save()
-
-        selectedProvider = defaultSettings.ttsProvider
-        playbackSpeed = defaultSettings.playbackSpeed
+        // Kept for compatibility with older call-sites; settings are now stored via UserSettingsStore.
+        settingsStore.resetToDefaults()
+        let defaults = settingsStore.settings
+        selectedProvider = defaults.ttsProvider
+        playbackSpeed = defaults.playbackSpeed
         selectDefaultVoice()
     }
 
@@ -290,13 +282,11 @@ struct TTSSettingsView: View {
     }
 
     private func saveSettings() {
-        guard let userSettings else { return }
-
-        userSettings.ttsProvider = selectedProvider
-        userSettings.ttsVoiceId = selectedVoiceId
-        userSettings.playbackSpeed = playbackSpeed
-
-        try? modelContext.save()
+        settingsStore.update { s in
+            s.ttsProvider = selectedProvider
+            s.ttsVoiceId = selectedVoiceId
+            s.playbackSpeed = playbackSpeed
+        }
     }
 
     private func previewVoice() {
@@ -340,11 +330,5 @@ struct TTSSettingsView: View {
         }
 
         return "Dies ist eine Vorschau der ausgewählten Stimme."
-    }
-}
-
-#Preview {
-    NavigationStack {
-        TTSSettingsView()
     }
 }

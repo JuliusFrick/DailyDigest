@@ -272,8 +272,3 @@ struct ComingSoonRow: View {
         }
     }
 }
-
-#Preview {
-    SourcesView()
-        .environmentObject(AppState())
-}

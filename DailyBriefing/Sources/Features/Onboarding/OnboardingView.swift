@@ -146,8 +146,3 @@ struct OnboardingStepView: View {
         .padding(32)
     }
 }
-
-#Preview {
-    OnboardingView()
-        .environmentObject(AppState())
-}

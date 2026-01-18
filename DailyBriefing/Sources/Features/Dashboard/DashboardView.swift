@@ -324,7 +324,7 @@ struct AudioPlayerCard: View {
             Button(action: hasBriefing ? onPlayToggle : onGenerateBriefing) {
                 ZStack {
                     Circle()
-                        .fill(.tint.gradient)
+                        .fill(Color.accentColor.gradient)
                         .frame(width: 56, height: 56)
 
                     if isLoading {
@@ -880,10 +880,4 @@ struct BriefingItemRow: View {
         case .low: return .gray
         }
     }
-}
-
-#Preview {
-    DashboardView()
-        .environmentObject(AppState())
-        .frame(width: 500, height: 800)
 }

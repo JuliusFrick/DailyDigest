@@ -306,7 +306,7 @@ struct HistorySectionCard: View {
                 HStack {
                     Image(systemName: section.sourceIcon)
                         .font(.title3)
-                        .foregroundStyle(.accent)
+                        .foregroundStyle(.tint)
                         .frame(width: 28)
 
                     Text(section.sourceName)
@@ -397,10 +397,4 @@ struct HistoryItemRow: View {
         case .urgent: return .red
         }
     }
-}
-
-#Preview {
-    BriefingHistoryView()
-        .environmentObject(AppState())
-        .frame(width: 600, height: 800)
 }

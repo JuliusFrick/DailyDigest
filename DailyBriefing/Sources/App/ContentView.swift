@@ -60,8 +60,3 @@ struct DetailView: View {
         }
     }
 }
-
-#Preview {
-    ContentView()
-        .environmentObject(AppState())
-}

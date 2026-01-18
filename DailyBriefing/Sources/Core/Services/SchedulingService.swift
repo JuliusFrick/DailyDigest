@@ -1,7 +1,7 @@
 import Foundation
 import Combine
+import AppKit
 import UserNotifications
-import SwiftData
 
 /// Service responsible for scheduling automatic briefing generation
 /// Handles daily scheduled briefings and notifications

@@ -1,14 +1,10 @@
 import SwiftUI
-import SwiftData
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
-    @Query private var settings: [UserSettings]
-    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var settingsStore: UserSettingsStore
 
     @State private var selectedLanguage = "de"
-    @State private var selectedLLMProvider = "openai"
-    @State private var selectedTTSProvider = "apple"
     @State private var autoRefreshEnabled = false
     @State private var autoRefreshTime = Date()
     @State private var globalShortcutEnabled = false
@@ -127,7 +123,7 @@ struct SettingsView: View {
     }
 
     private var currentProviderName: String {
-        if let provider = LLMProvider(rawValue: selectedLLMProvider) {
+        if let provider = LLMProvider(rawValue: settingsStore.settings.llmProvider) {
             return provider.displayName
         }
         return "OpenAI"
@@ -156,7 +152,7 @@ struct SettingsView: View {
     }
 
     private var currentTTSProviderName: String {
-        switch selectedTTSProvider {
+        switch settingsStore.settings.ttsProvider {
         case "openai":
             return "OpenAI TTS"
         case "elevenlabs":
@@ -458,13 +454,9 @@ struct SettingsView: View {
     // MARK: - Helpers
 
     private func loadSettings() {
-        guard let userSettings = settings.first else {
-            createDefaultSettings()
-            return
-        }
+        let userSettings = settingsStore.settings
+
         selectedLanguage = userSettings.preferredLanguage
-        selectedLLMProvider = userSettings.llmProvider
-        selectedTTSProvider = userSettings.ttsProvider
         autoRefreshEnabled = userSettings.autoRefreshEnabled
         if let time = userSettings.autoRefreshTime {
             autoRefreshTime = time
@@ -472,7 +464,7 @@ struct SettingsView: View {
         globalShortcutEnabled = userSettings.globalShortcutEnabled
         currentShortcut = KeyboardShortcut(
             keyCode: userSettings.globalShortcutKeyCode,
-            modifiers: NSEvent.ModifierFlags(rawValue: userSettings.globalShortcutModifiers)
+            modifiers: NSEvent.ModifierFlags(rawValue: UInt(userSettings.globalShortcutModifiers))
         )
 
         // Load notification settings
@@ -499,9 +491,7 @@ struct SettingsView: View {
     }
 
     private func createDefaultSettings() {
-        let defaultSettings = UserSettings()
-        modelContext.insert(defaultSettings)
-        try? modelContext.save()
+        settingsStore.resetToDefaults()
     }
 
     private func handleSchedulingChange(enabled: Bool) {
@@ -530,16 +520,17 @@ struct SettingsView: View {
     }
 
     private func saveSettings() {
-        guard let userSettings = settings.first else { return }
-        userSettings.autoRefreshEnabled = autoRefreshEnabled
-        userSettings.autoRefreshTime = autoRefreshTime
-        userSettings.globalShortcutEnabled = globalShortcutEnabled
-        userSettings.globalShortcutKeyCode = currentShortcut.keyCode
-        userSettings.globalShortcutModifiers = currentShortcut.modifiers.rawValue
-        userSettings.notificationsEnabled = notificationsEnabled
-        userSettings.morningReminderEnabled = morningReminderEnabled
-        userSettings.morningReminderTime = morningReminderTime
-        try? modelContext.save()
+        settingsStore.update { s in
+            s.preferredLanguage = selectedLanguage
+            s.autoRefreshEnabled = autoRefreshEnabled
+            s.autoRefreshTime = autoRefreshTime
+            s.globalShortcutEnabled = globalShortcutEnabled
+            s.globalShortcutKeyCode = currentShortcut.keyCode
+            s.globalShortcutModifiers = UInt64(currentShortcut.modifiers.rawValue)
+            s.notificationsEnabled = notificationsEnabled
+            s.morningReminderEnabled = morningReminderEnabled
+            s.morningReminderTime = morningReminderTime
+        }
     }
 
     private func handleNotificationsEnabledChange(enabled: Bool) {
@@ -597,9 +588,4 @@ struct ConnectedServicesCount: View {
                 .foregroundStyle(.secondary)
         }
     }
-}
-
-#Preview {
-    SettingsView()
-        .environmentObject(AppState())
 }

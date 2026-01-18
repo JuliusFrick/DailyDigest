@@ -1,0 +1,8 @@
+# Tooling / local artifacts
+.ralph-tui/
+tasks/.ralph-tui/
+tasks/
+
+# Logs
+firebase-debug.log
+tasks/firebase-debug.log

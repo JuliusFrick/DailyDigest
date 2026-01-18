@@ -1,12 +1,10 @@
 import SwiftUI
-import SwiftData
 import AppIntents
 
 @main
 struct DailyBriefingApp: App {
-    let container: ModelContainer
-
     @StateObject private var appState = AppState()
+    @StateObject private var settingsStore = UserSettingsStore.shared
 
     // Services (initialized as singletons, referenced here to ensure they're started)
     private let briefingService = BriefingGenerationService.shared
@@ -14,31 +12,11 @@ struct DailyBriefingApp: App {
     private let shortcutService = GlobalShortcutService.shared
     private let notificationService = NotificationService.shared
 
-    init() {
-        do {
-            let schema = Schema([
-                UserSettings.self,
-                SourceConfiguration.self,
-                CachedBriefing.self
-            ])
-            let modelConfiguration = ModelConfiguration(
-                schema: schema,
-                isStoredInMemoryOnly: false
-            )
-            container = try ModelContainer(
-                for: schema,
-                configurations: [modelConfiguration]
-            )
-        } catch {
-            fatalError("Could not initialize ModelContainer: \(error)")
-        }
-    }
-
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(appState)
-                .modelContainer(container)
+                .environmentObject(settingsStore)
                 .onAppear {
                     setupMenuBarIcon()
                     setupNotificationHandling()
@@ -63,13 +41,14 @@ struct DailyBriefingApp: App {
         Settings {
             SettingsView()
                 .environmentObject(appState)
-                .modelContainer(container)
+                .environmentObject(settingsStore)
         }
 
         // Register menu bar extra for quick access
         MenuBarExtra {
             MenuBarView()
                 .environmentObject(appState)
+                .environmentObject(settingsStore)
         } label: {
             Image(systemName: appState.isOnline ? "sun.horizon.fill" : "sun.horizon")
                 .symbolRenderingMode(.palette)

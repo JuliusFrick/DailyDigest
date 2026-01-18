@@ -311,11 +311,3 @@ struct ServiceNotConnectedView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-
-// MARK: - Preview
-
-#Preview {
-    NavigationStack {
-        ServiceIntegrationsView()
-    }
-}
