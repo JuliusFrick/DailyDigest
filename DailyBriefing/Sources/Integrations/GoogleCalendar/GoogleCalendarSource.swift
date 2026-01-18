@@ -287,7 +287,6 @@ struct EventDateTime: Codable {
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd"
             date = formatter.date(from: dateString)
-            dateTime = nil
         } else {
             date = nil
         }
@@ -296,12 +295,15 @@ struct EventDateTime: Codable {
         if let dateTimeString = try container.decodeIfPresent(String.self, forKey: .dateTime) {
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            dateTime = formatter.date(from: dateTimeString)
+            var parsedDateTime = formatter.date(from: dateTimeString)
 
-            if dateTime == nil {
+            if parsedDateTime == nil {
                 formatter.formatOptions = [.withInternetDateTime]
-                dateTime = formatter.date(from: dateTimeString)
+                parsedDateTime = formatter.date(from: dateTimeString)
             }
+            dateTime = parsedDateTime
+        } else {
+            dateTime = nil
         }
     }
 }
