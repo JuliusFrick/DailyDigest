@@ -20,6 +20,7 @@ final class BriefingGenerationService: ObservableObject {
 
     private let connectionManager = ServiceConnectionManager.shared
     private let keychain = KeychainService.shared
+    private let cacheService = BriefingCacheService.shared
 
     // MARK: - Initialization
 
@@ -66,6 +67,9 @@ final class BriefingGenerationService: ObservableObject {
                 sections: sections,
                 detailLevel: detailLevel
             )
+
+            // Step 5: Cache the briefing for offline access
+            try? cacheService.save(briefing: briefing)
 
             generationProgress = .completed
             return briefing
