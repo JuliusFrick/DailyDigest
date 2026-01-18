@@ -53,6 +53,7 @@ final class AppState: ObservableObject {
     private let briefingService = BriefingGenerationService.shared
     private let schedulingService = SchedulingService.shared
     private let shortcutService = GlobalShortcutService.shared
+    private let ttsService = TTSService.shared
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Initialization
@@ -62,6 +63,7 @@ final class AppState: ObservableObject {
         setupServiceBindings()
         setupSchedulingCallbacks()
         setupShortcutCallbacks()
+        setupTTSBindings()
     }
 
     private func checkOnboardingStatus() {
@@ -128,6 +130,13 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func setupTTSBindings() {
+        // Bind TTS playing state to app state
+        ttsService.$isPlaying
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isPlayingAudio)
+    }
+
     // MARK: - Briefing Actions
 
     /// Generate a new briefing
@@ -148,8 +157,34 @@ final class AppState: ObservableObject {
     }
 
     func toggleAudioPlayback() {
-        isPlayingAudio.toggle()
-        // TODO: Implement audio playback
+        if ttsService.isPlaying || ttsService.isPaused {
+            // If already playing or paused, toggle play/pause
+            ttsService.togglePlayPause()
+        } else if let briefing = currentBriefing {
+            // Start speaking the briefing
+            let textToSpeak = buildBriefingText(from: briefing)
+            ttsService.speak(text: textToSpeak)
+        }
+    }
+
+    func stopAudioPlayback() {
+        ttsService.stop()
+    }
+
+    private func buildBriefingText(from briefing: Briefing) -> String {
+        var text = briefing.summary
+
+        for section in briefing.sections {
+            text += "\n\n\(section.sourceName):\n"
+            for item in section.items {
+                text += "\(item.title). "
+                if let subtitle = item.subtitle {
+                    text += "\(subtitle). "
+                }
+            }
+        }
+
+        return text
     }
 
     // MARK: - Scheduling Control
