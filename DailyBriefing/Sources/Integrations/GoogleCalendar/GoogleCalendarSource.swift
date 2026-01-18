@@ -99,18 +99,116 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
 
         // Convert to BriefingItems
         return allEvents.map { event in
-            BriefingItem(
+            // Extract meeting link (Google Meet, Zoom, etc.)
+            let meetingLink = extractMeetingLink(from: event)
+
+            // Format attendees list
+            let attendeesList = formatAttendees(event.attendees)
+
+            // Calculate duration
+            let duration = calculateDuration(event)
+
+            // Build metadata
+            var metadata: [String: String] = [
+                "location": event.location ?? "",
+                "organizer": event.organizer?.displayName ?? event.organizer?.email ?? ""
+            ]
+
+            if !attendeesList.isEmpty {
+                metadata["attendees"] = attendeesList
+            }
+
+            if let link = meetingLink {
+                metadata["meetingLink"] = link
+            }
+
+            if let dur = duration {
+                metadata["duration"] = dur
+            }
+
+            return BriefingItem(
                 title: event.summary ?? "Unbenannter Termin",
                 subtitle: formatEventTime(event),
                 body: event.description,
                 timestamp: event.start.dateTime ?? event.start.date,
-                deepLink: event.htmlLink.flatMap { URL(string: $0) },
+                deepLink: meetingLink.flatMap { URL(string: $0) } ?? event.htmlLink.flatMap { URL(string: $0) },
                 priority: determinePriority(for: event),
-                metadata: [
-                    "location": event.location ?? "",
-                    "organizer": event.organizer?.displayName ?? event.organizer?.email ?? ""
-                ]
+                metadata: metadata
             )
+        }
+    }
+
+    /// Extract video conference link from event
+    private func extractMeetingLink(from event: GoogleCalendarEvent) -> String? {
+        // Check conferenceData first (Google Meet)
+        if let conferenceData = event.conferenceData,
+           let entryPoints = conferenceData.entryPoints {
+            // Prefer video entry point
+            if let videoEntry = entryPoints.first(where: { $0.entryPointType == "video" }) {
+                return videoEntry.uri
+            }
+        }
+
+        // Fallback to hangoutLink
+        if let hangoutLink = event.hangoutLink {
+            return hangoutLink
+        }
+
+        // Check description for Zoom/Teams links
+        if let description = event.description {
+            // Zoom
+            if let zoomRange = description.range(of: "https://[^\\s]*zoom\\.us/j/[^\\s]+", options: .regularExpression) {
+                return String(description[zoomRange])
+            }
+            // Microsoft Teams
+            if let teamsRange = description.range(of: "https://teams\\.microsoft\\.com/l/meetup-join/[^\\s]+", options: .regularExpression) {
+                return String(description[teamsRange])
+            }
+        }
+
+        return nil
+    }
+
+    /// Format attendees into a readable string
+    private func formatAttendees(_ attendees: [EventAttendee]?) -> String {
+        guard let attendees = attendees, !attendees.isEmpty else { return "" }
+
+        let names = attendees.prefix(5).compactMap { attendee -> String? in
+            if let name = attendee.displayName, !name.isEmpty {
+                return name
+            }
+            return attendee.email?.components(separatedBy: "@").first
+        }
+
+        var result = names.joined(separator: ", ")
+        if attendees.count > 5 {
+            result += " +\(attendees.count - 5) weitere"
+        }
+
+        return result
+    }
+
+    /// Calculate meeting duration
+    private func calculateDuration(_ event: GoogleCalendarEvent) -> String? {
+        guard let startTime = event.start.dateTime,
+              let endTime = event.end.dateTime else {
+            // All-day event
+            return nil
+        }
+
+        let duration = endTime.timeIntervalSince(startTime)
+        let minutes = Int(duration / 60)
+
+        if minutes < 60 {
+            return "\(minutes) Min"
+        } else {
+            let hours = minutes / 60
+            let remainingMinutes = minutes % 60
+            if remainingMinutes == 0 {
+                return "\(hours) Std"
+            } else {
+                return "\(hours) Std \(remainingMinutes) Min"
+            }
         }
     }
 
@@ -256,6 +354,24 @@ struct GoogleCalendarEvent: Codable, Identifiable {
     let htmlLink: String?
     let organizer: EventOrganizer?
     let attendees: [EventAttendee]?
+    let conferenceData: ConferenceData?
+    let hangoutLink: String?
+}
+
+struct ConferenceData: Codable {
+    let entryPoints: [EntryPoint]?
+    let conferenceSolution: ConferenceSolution?
+}
+
+struct EntryPoint: Codable {
+    let entryPointType: String?
+    let uri: String?
+    let label: String?
+}
+
+struct ConferenceSolution: Codable {
+    let name: String?
+    let iconUri: String?
 }
 
 struct EventDateTime: Codable {

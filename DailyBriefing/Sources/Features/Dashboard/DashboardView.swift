@@ -7,6 +7,7 @@ struct TUIDashboardView: View {
     @StateObject private var connectionManager = ServiceConnectionManager.shared
     @State private var selectedDetailLevel: Briefing.DetailLevel = .quick
     @State private var selectedSection: Int = 0
+    @State private var showChat: Bool = false
 
     var body: some View {
         mainContent
@@ -16,8 +17,14 @@ struct TUIDashboardView: View {
                 selectedDetailLevel: $selectedDetailLevel,
                 selectedSection: $selectedSection
             ))
+            .onKeyPress("c", modifiers: .command) {
+                withAnimation(.tuiSnappy) {
+                    showChat.toggle()
+                }
+                return .handled
+            }
     }
-    
+
     private var mainContent: some View {
         HStack(spacing: 1) {
             // Left panel - Controls & Summary
@@ -29,10 +36,30 @@ struct TUIDashboardView: View {
                 .fill(Color.tuiBorder)
                 .frame(width: 1)
 
-            // Right panel - Sections
+            // Center panel - Sections
             rightPanel
                 .frame(maxWidth: .infinity)
+
+            // Chat panel (conditional)
+            if showChat {
+                Rectangle()
+                    .fill(Color.tuiBorder)
+                    .frame(width: 1)
+
+                chatPanel
+                    .frame(width: 320)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .trailing).combined(with: .opacity)
+                    ))
+            }
         }
+    }
+
+    // MARK: - Chat Panel
+
+    private var chatPanel: some View {
+        BriefingChatView()
     }
 
     // MARK: - Left Panel
@@ -130,6 +157,11 @@ struct TUIDashboardView: View {
             // Progress indicator
             if appState.isLoadingBriefing {
                 progressIndicator
+            }
+
+            // Chat toggle button
+            if appState.currentBriefing != nil {
+                ChatToggleButton(showChat: $showChat)
             }
         }
     }
@@ -329,52 +361,168 @@ struct TUISectionRow: View {
 struct TUIItemRow: View {
     let item: BriefingItem
     @State private var isHovered = false
+    @State private var isExpanded = false
 
     var body: some View {
-        Button {
-            if let url = item.deepLink {
-                NSWorkspace.shared.open(url)
-            }
-        } label: {
-            HStack(spacing: Spacing.sm) {
-                // Priority indicator
-                Text(priorityChar)
-                    .font(.tuiMonoTiny)
-                    .foregroundStyle(priorityColor)
-                    .frame(width: 12)
+        VStack(spacing: 0) {
+            // Main row (clickable)
+            Button {
+                if hasDetails {
+                    withAnimation(.tuiSnappy) {
+                        isExpanded.toggle()
+                    }
+                } else if let url = item.deepLink {
+                    NSWorkspace.shared.open(url)
+                }
+            } label: {
+                HStack(spacing: Spacing.sm) {
+                    // Priority indicator
+                    Text(priorityChar)
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(priorityColor)
+                        .frame(width: 12)
 
-                // Content
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title)
-                        .font(.tuiMonoSmall)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
+                    // Content
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: Spacing.xs) {
+                            Text(item.title)
+                                .font(.tuiMonoSmall)
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
 
-                    if let subtitle = item.subtitle {
-                        Text(subtitle)
+                            // Duration badge
+                            if let duration = item.metadata["duration"] {
+                                Text("[\(duration)]")
+                                    .font(.tuiMonoTiny)
+                                    .foregroundStyle(.quaternary)
+                            }
+                        }
+
+                        if let subtitle = item.subtitle {
+                            Text(subtitle)
+                                .font(.tuiMonoTiny)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Spacer()
+
+                    // Meeting link indicator
+                    if item.metadata["meetingLink"] != nil {
+                        Text("📹")
                             .font(.tuiMonoTiny)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
+                    }
+
+                    // Expand/Link indicator
+                    if hasDetails {
+                        Text(isExpanded ? "▼" : "▶")
+                            .font(.tuiMonoTiny)
+                            .foregroundStyle(.quaternary)
+                    } else if item.deepLink != nil {
+                        Text("→")
+                            .font(.tuiMonoTiny)
+                            .foregroundStyle(.quaternary)
+                            .opacity(isHovered ? 1 : 0)
                     }
                 }
+                .padding(.horizontal, Spacing.md)
+                .padding(.leading, Spacing.lg)
+                .padding(.vertical, Spacing.xs)
+                .background(isHovered ? Color.tuiHover : Color.clear)
+            }
+            .buttonStyle(.plain)
+            .onHover { isHovered = $0 }
+            .animation(.tuiFast, value: isHovered)
 
-                Spacer()
+            // Expanded details
+            if isExpanded {
+                expandedDetails
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity
+                    ))
+            }
+        }
+    }
 
-                if item.deepLink != nil {
-                    Text("→")
+    private var hasDetails: Bool {
+        item.body != nil ||
+        item.metadata["attendees"] != nil ||
+        item.metadata["location"]?.isEmpty == false
+    }
+
+    private var expandedDetails: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            // Attendees
+            if let attendees = item.metadata["attendees"], !attendees.isEmpty {
+                HStack(alignment: .top, spacing: Spacing.xs) {
+                    Text("👥")
                         .font(.tuiMonoTiny)
-                        .foregroundStyle(.quaternary)
-                        .opacity(isHovered ? 1 : 0)
+                    Text(attendees)
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
             }
-            .padding(.horizontal, Spacing.md)
-            .padding(.leading, Spacing.lg)
-            .padding(.vertical, Spacing.xs)
-            .background(isHovered ? Color.tuiHover : Color.clear)
+
+            // Location
+            if let location = item.metadata["location"], !location.isEmpty {
+                HStack(alignment: .top, spacing: Spacing.xs) {
+                    Text("📍")
+                        .font(.tuiMonoTiny)
+                    Text(location)
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            // Description/Body
+            if let body = item.body, !body.isEmpty {
+                Text(body)
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(4)
+                    .padding(.top, Spacing.xs)
+            }
+
+            // Meeting link button
+            if let meetingLink = item.metadata["meetingLink"],
+               let url = URL(string: meetingLink) {
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    HStack(spacing: Spacing.xs) {
+                        Text("📹")
+                        Text("Meeting beitreten")
+                            .font(.tuiMonoTiny)
+                    }
+                }
+                .buttonStyle(.tui)
+                .padding(.top, Spacing.xs)
+            }
+
+            // Deep link to calendar
+            if let deepLink = item.deepLink,
+               item.metadata["meetingLink"] != nil {
+                Button {
+                    NSWorkspace.shared.open(deepLink)
+                } label: {
+                    HStack(spacing: Spacing.xs) {
+                        Text("📅")
+                        Text("Im Kalender öffnen")
+                            .font(.tuiMonoTiny)
+                    }
+                }
+                .buttonStyle(.tui)
+            }
         }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .animation(.tuiFast, value: isHovered)
+        .padding(.horizontal, Spacing.md)
+        .padding(.leading, Spacing.lg + 12 + Spacing.sm)
+        .padding(.vertical, Spacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tuiHover.opacity(0.5))
     }
 
     private var priorityChar: String {
@@ -520,6 +668,50 @@ struct DetailLevelButton: View {
                 }
                 .buttonStyle(.tui)
             }
+        }
+    }
+}
+
+// MARK: - Chat Toggle Button
+
+struct ChatToggleButton: View {
+    @Binding var showChat: Bool
+
+    var body: some View {
+        Group {
+            if showChat {
+                Button {
+                    withAnimation(.tuiSnappy) {
+                        showChat.toggle()
+                    }
+                } label: {
+                    buttonLabel
+                }
+                .buttonStyle(.tuiPrimary)
+            } else {
+                Button {
+                    withAnimation(.tuiSnappy) {
+                        showChat.toggle()
+                    }
+                } label: {
+                    buttonLabel
+                }
+                .buttonStyle(.tui)
+            }
+        }
+    }
+
+    private var buttonLabel: some View {
+        HStack {
+            Text(showChat ? ">" : "<")
+                .font(.tuiMonoSmall)
+
+            Text("chat")
+                .font(.tuiMonoSmall)
+
+            Spacer()
+
+            KeyBadge(key: "\u{2318}C")
         }
     }
 }
