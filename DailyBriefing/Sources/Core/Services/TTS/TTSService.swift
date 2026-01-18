@@ -11,6 +11,7 @@ final class TTSService: ObservableObject {
     @Published private(set) var currentRate: Float = 1.0
     @Published private(set) var selectedVoice: TTSVoice?
     @Published private(set) var availableVoices: [TTSVoice] = []
+    @Published private(set) var currentProvider: String = "apple"
 
     private var provider: TTSProvider
 
@@ -18,6 +19,36 @@ final class TTSService: ObservableObject {
         provider = AppleTTSService()
         setupProvider()
         loadAvailableVoices()
+    }
+
+    /// Switch to a different TTS provider
+    /// - Parameter providerName: The provider identifier ("apple" or "openai")
+    func switchProvider(to providerName: String) {
+        // Stop any current playback
+        stop()
+
+        // Create new provider
+        let newProvider: TTSProvider
+        switch providerName {
+        case "openai":
+            if let openAIService = OpenAITTSService.fromKeychain() {
+                newProvider = openAIService
+            } else {
+                // Fall back to Apple if no API key
+                newProvider = AppleTTSService()
+            }
+        default:
+            newProvider = AppleTTSService()
+        }
+
+        // Update provider
+        provider = newProvider
+        currentProvider = providerName
+        setupProvider()
+        loadAvailableVoices()
+
+        // Restore rate
+        provider.setRate(currentRate)
     }
 
     private func setupProvider() {

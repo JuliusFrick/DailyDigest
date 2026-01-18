@@ -137,29 +137,32 @@ struct SettingsView: View {
 
     private var audioSection: some View {
         Section {
-            Picker("TTS-Engine", selection: $selectedTTSProvider) {
-                Text("Apple Neural TTS").tag("apple")
-                Text("OpenAI TTS").tag("openai")
-                Text("ElevenLabs").tag("elevenlabs")
-            }
-
-            if selectedTTSProvider == "apple" {
-                Picker("Stimme", selection: .constant("anna")) {
-                    Text("Anna (Deutsch)").tag("anna")
-                    Text("Markus (Deutsch)").tag("markus")
-                    Text("Samantha (English)").tag("samantha")
+            NavigationLink {
+                TTSSettingsView()
+                    .navigationTitle("Sprachausgabe")
+            } label: {
+                HStack {
+                    Label("Sprachausgabe", systemImage: "waveform.circle")
+                    Spacer()
+                    Text(currentTTSProviderName)
+                        .foregroundStyle(.secondary)
                 }
-            }
-
-            HStack {
-                Text("Geschwindigkeit")
-                Slider(value: .constant(1.0), in: 0.5...2.0, step: 0.1)
-                Text("1.0x")
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
             }
         } header: {
             Text("Audio-Briefing")
+        } footer: {
+            Text("Konfiguriere die Text-to-Speech Engine, Stimme und Wiedergabegeschwindigkeit.")
+        }
+    }
+
+    private var currentTTSProviderName: String {
+        switch selectedTTSProvider {
+        case "openai":
+            return "OpenAI TTS"
+        case "elevenlabs":
+            return "ElevenLabs"
+        default:
+            return "Apple Native"
         }
     }
 
