@@ -240,9 +240,7 @@ struct SummaryCard: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
 
-            Text(summary)
-                .font(.body)
-                .lineSpacing(4)
+            MarkdownText(summary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -250,6 +248,237 @@ struct SummaryCard: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.ultraThinMaterial)
         }
+    }
+}
+
+// MARK: - Markdown Text View
+
+struct MarkdownText: View {
+    let text: String
+    @Environment(\.colorScheme) private var colorScheme
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(parseBlocks().enumerated()), id: \.offset) { _, block in
+                renderBlock(block)
+            }
+        }
+    }
+
+    private enum MarkdownBlock {
+        case heading(level: Int, text: String)
+        case paragraph(text: String)
+        case listItem(text: String)
+        case codeBlock(code: String)
+    }
+
+    private func parseBlocks() -> [MarkdownBlock] {
+        var blocks: [MarkdownBlock] = []
+        let lines = text.components(separatedBy: "\n")
+        var currentParagraph: [String] = []
+        var inCodeBlock = false
+        var codeBlockLines: [String] = []
+
+        for line in lines {
+            // Handle code blocks
+            if line.hasPrefix("```") {
+                if inCodeBlock {
+                    blocks.append(.codeBlock(code: codeBlockLines.joined(separator: "\n")))
+                    codeBlockLines = []
+                    inCodeBlock = false
+                } else {
+                    if !currentParagraph.isEmpty {
+                        blocks.append(.paragraph(text: currentParagraph.joined(separator: " ")))
+                        currentParagraph = []
+                    }
+                    inCodeBlock = true
+                }
+                continue
+            }
+
+            if inCodeBlock {
+                codeBlockLines.append(line)
+                continue
+            }
+
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            // Empty line ends current paragraph
+            if trimmed.isEmpty {
+                if !currentParagraph.isEmpty {
+                    blocks.append(.paragraph(text: currentParagraph.joined(separator: " ")))
+                    currentParagraph = []
+                }
+                continue
+            }
+
+            // Headings
+            if let headingResult = parseHeading(trimmed) {
+                if !currentParagraph.isEmpty {
+                    blocks.append(.paragraph(text: currentParagraph.joined(separator: " ")))
+                    currentParagraph = []
+                }
+                blocks.append(.heading(level: headingResult.level, text: headingResult.text))
+                continue
+            }
+
+            // List items (-, *, +)
+            if let listText = parseListItem(trimmed) {
+                if !currentParagraph.isEmpty {
+                    blocks.append(.paragraph(text: currentParagraph.joined(separator: " ")))
+                    currentParagraph = []
+                }
+                blocks.append(.listItem(text: listText))
+                continue
+            }
+
+            // Numbered list items
+            if let numberedText = parseNumberedListItem(trimmed) {
+                if !currentParagraph.isEmpty {
+                    blocks.append(.paragraph(text: currentParagraph.joined(separator: " ")))
+                    currentParagraph = []
+                }
+                blocks.append(.listItem(text: numberedText))
+                continue
+            }
+
+            // Regular text - add to paragraph
+            currentParagraph.append(trimmed)
+        }
+
+        // Handle remaining content
+        if inCodeBlock && !codeBlockLines.isEmpty {
+            blocks.append(.codeBlock(code: codeBlockLines.joined(separator: "\n")))
+        } else if !currentParagraph.isEmpty {
+            blocks.append(.paragraph(text: currentParagraph.joined(separator: " ")))
+        }
+
+        return blocks
+    }
+
+    @ViewBuilder
+    private func renderBlock(_ block: MarkdownBlock) -> some View {
+        switch block {
+        case .heading(let level, let text):
+            Text(parseInlineMarkdown(text))
+                .font(headingFont(level: level))
+                .fontWeight(.semibold)
+                .padding(.top, level == 1 ? 8 : 4)
+
+        case .paragraph(let text):
+            Text(parseInlineMarkdown(text))
+                .font(.body)
+                .lineSpacing(4)
+
+        case .listItem(let text):
+            HStack(alignment: .top, spacing: 8) {
+                Text("•")
+                    .foregroundStyle(.secondary)
+                Text(parseInlineMarkdown(text))
+                    .font(.body)
+                    .lineSpacing(4)
+            }
+
+        case .codeBlock(let code):
+            Text(code)
+                .font(.system(.body, design: .monospaced))
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(codeBlockBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private func headingFont(level: Int) -> Font {
+        switch level {
+        case 1: return .title2
+        case 2: return .title3
+        case 3: return .headline
+        default: return .subheadline
+        }
+    }
+
+    private var codeBlockBackground: Color {
+        colorScheme == .dark
+            ? Color(white: 0.15)
+            : Color(white: 0.95)
+    }
+
+    private func parseInlineMarkdown(_ text: String) -> AttributedString {
+        // Try to use native Markdown parsing first
+        if let attributed = try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+            var result = attributed
+            // Make links open in browser and style them
+            for run in result.runs {
+                if run.link != nil {
+                    let range = run.range
+                    result[range].foregroundColor = .accentColor
+                    result[range].underlineStyle = .single
+                }
+            }
+            return result
+        }
+
+        // Fallback to plain text
+        return AttributedString(text)
+    }
+
+    // MARK: - Parsing Helpers
+
+    private func parseHeading(_ text: String) -> (level: Int, text: String)? {
+        var hashCount = 0
+        for char in text {
+            if char == "#" {
+                hashCount += 1
+            } else {
+                break
+            }
+        }
+
+        guard hashCount >= 1 && hashCount <= 6 else { return nil }
+        let remainder = text.dropFirst(hashCount)
+        guard remainder.first?.isWhitespace == true else { return nil }
+        let headingText = remainder.trimmingCharacters(in: .whitespaces)
+        guard !headingText.isEmpty else { return nil }
+
+        return (level: hashCount, text: headingText)
+    }
+
+    private func parseListItem(_ text: String) -> String? {
+        guard let firstChar = text.first else { return nil }
+        guard firstChar == "-" || firstChar == "*" || firstChar == "+" else { return nil }
+
+        let remainder = text.dropFirst()
+        guard remainder.first?.isWhitespace == true else { return nil }
+        let itemText = remainder.trimmingCharacters(in: .whitespaces)
+        guard !itemText.isEmpty else { return nil }
+
+        return itemText
+    }
+
+    private func parseNumberedListItem(_ text: String) -> String? {
+        var digitCount = 0
+        for char in text {
+            if char.isNumber {
+                digitCount += 1
+            } else {
+                break
+            }
+        }
+
+        guard digitCount > 0 else { return nil }
+        let afterDigits = text.dropFirst(digitCount)
+        guard afterDigits.first == "." else { return nil }
+        let afterDot = afterDigits.dropFirst()
+        guard afterDot.first?.isWhitespace == true else { return nil }
+        let itemText = afterDot.trimmingCharacters(in: .whitespaces)
+        guard !itemText.isEmpty else { return nil }
+
+        return itemText
     }
 }
 
