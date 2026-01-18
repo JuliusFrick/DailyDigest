@@ -14,7 +14,13 @@ struct SettingsView: View {
     @State private var globalShortcutEnabled = false
     @State private var currentShortcut: KeyboardShortcut = .default
 
+    // Notification settings state
+    @State private var notificationsEnabled = true
+    @State private var morningReminderEnabled = false
+    @State private var morningReminderTime = Calendar.current.date(from: DateComponents(hour: 8, minute: 0)) ?? Date()
+
     @StateObject private var schedulingService = SchedulingService.shared
+    @StateObject private var notificationService = NotificationService.shared
     @StateObject private var shortcutService = GlobalShortcutService.shared
     @StateObject private var launchAtLoginService = LaunchAtLoginService.shared
 
@@ -25,6 +31,7 @@ struct SettingsView: View {
             llmNavigationSection
             audioSection
             scheduleSection
+            notificationSection
             shortcutSection
             siriSection
             generalSection
@@ -43,6 +50,18 @@ struct SettingsView: View {
         }
         .onChange(of: globalShortcutEnabled) { _, newValue in
             handleShortcutChange(enabled: newValue)
+        }
+        .onChange(of: notificationsEnabled) { _, newValue in
+            handleNotificationsEnabledChange(enabled: newValue)
+        }
+        .onChange(of: morningReminderEnabled) { _, newValue in
+            handleMorningReminderChange(enabled: newValue)
+        }
+        .onChange(of: morningReminderTime) { _, newValue in
+            if morningReminderEnabled {
+                notificationService.scheduleMorningReminder(at: newValue)
+            }
+            saveSettings()
         }
     }
 
@@ -170,6 +189,131 @@ struct SettingsView: View {
             Text("Zeitplan")
         } footer: {
             Text("Das Briefing wird automatisch zur eingestellten Zeit generiert und eine Benachrichtigung erscheint.")
+        }
+    }
+
+    // MARK: - Notification Section
+
+    private var notificationSection: some View {
+        Section {
+            // Permission status display
+            HStack {
+                Image(systemName: notificationPermissionIcon)
+                    .foregroundStyle(notificationPermissionColor)
+                Text("Berechtigung")
+                Spacer()
+                Text(notificationPermissionStatusText)
+                    .foregroundStyle(.secondary)
+            }
+
+            // Request permission button (shown when denied or not determined)
+            if notificationService.authorizationStatus == .denied {
+                Button {
+                    openSystemNotificationSettings()
+                } label: {
+                    Label("Berechtigung in Systemeinstellungen erteilen", systemImage: "gear")
+                        .foregroundStyle(.orange)
+                }
+            } else if notificationService.authorizationStatus == .notDetermined {
+                Button {
+                    Task {
+                        await notificationService.requestPermission()
+                    }
+                } label: {
+                    Label("Berechtigung anfragen", systemImage: "bell.badge")
+                }
+            }
+
+            // Enable/disable notifications toggle
+            Toggle("Benachrichtigungen aktivieren", isOn: $notificationsEnabled)
+                .disabled(!notificationService.isAuthorized)
+
+            // Morning reminder toggle
+            if notificationsEnabled && notificationService.isAuthorized {
+                Toggle("Morgen-Erinnerung", isOn: $morningReminderEnabled)
+
+                // Time picker for morning reminder
+                if morningReminderEnabled {
+                    DatePicker(
+                        "Erinnerungszeit",
+                        selection: $morningReminderTime,
+                        displayedComponents: .hourAndMinute
+                    )
+                }
+            }
+        } header: {
+            Text("Benachrichtigungen")
+        } footer: {
+            if notificationService.authorizationStatus == .denied {
+                Text("Benachrichtigungen wurden verweigert. Bitte erteile die Berechtigung in den Systemeinstellungen.")
+            } else if !notificationsEnabled {
+                Text("Aktiviere Benachrichtigungen um über neue Briefings informiert zu werden.")
+            } else if morningReminderEnabled {
+                Text("Du erhältst täglich um \(formattedReminderTime) eine Erinnerung für dein Briefing.")
+            } else {
+                Text("Aktiviere die Morgen-Erinnerung um täglich an dein Briefing erinnert zu werden.")
+            }
+        }
+    }
+
+    // MARK: - Notification Helpers
+
+    private var notificationPermissionIcon: String {
+        switch notificationService.authorizationStatus {
+        case .authorized:
+            return "checkmark.circle.fill"
+        case .denied:
+            return "xmark.circle.fill"
+        case .provisional:
+            return "checkmark.circle"
+        case .notDetermined:
+            return "questionmark.circle"
+        case .ephemeral:
+            return "clock.circle"
+        @unknown default:
+            return "questionmark.circle"
+        }
+    }
+
+    private var notificationPermissionColor: Color {
+        switch notificationService.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return .green
+        case .denied:
+            return .red
+        case .notDetermined:
+            return .orange
+        @unknown default:
+            return .secondary
+        }
+    }
+
+    private var notificationPermissionStatusText: String {
+        switch notificationService.authorizationStatus {
+        case .authorized:
+            return "Erteilt"
+        case .denied:
+            return "Verweigert"
+        case .provisional:
+            return "Vorläufig"
+        case .notDetermined:
+            return "Nicht angefragt"
+        case .ephemeral:
+            return "Temporär"
+        @unknown default:
+            return "Unbekannt"
+        }
+    }
+
+    private var formattedReminderTime: String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: morningReminderTime)
+    }
+
+    private func openSystemNotificationSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+            NSWorkspace.shared.open(url)
         }
     }
 
@@ -310,6 +454,13 @@ struct SettingsView: View {
             modifiers: NSEvent.ModifierFlags(rawValue: userSettings.globalShortcutModifiers)
         )
 
+        // Load notification settings
+        notificationsEnabled = userSettings.notificationsEnabled
+        morningReminderEnabled = userSettings.morningReminderEnabled
+        if let reminderTime = userSettings.morningReminderTime {
+            morningReminderTime = reminderTime
+        }
+
         // Sync with services
         if autoRefreshEnabled {
             schedulingService.updateScheduledTime(autoRefreshTime)
@@ -318,6 +469,11 @@ struct SettingsView: View {
         if globalShortcutEnabled {
             shortcutService.updateShortcut(currentShortcut)
             shortcutService.enable()
+        }
+
+        // Sync notification service
+        if morningReminderEnabled && notificationsEnabled {
+            notificationService.scheduleMorningReminder(at: morningReminderTime)
         }
     }
 
@@ -359,7 +515,28 @@ struct SettingsView: View {
         userSettings.globalShortcutEnabled = globalShortcutEnabled
         userSettings.globalShortcutKeyCode = currentShortcut.keyCode
         userSettings.globalShortcutModifiers = currentShortcut.modifiers.rawValue
+        userSettings.notificationsEnabled = notificationsEnabled
+        userSettings.morningReminderEnabled = morningReminderEnabled
+        userSettings.morningReminderTime = morningReminderTime
         try? modelContext.save()
+    }
+
+    private func handleNotificationsEnabledChange(enabled: Bool) {
+        if !enabled {
+            // Disable morning reminder when notifications are disabled
+            morningReminderEnabled = false
+            notificationService.cancelMorningReminder()
+        }
+        saveSettings()
+    }
+
+    private func handleMorningReminderChange(enabled: Bool) {
+        if enabled {
+            notificationService.scheduleMorningReminder(at: morningReminderTime)
+        } else {
+            notificationService.cancelMorningReminder()
+        }
+        saveSettings()
     }
 }
 

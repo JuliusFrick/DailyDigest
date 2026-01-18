@@ -30,6 +30,11 @@ final class UserSettings {
     var globalShortcutKeyCode: UInt16
     var globalShortcutModifiers: UInt
 
+    // Notification preferences
+    var notificationsEnabled: Bool
+    var morningReminderEnabled: Bool
+    var morningReminderTime: Date?
+
     init(
         id: UUID = UUID(),
         defaultDetailLevel: String = "quick",
@@ -45,7 +50,10 @@ final class UserSettings {
         theme: String = "system",
         globalShortcutEnabled: Bool = false,
         globalShortcutKeyCode: UInt16 = 0x02,  // D key
-        globalShortcutModifiers: UInt = 0x180100  // Cmd + Shift
+        globalShortcutModifiers: UInt = 0x180100,  // Cmd + Shift
+        notificationsEnabled: Bool = true,
+        morningReminderEnabled: Bool = false,
+        morningReminderTime: Date? = nil
     ) {
         self.id = id
         self.defaultDetailLevel = defaultDetailLevel
@@ -62,6 +70,9 @@ final class UserSettings {
         self.globalShortcutEnabled = globalShortcutEnabled
         self.globalShortcutKeyCode = globalShortcutKeyCode
         self.globalShortcutModifiers = globalShortcutModifiers
+        self.notificationsEnabled = notificationsEnabled
+        self.morningReminderEnabled = morningReminderEnabled
+        self.morningReminderTime = morningReminderTime
     }
 }
 
