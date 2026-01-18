@@ -11,6 +11,7 @@ struct SlackConfigView: View {
             if source.isAuthenticated {
                 workspaceSection
                 channelSelectionSection
+                contentTypesSection
                 filterSection
             }
         }
@@ -207,6 +208,21 @@ struct SlackConfigView: View {
             } else {
                 Text("Wähle die Channels aus, die in deinem Briefing erscheinen sollen.")
             }
+        }
+    }
+
+    // MARK: - Content Types Section
+
+    private var contentTypesSection: some View {
+        Section {
+            Toggle("Ungelesene DMs einbeziehen", isOn: $source.includeUnreadDMs)
+            Toggle("Mentions (@user) einbeziehen", isOn: $source.includeUserMentions)
+            Toggle("Reactions auf eigene Nachrichten", isOn: $source.includeReactionsOnOwnMessages)
+            Toggle("Slack Reminders einbeziehen", isOn: $source.includeSlackReminders)
+        } header: {
+            Text("Inhaltstypen")
+        } footer: {
+            Text("Wähle aus, welche Arten von Slack-Inhalten in deinem Briefing erfasst werden sollen.")
         }
     }
 

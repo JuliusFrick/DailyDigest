@@ -58,7 +58,43 @@ final class SlackSource: BriefingSource, ObservableObject {
         }
     }
 
+    // MARK: - Content Type Settings (persisted in UserDefaults)
+
+    /// Include unread direct messages in briefing
+    @Published var includeUnreadDMs: Bool {
+        didSet {
+            UserDefaults.standard.set(includeUnreadDMs, forKey: Self.includeUnreadDMsKey)
+        }
+    }
+
+    /// Include @user mentions in briefing
+    @Published var includeUserMentions: Bool {
+        didSet {
+            UserDefaults.standard.set(includeUserMentions, forKey: Self.includeUserMentionsKey)
+        }
+    }
+
+    /// Include reactions on own messages in briefing
+    @Published var includeReactionsOnOwnMessages: Bool {
+        didSet {
+            UserDefaults.standard.set(includeReactionsOnOwnMessages, forKey: Self.includeReactionsKey)
+        }
+    }
+
+    /// Include Slack reminders in briefing
+    @Published var includeSlackReminders: Bool {
+        didSet {
+            UserDefaults.standard.set(includeSlackReminders, forKey: Self.includeRemindersKey)
+        }
+    }
+
+    // MARK: - UserDefaults Keys
+
     private static let selectedChannelsKey = "slack_selected_channel_ids"
+    private static let includeUnreadDMsKey = "slack_include_unread_dms"
+    private static let includeUserMentionsKey = "slack_include_user_mentions"
+    private static let includeReactionsKey = "slack_include_reactions_on_own"
+    private static let includeRemindersKey = "slack_include_reminders"
 
     // MARK: - Initialization
 
@@ -69,6 +105,13 @@ final class SlackSource: BriefingSource, ObservableObject {
         } else {
             selectedChannelIds = []
         }
+
+        // Load content type settings from UserDefaults (default to true for all)
+        let defaults = UserDefaults.standard
+        includeUnreadDMs = defaults.object(forKey: Self.includeUnreadDMsKey) as? Bool ?? true
+        includeUserMentions = defaults.object(forKey: Self.includeUserMentionsKey) as? Bool ?? true
+        includeReactionsOnOwnMessages = defaults.object(forKey: Self.includeReactionsKey) as? Bool ?? true
+        includeSlackReminders = defaults.object(forKey: Self.includeRemindersKey) as? Bool ?? true
 
         isAuthenticated = oauthService.isAuthenticated
         connectionStatus = isAuthenticated ? .connected : .disconnected
@@ -151,6 +194,9 @@ final class SlackSource: BriefingSource, ObservableObject {
         let tokens = try await oauthService.getValidTokens()
         var items: [BriefingItem] = []
 
+        // Fetch current user ID for filtering mentions and reactions
+        let currentUserId = try? await fetchCurrentUserId(accessToken: tokens.accessToken)
+
         // Fetch conversations (channels and DMs)
         let conversations = try await fetchConversations(accessToken: tokens.accessToken)
 
@@ -158,8 +204,8 @@ final class SlackSource: BriefingSource, ObservableObject {
         for conversation in conversations {
             let shouldFetch: Bool
             if conversation.isIm {
-                // DMs: check includeDMs setting
-                shouldFetch = includeDMs
+                // DMs: check includeDMs AND includeUnreadDMs settings
+                shouldFetch = includeDMs && includeUnreadDMs
             } else {
                 // Channels: check includeChannels AND if channel is selected
                 // If no channels are selected, include all channels (default behavior)
@@ -171,10 +217,19 @@ final class SlackSource: BriefingSource, ObservableObject {
                 let messages = try await fetchMessages(
                     conversationId: conversation.id,
                     since: since,
-                    accessToken: tokens.accessToken
+                    accessToken: tokens.accessToken,
+                    currentUserId: currentUserId,
+                    filterMentions: includeUserMentions,
+                    filterReactions: includeReactionsOnOwnMessages
                 )
                 items.append(contentsOf: messages)
             }
+        }
+
+        // Fetch Slack reminders if enabled
+        if includeSlackReminders {
+            let reminders = try await fetchReminders(since: since, accessToken: tokens.accessToken)
+            items.append(contentsOf: reminders)
         }
 
         // Sort by timestamp (most recent first)
@@ -296,7 +351,14 @@ final class SlackSource: BriefingSource, ObservableObject {
         return conversationsResponse.channels ?? []
     }
 
-    private func fetchMessages(conversationId: String, since: Date, accessToken: String) async throws -> [BriefingItem] {
+    private func fetchMessages(
+        conversationId: String,
+        since: Date,
+        accessToken: String,
+        currentUserId: String?,
+        filterMentions: Bool,
+        filterReactions: Bool
+    ) async throws -> [BriefingItem] {
         var components = URLComponents(string: "\(baseURL)/conversations.history")!
         components.queryItems = [
             URLQueryItem(name: "channel", value: conversationId),
@@ -323,6 +385,30 @@ final class SlackSource: BriefingSource, ObservableObject {
         return (historyResponse.messages ?? []).compactMap { message in
             guard let text = message.text, !text.isEmpty else { return nil }
 
+            // Filter by mentions if enabled: check if message contains @user mention
+            if filterMentions, let userId = currentUserId {
+                let containsMention = text.contains("<@\(userId)>")
+                // If filterMentions is enabled but message doesn't mention user, skip it
+                // unless it has reactions on user's own message
+                if !containsMention && !filterReactions {
+                    return nil
+                }
+            }
+
+            // Filter by reactions on own messages
+            if filterReactions, let userId = currentUserId {
+                let isOwnMessage = message.user == userId
+                let hasReactions = message.reactions?.isEmpty == false
+                // Include if it's own message with reactions
+                if isOwnMessage && hasReactions {
+                    // Include this message
+                } else if filterMentions {
+                    // Already handled by mentions filter above
+                } else if !filterMentions && filterReactions && !isOwnMessage {
+                    return nil
+                }
+            }
+
             let timestamp = message.ts.flatMap { Double($0) }.map { Date(timeIntervalSince1970: $0) }
 
             return BriefingItem(
@@ -336,6 +422,67 @@ final class SlackSource: BriefingSource, ObservableObject {
                     "conversationId": conversationId,
                     "userId": message.user ?? "",
                     "ts": message.ts ?? ""
+                ]
+            )
+        }
+    }
+
+    /// Fetch current user ID from Slack API
+    private func fetchCurrentUserId(accessToken: String) async throws -> String {
+        var request = URLRequest(url: URL(string: "\(baseURL)/auth.test")!)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw SourceError.networkError("Benutzer-ID konnte nicht abgerufen werden")
+        }
+
+        let authResponse = try JSONDecoder().decode(SlackAuthTestResponse.self, from: data)
+
+        guard authResponse.ok, let userId = authResponse.userId else {
+            throw SourceError.networkError(authResponse.error ?? "Unbekannter Fehler")
+        }
+
+        return userId
+    }
+
+    /// Fetch Slack reminders
+    private func fetchReminders(since: Date, accessToken: String) async throws -> [BriefingItem] {
+        var request = URLRequest(url: URL(string: "\(baseURL)/reminders.list")!)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            return []
+        }
+
+        let remindersResponse = try JSONDecoder().decode(SlackRemindersResponse.self, from: data)
+
+        guard remindersResponse.ok else {
+            return []
+        }
+
+        return (remindersResponse.reminders ?? []).compactMap { reminder in
+            // Only include incomplete reminders that are due after 'since'
+            guard !reminder.complete else { return nil }
+
+            let dueDate = Date(timeIntervalSince1970: TimeInterval(reminder.time))
+            guard dueDate >= since else { return nil }
+
+            return BriefingItem(
+                title: "⏰ Erinnerung",
+                subtitle: "Slack Reminder",
+                body: reminder.text,
+                timestamp: dueDate,
+                deepLink: nil,
+                priority: .medium,
+                metadata: [
+                    "reminderId": reminder.id,
+                    "type": "reminder"
                 ]
             )
         }
@@ -442,11 +589,18 @@ struct SlackMessage: Codable {
     let text: String?
     let ts: String?
     let threadTs: String?
+    let reactions: [SlackReaction]?
 
     enum CodingKeys: String, CodingKey {
-        case type, user, text, ts
+        case type, user, text, ts, reactions
         case threadTs = "thread_ts"
     }
+}
+
+struct SlackReaction: Codable {
+    let name: String
+    let users: [String]
+    let count: Int
 }
 
 struct SlackWorkspace: Identifiable, Equatable {
@@ -469,6 +623,52 @@ struct SlackChannelsResponse: Codable {
     let ok: Bool
     let channels: [SlackConversation]?
     let error: String?
+}
+
+/// API response for auth.test
+struct SlackAuthTestResponse: Codable {
+    let ok: Bool
+    let userId: String?
+    let teamId: String?
+    let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case ok, error
+        case userId = "user_id"
+        case teamId = "team_id"
+    }
+}
+
+/// API response for reminders.list
+struct SlackRemindersResponse: Codable {
+    let ok: Bool
+    let reminders: [SlackReminder]?
+    let error: String?
+}
+
+/// Slack reminder model
+struct SlackReminder: Codable {
+    let id: String
+    let creator: String
+    let text: String
+    let time: Int
+    let complete: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, creator, text, time
+        case complete = "complete_ts"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        creator = try container.decode(String.self, forKey: .creator)
+        text = try container.decode(String.self, forKey: .text)
+        time = try container.decode(Int.self, forKey: .time)
+        // complete_ts is 0 if not complete, otherwise a timestamp
+        let completeTs = try container.decodeIfPresent(Int.self, forKey: .complete) ?? 0
+        complete = completeTs > 0
+    }
 }
 
 // MARK: - Configuration
