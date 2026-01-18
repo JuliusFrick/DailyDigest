@@ -9,6 +9,7 @@ final class AppState: ObservableObject {
 
     enum Tab: String, CaseIterable, Identifiable {
         case dashboard
+        case history
         case sources
         case settings
 
@@ -17,6 +18,7 @@ final class AppState: ObservableObject {
         var title: String {
             switch self {
             case .dashboard: return "Briefing"
+            case .history: return "Verlauf"
             case .sources: return "Quellen"
             case .settings: return "Einstellungen"
             }
@@ -25,6 +27,7 @@ final class AppState: ObservableObject {
         var icon: String {
             switch self {
             case .dashboard: return "sun.horizon.fill"
+            case .history: return "clock.arrow.circlepath"
             case .sources: return "square.stack.3d.up.fill"
             case .settings: return "gearshape.fill"
             }

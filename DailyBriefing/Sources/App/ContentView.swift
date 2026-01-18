@@ -51,6 +51,8 @@ struct DetailView: View {
         switch appState.selectedTab {
         case .dashboard:
             DashboardView()
+        case .history:
+            BriefingHistoryView()
         case .sources:
             SourcesView()
         case .settings:
