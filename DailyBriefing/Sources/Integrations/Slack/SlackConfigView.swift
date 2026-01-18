@@ -4,9 +4,12 @@ import SwiftUI
 struct SlackConfigView: View {
     @ObservedObject var source: SlackSource
     @State private var channelSearchText = ""
+    @AppStorage("slack_client_id") private var slackClientId: String = ""
+    @AppStorage("slack_client_secret") private var slackClientSecret: String = ""
 
     var body: some View {
         Form {
+            oauthCredentialsSection
             connectionSection
             if source.isAuthenticated {
                 workspaceSection
@@ -68,7 +71,7 @@ struct SlackConfigView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(source.isLoading)
+                    .disabled(source.isLoading || slackClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
 
@@ -85,6 +88,45 @@ struct SlackConfigView: View {
             Text("Verbindung")
         } footer: {
             Text("Verbinde deinen Slack-Workspace um Nachrichten und Mentions in deinem Briefing zu sehen.")
+        }
+    }
+
+    // MARK: - OAuth Credentials Section
+
+    private var oauthCredentialsSection: some View {
+        Section {
+            TextField("Client ID", text: $slackClientId)
+                .autocorrectionDisabled(true)
+                .font(Font.system(.body, design: .monospaced))
+
+            SecureField("Client Secret", text: $slackClientSecret)
+                .autocorrectionDisabled(true)
+                .font(Font.system(.body, design: .monospaced))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Redirect URL (in Slack App hinterlegen):")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("dailybriefing://oauth/slack")
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+            }
+
+            if source.isAuthenticated {
+                Text("Hinweis: Wenn du Client ID/Secret änderst, trenne Slack bitte einmal und verbinde anschließend neu.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Link("Slack Apps öffnen", destination: URL(string: "https://api.slack.com/apps")!)
+        } header: {
+            Text("OAuth")
+        } footer: {
+            if slackClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("Für den Login wird mindestens eine Slack Client ID benötigt.")
+            } else {
+                Text("Client-ID/Secret werden in UserDefaults gespeichert (für Development ok).")
+            }
         }
     }
 

@@ -16,21 +16,7 @@ final class GmailSource: BriefingSource, ObservableObject {
     @Published var connectionStatus: ConnectionStatus = .disconnected
 
     // MARK: - Private Properties
-
-    private lazy var oauthService: OAuthService = {
-        let config = OAuthService.Configuration(
-            clientId: GoogleConfig.clientId,
-            clientSecret: GoogleConfig.clientSecret,
-            authorizationURL: URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!,
-            tokenURL: URL(string: "https://oauth2.googleapis.com/token")!,
-            redirectURI: "dailybriefing://oauth/google",
-            scopes: [
-                "https://www.googleapis.com/auth/gmail.readonly",
-                "https://www.googleapis.com/auth/gmail.labels"
-            ]
-        )
-        return OAuthService(configuration: config, sourceId: Self.sourceId)
-    }()
+    private var oauthService: OAuthService
 
     private let keychain = KeychainService.shared
     private let baseURL = "https://gmail.googleapis.com/gmail/v1"
@@ -44,6 +30,7 @@ final class GmailSource: BriefingSource, ObservableObject {
     // MARK: - Initialization
 
     init() {
+        oauthService = Self.makeOAuthService()
         isAuthenticated = oauthService.isAuthenticated
         connectionStatus = isAuthenticated ? .connected : .disconnected
     }
@@ -57,6 +44,8 @@ final class GmailSource: BriefingSource, ObservableObject {
         defer { isLoading = false }
 
         do {
+            // Rebuild to pick up latest credentials from UserDefaults
+            oauthService = Self.makeOAuthService()
             _ = try await oauthService.authorize()
             isAuthenticated = true
             connectionStatus = .connected
@@ -277,5 +266,31 @@ enum GoogleConfig {
 
     static var clientSecret: String? {
         UserDefaults.standard.string(forKey: "google_client_secret")
+    }
+}
+
+private extension GmailSource {
+    static func makeOAuthService() -> OAuthService {
+        let config = OAuthService.Configuration(
+            clientId: GoogleConfig.clientId,
+            clientSecret: GoogleConfig.clientSecret,
+            authorizationURL: URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!,
+            tokenURL: URL(string: "https://oauth2.googleapis.com/token")!,
+            // Google native/desktop OAuth requires a loopback redirect (custom schemes like dailybriefing://... are rejected).
+            // ":0" is a placeholder that gets replaced per-session with a random high port.
+            redirectURI: "http://127.0.0.1:0/oauth/google",
+            scopes: [
+                "https://www.googleapis.com/auth/gmail.readonly",
+                "https://www.googleapis.com/auth/gmail.labels"
+            ],
+            scopeSeparator: " ",
+            additionalAuthorizationQueryItems: [
+                URLQueryItem(name: "access_type", value: "offline"),
+                URLQueryItem(name: "prompt", value: "consent")
+            ],
+            usePKCE: true,
+            callbackURLScheme: "http"
+        )
+        return OAuthService(configuration: config, sourceId: Self.sourceId)
     }
 }

@@ -29,6 +29,34 @@ Outputs:
 - `dist/DailyBriefing.app`
 - `dist/DailyBriefing-${VERSION}.zip`
 
+### DMG packaging (unsigned)
+
+Create a simple “drag to Applications” DMG in `./dist`:
+
+```bash
+VERSION=0.1.0 BUILD_NUMBER=1 ./scripts/package-dmg.sh
+```
+
+Output:
+
+- `dist/DailyBriefing-${VERSION}.dmg`
+
+### App icon (macOS `.icns`)
+
+1) Save your square icon image somewhere (e.g. `~/Downloads/icon.png`)
+
+2) Generate `assets/AppIcon.icns`:
+
+```bash
+./scripts/generate-app-icon.sh ~/Downloads/icon.png
+```
+
+3) Rebuild the app/DMG (the scripts will automatically include the icon if `assets/AppIcon.icns` exists):
+
+```bash
+VERSION=0.1.0 BUILD_NUMBER=1 ./scripts/package-dmg.sh
+```
+
 ### Configuration
 
 Integrations currently read OAuth client configuration from `UserDefaults` keys (you can set them via the app’s Settings UI where available, or via `defaults write` during development).

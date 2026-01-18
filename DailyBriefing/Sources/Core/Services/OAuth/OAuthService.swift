@@ -1,5 +1,7 @@
 import Foundation
 import AuthenticationServices
+import CryptoKit
+import AppKit
 
 /// Generic OAuth 2.0 service for handling authentication flows
 @MainActor
@@ -14,9 +16,42 @@ final class OAuthService: NSObject, ObservableObject {
         let tokenURL: URL
         let redirectURI: String
         let scopes: [String]
+        /// Some providers require comma-separated scopes (e.g. Slack), others space-separated (e.g. Google, Atlassian).
+        let scopeSeparator: String
+        /// Provider-specific extra parameters for the authorization URL (e.g. Atlassian `audience`, Google `access_type`).
+        let additionalAuthorizationQueryItems: [URLQueryItem]
+        /// Enables PKCE (recommended/required for some native-app providers like Google).
+        let usePKCE: Bool
+        /// Callback URL scheme used by `ASWebAuthenticationSession` to capture redirects.
+        /// For custom schemes use e.g. "dailybriefing"; for loopback redirects use "http".
+        let callbackURLScheme: String
 
         var scopeString: String {
-            scopes.joined(separator: " ")
+            scopes.joined(separator: scopeSeparator)
+        }
+
+        init(
+            clientId: String,
+            clientSecret: String?,
+            authorizationURL: URL,
+            tokenURL: URL,
+            redirectURI: String,
+            scopes: [String],
+            scopeSeparator: String = " ",
+            additionalAuthorizationQueryItems: [URLQueryItem] = [],
+            usePKCE: Bool = false,
+            callbackURLScheme: String = "dailybriefing"
+        ) {
+            self.clientId = clientId
+            self.clientSecret = clientSecret
+            self.authorizationURL = authorizationURL
+            self.tokenURL = tokenURL
+            self.redirectURI = redirectURI
+            self.scopes = scopes
+            self.scopeSeparator = scopeSeparator
+            self.additionalAuthorizationQueryItems = additionalAuthorizationQueryItems
+            self.usePKCE = usePKCE
+            self.callbackURLScheme = callbackURLScheme
         }
     }
 
@@ -47,26 +82,48 @@ final class OAuthService: NSObject, ObservableObject {
         isAuthenticating = true
         defer { isAuthenticating = false }
 
+        guard !configuration.clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw OAuthError.missingClientId
+        }
+
+        // CSRF protection
+        let state = Self.randomURLSafeString(length: 32)
+
+        // Optional PKCE (RFC 7636)
+        let pkce: PKCEPair? = configuration.usePKCE ? Self.generatePKCE() : nil
+
+        // For loopback redirects, allow a placeholder port ":0" which we replace per-session.
+        let redirectURIUsed = Self.resolveRedirectURI(configuration.redirectURI)
+
         // Build authorization URL
         var components = URLComponents(url: configuration.authorizationURL, resolvingAgainstBaseURL: false)!
         components.queryItems = [
             URLQueryItem(name: "client_id", value: configuration.clientId),
-            URLQueryItem(name: "redirect_uri", value: configuration.redirectURI),
+            URLQueryItem(name: "redirect_uri", value: redirectURIUsed),
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "scope", value: configuration.scopeString),
-            URLQueryItem(name: "access_type", value: "offline"),
-            URLQueryItem(name: "prompt", value: "consent")
+            URLQueryItem(name: "scope", value: configuration.scopeString)
         ]
+        if !configuration.additionalAuthorizationQueryItems.isEmpty {
+            components.queryItems?.append(contentsOf: configuration.additionalAuthorizationQueryItems)
+        }
+        components.queryItems?.append(URLQueryItem(name: "state", value: state))
+        if let pkce {
+            components.queryItems?.append(URLQueryItem(name: "code_challenge", value: pkce.codeChallenge))
+            components.queryItems?.append(URLQueryItem(name: "code_challenge_method", value: "S256"))
+        }
 
         guard let authURL = components.url else {
             throw OAuthError.invalidConfiguration
         }
 
+        // Ensure the app is foregrounded so macOS can show the auth UI.
+        NSApplication.shared.activate(ignoringOtherApps: true)
+
         // Start authentication session
         let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
             let session = ASWebAuthenticationSession(
                 url: authURL,
-                callbackURLScheme: "dailybriefing"
+                callbackURLScheme: configuration.callbackURLScheme
             ) { url, error in
                 if let error = error {
                     continuation.resume(throwing: error)
@@ -93,8 +150,14 @@ final class OAuthService: NSObject, ObservableObject {
             throw OAuthError.noAuthorizationCode
         }
 
+        // Validate state
+        let returnedState = components.queryItems?.first(where: { $0.name == "state" })?.value
+        guard returnedState == state else {
+            throw OAuthError.stateMismatch
+        }
+
         // Exchange code for tokens
-        let tokens = try await exchangeCodeForTokens(code)
+        let tokens = try await exchangeCodeForTokens(code, redirectURIUsed: redirectURIUsed, codeVerifier: pkce?.codeVerifier)
 
         // Save tokens
         try keychain.saveTokens(tokens, for: sourceId)
@@ -126,7 +189,7 @@ final class OAuthService: NSObject, ObservableObject {
 
     // MARK: - Private Methods
 
-    private func exchangeCodeForTokens(_ code: String) async throws -> KeychainService.OAuthTokens {
+    private func exchangeCodeForTokens(_ code: String, redirectURIUsed: String, codeVerifier: String?) async throws -> KeychainService.OAuthTokens {
         var request = URLRequest(url: configuration.tokenURL)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
@@ -136,11 +199,14 @@ final class OAuthService: NSObject, ObservableObject {
             URLQueryItem(name: "grant_type", value: "authorization_code"),
             URLQueryItem(name: "code", value: code),
             URLQueryItem(name: "client_id", value: configuration.clientId),
-            URLQueryItem(name: "redirect_uri", value: configuration.redirectURI)
+            URLQueryItem(name: "redirect_uri", value: redirectURIUsed)
         ]
 
         if let clientSecret = configuration.clientSecret {
             bodyComponents.queryItems?.append(URLQueryItem(name: "client_secret", value: clientSecret))
+        }
+        if let codeVerifier {
+            bodyComponents.queryItems?.append(URLQueryItem(name: "code_verifier", value: codeVerifier))
         }
 
         request.httpBody = bodyComponents.query?.data(using: .utf8)
@@ -228,7 +294,10 @@ extension OAuthService: ASWebAuthenticationPresentationContextProviding {
         if let anchor = presentationAnchor {
             return anchor
         }
-        return NSApplication.shared.windows.first { $0.isKeyWindow } ?? NSApplication.shared.windows.first!
+        return NSApplication.shared.keyWindow
+            ?? NSApplication.shared.mainWindow
+            ?? NSApplication.shared.windows.first
+            ?? NSWindow()
     }
 }
 
@@ -236,17 +305,21 @@ extension OAuthService: ASWebAuthenticationPresentationContextProviding {
 
 enum OAuthError: LocalizedError {
     case invalidConfiguration
+    case missingClientId
     case sessionStartFailed
     case noCallbackReceived
     case noAuthorizationCode
     case tokenExchangeFailed
     case tokenRefreshFailed
     case notAuthenticated
+    case stateMismatch
 
     var errorDescription: String? {
         switch self {
         case .invalidConfiguration:
             return "OAuth-Konfiguration ist ungültig"
+        case .missingClientId:
+            return "Client-ID fehlt (bitte in den Einstellungen hinterlegen)"
         case .sessionStartFailed:
             return "Authentifizierung konnte nicht gestartet werden"
         case .noCallbackReceived:
@@ -259,6 +332,65 @@ enum OAuthError: LocalizedError {
             return "Token-Aktualisierung fehlgeschlagen"
         case .notAuthenticated:
             return "Nicht authentifiziert"
+        case .stateMismatch:
+            return "Ungültige Authentifizierungs-Antwort (state stimmt nicht überein)"
         }
+    }
+}
+
+// MARK: - Helpers (PKCE / Redirect URI)
+
+private extension OAuthService {
+    struct PKCEPair {
+        let codeVerifier: String
+        let codeChallenge: String
+    }
+
+    static func resolveRedirectURI(_ redirectURI: String) -> String {
+        // Replace ":0" port placeholder for loopback URIs.
+        guard var url = URL(string: redirectURI),
+              let host = url.host,
+              (host == "localhost" || host == "127.0.0.1" || host == "::1"),
+              url.scheme == "http" || url.scheme == "https"
+        else {
+            return redirectURI
+        }
+
+        if url.port == 0 {
+            let port = Int.random(in: 49152...65535)
+            var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            comps?.port = port
+            if let resolved = comps?.url {
+                url = resolved
+            }
+        }
+
+        return url.absoluteString
+    }
+
+    static func generatePKCE() -> PKCEPair {
+        // RFC 7636: code_verifier length 43-128, URL-safe.
+        let verifier = randomURLSafeString(length: 64)
+        let challenge = base64URLEncode(SHA256.hash(data: Data(verifier.utf8)))
+        return PKCEPair(codeVerifier: verifier, codeChallenge: challenge)
+    }
+
+    static func randomURLSafeString(length: Int) -> String {
+        // Base64URL characters + unreserved RFC3986.
+        let charset = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
+        var result = String()
+        result.reserveCapacity(length)
+        for _ in 0..<length {
+            result.append(charset[Int.random(in: 0..<charset.count)])
+        }
+        return result
+    }
+
+    static func base64URLEncode(_ digest: SHA256.Digest) -> String {
+        let data = Data(digest)
+        return data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 }

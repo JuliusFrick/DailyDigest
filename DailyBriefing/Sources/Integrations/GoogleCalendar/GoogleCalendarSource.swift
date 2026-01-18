@@ -15,21 +15,7 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
     @Published var lastError: Error?
 
     // MARK: - Private Properties
-
-    private lazy var oauthService: OAuthService = {
-        let config = OAuthService.Configuration(
-            clientId: GoogleCalendarConfig.clientId,
-            clientSecret: GoogleCalendarConfig.clientSecret,
-            authorizationURL: URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!,
-            tokenURL: URL(string: "https://oauth2.googleapis.com/token")!,
-            redirectURI: "dailybriefing://oauth/google",
-            scopes: [
-                "https://www.googleapis.com/auth/calendar.readonly",
-                "https://www.googleapis.com/auth/calendar.events.readonly"
-            ]
-        )
-        return OAuthService(configuration: config, sourceId: Self.sourceId)
-    }()
+    private var oauthService: OAuthService
 
     private let keychain = KeychainService.shared
     private let baseURL = "https://www.googleapis.com/calendar/v3"
@@ -42,6 +28,7 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
     // MARK: - Initialization
 
     init() {
+        oauthService = Self.makeOAuthService()
         isAuthenticated = oauthService.isAuthenticated
     }
 
@@ -53,6 +40,8 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
         defer { isLoading = false }
 
         do {
+            // Rebuild to pick up latest credentials from UserDefaults
+            oauthService = Self.makeOAuthService()
             _ = try await oauthService.authorize()
             isAuthenticated = true
 
@@ -331,5 +320,31 @@ enum GoogleCalendarConfig {
     static var clientSecret: String? {
         // For desktop apps, client secret is optional with PKCE
         UserDefaults.standard.string(forKey: "google_client_secret")
+    }
+}
+
+private extension GoogleCalendarSource {
+    static func makeOAuthService() -> OAuthService {
+        let config = OAuthService.Configuration(
+            clientId: GoogleCalendarConfig.clientId,
+            clientSecret: GoogleCalendarConfig.clientSecret,
+            authorizationURL: URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!,
+            tokenURL: URL(string: "https://oauth2.googleapis.com/token")!,
+            // Google native/desktop OAuth requires a loopback redirect (custom schemes like dailybriefing://... are rejected).
+            // ":0" is a placeholder that gets replaced per-session with a random high port.
+            redirectURI: "http://127.0.0.1:0/oauth/google",
+            scopes: [
+                "https://www.googleapis.com/auth/calendar.readonly",
+                "https://www.googleapis.com/auth/calendar.events.readonly"
+            ],
+            scopeSeparator: " ",
+            additionalAuthorizationQueryItems: [
+                URLQueryItem(name: "access_type", value: "offline"),
+                URLQueryItem(name: "prompt", value: "consent")
+            ],
+            usePKCE: true,
+            callbackURLScheme: "http"
+        )
+        return OAuthService(configuration: config, sourceId: Self.sourceId)
     }
 }

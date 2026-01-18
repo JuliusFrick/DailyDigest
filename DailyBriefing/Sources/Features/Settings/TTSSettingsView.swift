@@ -21,6 +21,10 @@ struct TTSSettingsView: View {
             previewSection
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.tuiBackground)
+        .font(.tuiMonoSmall)
+        .controlSize(.small)
         .navigationTitle("Sprachausgabe")
         .onAppear(perform: loadSettings)
         .onChange(of: selectedProvider) { _, newValue in

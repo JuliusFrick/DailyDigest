@@ -3,16 +3,119 @@ import SwiftUI
 /// Configuration view for Jira integration
 struct JiraConfigView: View {
     @ObservedObject var source: JiraSource
+    @AppStorage("jira_client_id") private var jiraClientId: String = ""
+    @AppStorage("jira_client_secret") private var jiraClientSecret: String = ""
+    @AppStorage("jira_auth_method") private var jiraAuthMethodRaw: String = JiraAuthMethod.oauth3LO.rawValue
+    @AppStorage("jira_site_url") private var jiraSiteURL: String = ""
+    @AppStorage("jira_email") private var jiraEmail: String = ""
+
+    @State private var jiraApiToken: String = ""
+    @State private var didLoadApiToken = false
+    
+    private var canConnect: Bool {
+        switch JiraAuthMethod(rawValue: jiraAuthMethodRaw) ?? .oauth3LO {
+        case .oauth3LO:
+            return !jiraClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .apiToken:
+            return !jiraSiteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !jiraEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !jiraApiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    private var authMethod: JiraAuthMethod {
+        JiraAuthMethod(rawValue: jiraAuthMethodRaw) ?? .oauth3LO
+    }
 
     var body: some View {
         Form {
+            authMethodSection
+            credentialsSection
             connectionSection
             if source.isAuthenticated {
-                cloudSelectionSection
+                if authMethod == .oauth3LO {
+                    cloudSelectionSection
+                }
                 filterSection
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            guard !didLoadApiToken else { return }
+            jiraApiToken = (try? KeychainService.shared.loadString(for: "jira_api_token")) ?? ""
+            didLoadApiToken = true
+        }
+        .onChange(of: jiraApiToken) { _, newValue in
+            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            do {
+                if trimmed.isEmpty {
+                    try? KeychainService.shared.delete(for: "jira_api_token")
+                } else {
+                    try KeychainService.shared.save(trimmed, for: "jira_api_token")
+                }
+            } catch {
+                // Ignore UI persistence errors; connection attempt will surface problems.
+            }
+        }
+    }
+
+    // MARK: - Auth Method Section
+
+    private var authMethodSection: some View {
+        Section {
+            Picker("Anmeldung", selection: $jiraAuthMethodRaw) {
+                Text(JiraAuthMethod.oauth3LO.displayName).tag(JiraAuthMethod.oauth3LO.rawValue)
+                Text(JiraAuthMethod.apiToken.displayName).tag(JiraAuthMethod.apiToken.rawValue)
+            }
+            .pickerStyle(.segmented)
+        } header: {
+            Text("Login")
+        } footer: {
+            Text("Für „API Token“ braucht jeder nur seine Jira Site URL, E-Mail und einen persönlichen Atlassian API Token (wie MCP-Config).")
+        }
+    }
+
+    // MARK: - Credentials Section
+
+    private var credentialsSection: some View {
+        Section {
+            switch authMethod {
+            case .oauth3LO:
+                TextField("Client ID", text: $jiraClientId)
+                    .textFieldStyle(.roundedBorder)
+
+                SecureField("Client Secret", text: $jiraClientSecret)
+                    .textFieldStyle(.roundedBorder)
+
+                if jiraClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    HStack {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.secondary)
+                        Text("Ohne Client ID kann Atlassian die App nicht identifizieren (Login schlägt dann sofort fehl).")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+            case .apiToken:
+                TextField("Jira Site URL (z.B. https://firma.atlassian.net)", text: $jiraSiteURL)
+                    .textFieldStyle(.roundedBorder)
+
+                TextField("Atlassian E‑Mail", text: $jiraEmail)
+                    .textFieldStyle(.roundedBorder)
+
+                SecureField("Atlassian API Token", text: $jiraApiToken)
+                    .textFieldStyle(.roundedBorder)
+            }
+        } header: {
+            Text(authMethod == .oauth3LO ? "Atlassian OAuth" : "API Token")
+        } footer: {
+            if authMethod == .oauth3LO {
+                Text("Trage hier die OAuth Client ID und das Client Secret deiner Atlassian (3LO) App ein. Redirect URI muss exakt `dailybriefing://oauth/jira` sein.")
+            } else {
+                Text("Den API Token kannst du in deinem Atlassian Account erstellen. Er wird lokal im Keychain gespeichert.")
+            }
+        }
     }
 
     // MARK: - Connection Section
@@ -50,7 +153,7 @@ struct JiraConfigView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(source.isLoading)
+                    .disabled(source.isLoading || !canConnect)
                 }
             }
 

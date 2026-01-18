@@ -44,8 +44,17 @@ struct MainView: View {
 
             // Modal overlays
             if showSettings {
-                ModalOverlay(isPresented: $showSettings, title: "Settings") {
-                    SettingsView()
+                ModalOverlay(isPresented: $showSettings, title: "Einstellungen", showsHeader: false) {
+                    NavigationStack {
+                        SettingsView()
+                            .toolbar {
+                                ToolbarItem(placement: .cancellationAction) {
+                                    Button("Fertig") {
+                                        showSettings = false
+                                    }
+                                }
+                            }
+                    }
                 }
                 .transition(.asymmetric(
                     insertion: .opacity.combined(with: .scale(scale: 0.95)),
@@ -266,6 +275,7 @@ struct ContentViewKeyboardModifier: ViewModifier {
 struct ModalOverlay<Content: View>: View {
     @Binding var isPresented: Bool
     let title: String
+    var showsHeader: Bool = true
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -279,29 +289,31 @@ struct ModalOverlay<Content: View>: View {
 
             // Modal
             VStack(spacing: 0) {
-                // Header
-                HStack {
-                    Text(title.uppercased())
-                        .font(.system(.caption, design: .monospaced))
-                        .fontWeight(.bold)
+                if showsHeader {
+                    // Header
+                    HStack {
+                        Text(title.uppercased())
+                            .font(.system(.caption, design: .monospaced))
+                            .fontWeight(.bold)
 
-                    Spacer()
+                        Spacer()
 
-                    Button {
-                        isPresented = false
-                    } label: {
-                        Text("[ESC]")
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.tertiary)
+                        Button {
+                            isPresented = false
+                        } label: {
+                            Text("[ESC]")
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                }
-                .padding(Spacing.md)
-                .background(Color.tuiBackground)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(Color.tuiBorder)
-                        .frame(height: 1)
+                    .padding(Spacing.md)
+                    .background(Color.tuiBackground)
+                    .overlay(alignment: .bottom) {
+                        Rectangle()
+                            .fill(Color.tuiBorder)
+                            .frame(height: 1)
+                    }
                 }
 
                 // Content

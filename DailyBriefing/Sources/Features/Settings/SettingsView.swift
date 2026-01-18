@@ -19,6 +19,7 @@ struct SettingsView: View {
     @StateObject private var notificationService = NotificationService.shared
     @StateObject private var shortcutService = GlobalShortcutService.shared
     @StateObject private var launchAtLoginService = LaunchAtLoginService.shared
+    @StateObject private var updateService = UpdateService.shared
 
     var body: some View {
         Form {
@@ -31,10 +32,15 @@ struct SettingsView: View {
             shortcutSection
             siriSection
             generalSection
+            updatesSection
             privacySection
             aboutSection
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.tuiBackground)
+        .font(.tuiMonoSmall)
+        .controlSize(.small)
         .navigationTitle("Einstellungen")
         .onAppear(perform: loadSettings)
         .onChange(of: autoRefreshEnabled) { _, newValue in
@@ -399,6 +405,29 @@ struct SettingsView: View {
             Text("Allgemein")
         } footer: {
             Text("Die App wird automatisch gestartet, wenn du dich an deinem Mac anmeldest.")
+        }
+    }
+
+    // MARK: - Updates Section
+
+    private var updatesSection: some View {
+        Section {
+            Button("Nach Updates suchen…") {
+                updateService.checkForUpdates()
+            }
+            .disabled(!updateService.canCheckForUpdates)
+
+            Toggle(
+                "Automatisch nach Updates suchen",
+                isOn: Binding(
+                    get: { updateService.automaticallyChecksForUpdates },
+                    set: { updateService.setAutomaticChecksEnabled($0) }
+                )
+            )
+        } header: {
+            Text("Updates")
+        } footer: {
+            Text("Wenn aktiviert, prüft die App täglich auf Updates (Sparkle).")
         }
     }
 

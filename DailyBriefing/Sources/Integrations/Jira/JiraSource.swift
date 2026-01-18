@@ -16,24 +16,13 @@ final class JiraSource: BriefingSource, ObservableObject {
     @Published var connectionStatus: ConnectionStatus = .disconnected
 
     // MARK: - Private Properties
-
-    private lazy var oauthService: OAuthService = {
-        let config = OAuthService.Configuration(
-            clientId: JiraConfig.clientId,
-            clientSecret: JiraConfig.clientSecret,
-            authorizationURL: URL(string: "https://auth.atlassian.com/authorize")!,
-            tokenURL: URL(string: "https://auth.atlassian.com/oauth/token")!,
-            redirectURI: "dailybriefing://oauth/jira",
-            scopes: [
-                "read:jira-user",
-                "read:jira-work",
-                "offline_access"
-            ]
-        )
-        return OAuthService(configuration: config, sourceId: Self.sourceId)
-    }()
+    private var oauthService: OAuthService
 
     private let keychain = KeychainService.shared
+    
+    private var authMethod: JiraAuthMethod {
+        JiraConfig.authMethod
+    }
 
     // MARK: - Configuration
 
@@ -48,14 +37,22 @@ final class JiraSource: BriefingSource, ObservableObject {
     }
 
     private var baseURL: String? {
-        guard let cloudId = cloudId else { return nil }
-        return "https://api.atlassian.com/ex/jira/\(cloudId)/rest/api/3"
+        switch authMethod {
+        case .oauth3LO:
+            guard let cloudId = cloudId else { return nil }
+            return "https://api.atlassian.com/ex/jira/\(cloudId)/rest/api/3"
+        case .apiToken:
+            let site = JiraConfig.siteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !site.isEmpty else { return nil }
+            return "\(site.trimmedTrailingSlash)/rest/api/3"
+        }
     }
 
     // MARK: - Initialization
 
     init() {
-        isAuthenticated = oauthService.isAuthenticated
+        oauthService = Self.makeOAuthService()
+        isAuthenticated = Self.computeIsAuthenticated(oauthService: oauthService)
         connectionStatus = isAuthenticated ? .connected : .disconnected
     }
 
@@ -68,12 +65,23 @@ final class JiraSource: BriefingSource, ObservableObject {
         defer { isLoading = false }
 
         do {
-            _ = try await oauthService.authorize()
-            isAuthenticated = true
-            connectionStatus = .connected
+            switch authMethod {
+            case .oauth3LO:
+                // Rebuild to pick up latest credentials from UserDefaults
+                oauthService = Self.makeOAuthService()
+                _ = try await oauthService.authorize()
+                isAuthenticated = true
+                connectionStatus = .connected
 
-            // Fetch accessible resources (cloud instances)
-            try await fetchAccessibleResources()
+                // Fetch accessible resources (cloud instances)
+                try await fetchAccessibleResources()
+            case .apiToken:
+                try await authenticateWithAPIToken()
+                isAuthenticated = true
+                connectionStatus = .connected
+                selectedCloud = nil
+                availableClouds = []
+            }
         } catch {
             lastError = error
             connectionStatus = .error
@@ -83,7 +91,12 @@ final class JiraSource: BriefingSource, ObservableObject {
 
     func disconnect() async {
         do {
-            try await oauthService.logout()
+            switch authMethod {
+            case .oauth3LO:
+                try await oauthService.logout()
+            case .apiToken:
+                try keychain.delete(for: Self.jiraApiTokenKey)
+            }
         } catch {
             print("Jira logout error: \(error)")
         }
@@ -102,17 +115,22 @@ final class JiraSource: BriefingSource, ObservableObject {
         }
 
         guard let baseURL = baseURL else {
-            throw SourceError.configurationMissing("Kein Jira Cloud ausgewählt")
+            switch authMethod {
+            case .oauth3LO:
+                throw SourceError.configurationMissing("Kein Jira Cloud ausgewählt")
+            case .apiToken:
+                throw SourceError.configurationMissing("Jira Site URL fehlt")
+            }
         }
 
-        let tokens = try await oauthService.getValidTokens()
+        let authHeader = try await makeAuthorizationHeader()
         var items: [BriefingItem] = []
 
         // Fetch assigned issues
         if includeAssignedToMe {
             let assignedIssues = try await fetchIssues(
                 jql: "assignee = currentUser() AND updated >= -1d ORDER BY updated DESC",
-                accessToken: tokens.accessToken,
+                authorizationHeader: authHeader,
                 baseURL: baseURL
             )
             items.append(contentsOf: assignedIssues)
@@ -122,7 +140,7 @@ final class JiraSource: BriefingSource, ObservableObject {
         if includeWatching {
             let watchedIssues = try await fetchIssues(
                 jql: "watcher = currentUser() AND updated >= -1d ORDER BY updated DESC",
-                accessToken: tokens.accessToken,
+                authorizationHeader: authHeader,
                 baseURL: baseURL
             )
             items.append(contentsOf: watchedIssues)
@@ -132,7 +150,7 @@ final class JiraSource: BriefingSource, ObservableObject {
         if includeMentions {
             let mentionedIssues = try await fetchIssues(
                 jql: "text ~ currentUser() AND updated >= -1d ORDER BY updated DESC",
-                accessToken: tokens.accessToken,
+                authorizationHeader: authHeader,
                 baseURL: baseURL
             )
             items.append(contentsOf: mentionedIssues)
@@ -153,6 +171,7 @@ final class JiraSource: BriefingSource, ObservableObject {
     // MARK: - API Calls
 
     func fetchAccessibleResources() async throws {
+        guard authMethod == .oauth3LO else { return }
         let tokens = try await oauthService.getValidTokens()
 
         var request = URLRequest(url: URL(string: "https://api.atlassian.com/oauth/token/accessible-resources")!)
@@ -173,7 +192,7 @@ final class JiraSource: BriefingSource, ObservableObject {
         }
     }
 
-    private func fetchIssues(jql: String, accessToken: String, baseURL: String) async throws -> [BriefingItem] {
+    private func fetchIssues(jql: String, authorizationHeader: String, baseURL: String) async throws -> [BriefingItem] {
         var components = URLComponents(string: "\(baseURL)/search")!
         components.queryItems = [
             URLQueryItem(name: "jql", value: jql),
@@ -182,7 +201,7 @@ final class JiraSource: BriefingSource, ObservableObject {
         ]
 
         var request = URLRequest(url: components.url!)
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(authorizationHeader, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -257,8 +276,15 @@ final class JiraSource: BriefingSource, ObservableObject {
     }
 
     private func buildJiraDeepLink(issueKey: String) -> URL? {
-        guard let cloud = selectedCloud else { return nil }
-        return URL(string: "\(cloud.url)/browse/\(issueKey)")
+        switch authMethod {
+        case .oauth3LO:
+            guard let cloud = selectedCloud else { return nil }
+            return URL(string: "\(cloud.url)/browse/\(issueKey)")
+        case .apiToken:
+            let site = JiraConfig.siteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !site.isEmpty else { return nil }
+            return URL(string: "\(site.trimmedTrailingSlash)/browse/\(issueKey)")
+        }
     }
 }
 
@@ -356,11 +382,130 @@ struct JiraAvatarUrls: Codable {
 // MARK: - Configuration
 
 enum JiraConfig {
+    static var authMethod: JiraAuthMethod {
+        JiraAuthMethod(rawValue: UserDefaults.standard.string(forKey: "jira_auth_method") ?? JiraAuthMethod.oauth3LO.rawValue)
+            ?? .oauth3LO
+    }
+
     static var clientId: String {
         UserDefaults.standard.string(forKey: "jira_client_id") ?? ""
     }
 
     static var clientSecret: String? {
         UserDefaults.standard.string(forKey: "jira_client_secret")
+    }
+
+    static var siteURL: String {
+        UserDefaults.standard.string(forKey: "jira_site_url") ?? ""
+    }
+
+    static var email: String {
+        UserDefaults.standard.string(forKey: "jira_email") ?? ""
+    }
+}
+
+private extension JiraSource {
+    static let jiraApiTokenKey = "jira_api_token"
+
+    static func makeOAuthService() -> OAuthService {
+        let config = OAuthService.Configuration(
+            clientId: JiraConfig.clientId,
+            clientSecret: JiraConfig.clientSecret,
+            authorizationURL: URL(string: "https://auth.atlassian.com/authorize")!,
+            tokenURL: URL(string: "https://auth.atlassian.com/oauth/token")!,
+            redirectURI: "dailybriefing://oauth/jira",
+            scopes: [
+                "read:jira-user",
+                "read:jira-work",
+                "offline_access"
+            ],
+            scopeSeparator: " ",
+            additionalAuthorizationQueryItems: [
+                // Atlassian requires the audience parameter for 3LO.
+                URLQueryItem(name: "audience", value: "api.atlassian.com"),
+                URLQueryItem(name: "prompt", value: "consent")
+            ]
+        )
+        return OAuthService(configuration: config, sourceId: Self.sourceId)
+    }
+
+    static func computeIsAuthenticated(oauthService: OAuthService) -> Bool {
+        switch JiraConfig.authMethod {
+        case .oauth3LO:
+            return oauthService.isAuthenticated
+        case .apiToken:
+            let site = JiraConfig.siteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            let email = JiraConfig.email.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !site.isEmpty, !email.isEmpty else { return false }
+            return KeychainService.shared.exists(for: jiraApiTokenKey)
+        }
+    }
+
+    func makeAuthorizationHeader() async throws -> String {
+        switch authMethod {
+        case .oauth3LO:
+            let tokens = try await oauthService.getValidTokens()
+            return "Bearer \(tokens.accessToken)"
+        case .apiToken:
+            let email = JiraConfig.email.trimmingCharacters(in: .whitespacesAndNewlines)
+            let site = JiraConfig.siteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !email.isEmpty, !site.isEmpty else {
+                throw SourceError.configurationMissing("Jira Site URL / E-Mail fehlt")
+            }
+            let token = try keychain.loadString(for: Self.jiraApiTokenKey)
+            let raw = "\(email):\(token)"
+            guard let data = raw.data(using: .utf8) else {
+                throw SourceError.networkError("Konnte Jira Credentials nicht kodieren")
+            }
+            return "Basic \(data.base64EncodedString())"
+        }
+    }
+
+    func authenticateWithAPIToken() async throws {
+        let site = JiraConfig.siteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = JiraConfig.email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !site.isEmpty else { throw SourceError.configurationMissing("Jira Site URL") }
+        guard !email.isEmpty else { throw SourceError.configurationMissing("Jira E-Mail") }
+
+        _ = try keychain.loadString(for: Self.jiraApiTokenKey)
+
+        guard let url = URL(string: "\(site.trimmedTrailingSlash)/rest/api/3/myself") else {
+            throw SourceError.configurationMissing("Ungültige Jira Site URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue(try await makeAuthorizationHeader(), forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw SourceError.networkError("Ungültige Server-Antwort")
+        }
+        guard (200...299).contains(http.statusCode) else {
+            if http.statusCode == 401 || http.statusCode == 403 {
+                throw SourceError.authenticationFailed("Jira API Token ungültig oder keine Berechtigung")
+            }
+            throw SourceError.networkError("Fehler \(http.statusCode)")
+        }
+    }
+}
+
+enum JiraAuthMethod: String, CaseIterable, Identifiable {
+    case oauth3LO = "oauth_3lo"
+    case apiToken = "api_token"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .oauth3LO: return "OAuth"
+        case .apiToken: return "API Token"
+        }
+    }
+}
+
+private extension String {
+    var trimmedTrailingSlash: String {
+        hasSuffix("/") ? String(dropLast()) : self
     }
 }

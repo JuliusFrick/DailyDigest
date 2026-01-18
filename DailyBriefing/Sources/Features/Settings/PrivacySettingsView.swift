@@ -22,6 +22,10 @@ struct PrivacySettingsView: View {
             exportSection
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.tuiBackground)
+        .font(.tuiMonoSmall)
+        .controlSize(.small)
         .navigationTitle("Datenschutz")
         .alert("Cache leeren", isPresented: $showClearCacheConfirmation) {
             Button("Abbrechen", role: .cancel) {}

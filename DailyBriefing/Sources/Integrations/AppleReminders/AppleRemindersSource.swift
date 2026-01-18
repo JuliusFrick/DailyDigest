@@ -1,5 +1,6 @@
 import SwiftUI
 import EventKit
+import AppKit
 
 /// Apple Reminders integration using native EventKit APIs
 @MainActor
@@ -139,6 +140,9 @@ final class AppleRemindersSource: BriefingSource, ObservableObject {
     }
 
     private func requestRemindersAccess() async throws -> Bool {
+        // Ensure the app is foregrounded so macOS can show the permission prompt.
+        NSApplication.shared.activate(ignoringOtherApps: true)
+
         if #available(macOS 14.0, *) {
             return try await eventStore.requestFullAccessToReminders()
         } else {

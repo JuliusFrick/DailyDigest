@@ -16,28 +16,7 @@ final class SlackSource: BriefingSource, ObservableObject {
     @Published var connectionStatus: ConnectionStatus = .disconnected
 
     // MARK: - Private Properties
-
-    private lazy var oauthService: OAuthService = {
-        let config = OAuthService.Configuration(
-            clientId: SlackConfig.clientId,
-            clientSecret: SlackConfig.clientSecret,
-            authorizationURL: URL(string: "https://slack.com/oauth/v2/authorize")!,
-            tokenURL: URL(string: "https://slack.com/api/oauth.v2.access")!,
-            redirectURI: "dailybriefing://oauth/slack",
-            scopes: [
-                "channels:history",
-                "channels:read",
-                "groups:history",
-                "groups:read",
-                "im:history",
-                "im:read",
-                "mpim:history",
-                "mpim:read",
-                "users:read"
-            ]
-        )
-        return OAuthService(configuration: config, sourceId: Self.sourceId)
-    }()
+    private var oauthService: OAuthService
 
     private let keychain = KeychainService.shared
     private let baseURL = "https://slack.com/api"
@@ -99,6 +78,7 @@ final class SlackSource: BriefingSource, ObservableObject {
     // MARK: - Initialization
 
     init() {
+        oauthService = Self.makeOAuthService()
         // Load selected channels from UserDefaults before calling super
         if let savedIds = UserDefaults.standard.array(forKey: Self.selectedChannelsKey) as? [String] {
             selectedChannelIds = Set(savedIds)
@@ -156,6 +136,13 @@ final class SlackSource: BriefingSource, ObservableObject {
         defer { isLoading = false }
 
         do {
+            let clientId = SlackConfig.clientId.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !clientId.isEmpty else {
+                throw SourceError.configurationMissing("Slack Client ID")
+            }
+
+            // Rebuild to pick up latest credentials from UserDefaults
+            oauthService = Self.makeOAuthService()
             _ = try await oauthService.authorize()
             isAuthenticated = true
             connectionStatus = .connected
@@ -680,5 +667,31 @@ enum SlackConfig {
 
     static var clientSecret: String? {
         UserDefaults.standard.string(forKey: "slack_client_secret")
+    }
+}
+
+private extension SlackSource {
+    static func makeOAuthService() -> OAuthService {
+        let config = OAuthService.Configuration(
+            clientId: SlackConfig.clientId,
+            clientSecret: SlackConfig.clientSecret,
+            authorizationURL: URL(string: "https://slack.com/oauth/v2/authorize")!,
+            tokenURL: URL(string: "https://slack.com/api/oauth.v2.access")!,
+            redirectURI: "dailybriefing://oauth/slack",
+            scopes: [
+                "channels:history",
+                "channels:read",
+                "groups:history",
+                "groups:read",
+                "im:history",
+                "im:read",
+                "mpim:history",
+                "mpim:read",
+                "users:read"
+            ],
+            scopeSeparator: ",",
+            additionalAuthorizationQueryItems: []
+        )
+        return OAuthService(configuration: config, sourceId: Self.sourceId)
     }
 }

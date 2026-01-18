@@ -25,6 +25,10 @@ struct LLMSettingsView: View {
             connectionTestSection
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.tuiBackground)
+        .font(.tuiMonoSmall)
+        .controlSize(.small)
         .onAppear(perform: loadSettings)
         .onChange(of: selectedProvider) { _, newProvider in
             loadAPIKey(for: newProvider)

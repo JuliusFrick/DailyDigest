@@ -112,6 +112,9 @@ final class AppleMailSource: BriefingSource, ObservableObject {
 
     private func requestMailAccess() async throws -> Bool {
         do {
+            // Ensure the app is foregrounded so macOS can show the permission prompt.
+            NSApplication.shared.activate(ignoringOtherApps: true)
+
             // Try to access Mail - this will trigger permission dialog if needed
             _ = try await runAppleScript("""
                 tell application "Mail"

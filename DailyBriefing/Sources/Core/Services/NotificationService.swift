@@ -22,9 +22,13 @@ final class NotificationService: NSObject, ObservableObject {
     /// a proper app bundle (e.g. SwiftPM-built executable in a DerivedData/Debug folder).
     /// We therefore gate all notification functionality behind a runtime bundle check.
     private static var canUseUserNotifications: Bool {
-        guard Bundle.main.bundleURL.pathExtension == "app" else { return false }
-        // Also verify we have a valid bundle identifier to ensure the bundle is properly configured
-        return Bundle.main.bundleIdentifier != nil
+        // `bundleURL.pathExtension == "app"` is not reliable for SwiftPM executables launched from Xcode
+        // (Bundle.main can be a plain directory like ".../Build/Products/Debug/").
+        //
+        // A more robust indicator for a real app bundle is CFBundlePackageType == "APPL".
+        let isAppPackageType = (Bundle.main.object(forInfoDictionaryKey: "CFBundlePackageType") as? String) == "APPL"
+        let hasAppBundleURL = Bundle.main.bundleURL.pathExtension == "app"
+        return isAppPackageType && hasAppBundleURL
     }
 
     private var notificationCenter: UNUserNotificationCenter? {
