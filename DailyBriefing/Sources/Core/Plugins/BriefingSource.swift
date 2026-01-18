@@ -8,7 +8,7 @@ protocol BriefingSource: Identifiable, ObservableObject {
     init()
 
     /// Unique identifier for this source type
-    static var sourceId: String { get }
+    nonisolated static var sourceId: String { get }
 
     /// Display name shown in the UI
     static var displayName: String { get }
@@ -44,7 +44,7 @@ protocol BriefingSource: Identifiable, ObservableObject {
 // MARK: - Default Implementations
 
 extension BriefingSource {
-    var id: String { Self.sourceId }
+    nonisolated var id: String { Self.sourceId }
 }
 
 // MARK: - Source Registration

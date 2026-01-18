@@ -3,7 +3,7 @@ import SwiftUI
 /// Jira integration for fetching issues and comments
 @MainActor
 final class JiraSource: BriefingSource, ObservableObject {
-    static let sourceId = "jira"
+    nonisolated static let sourceId = "jira"
     static let displayName = "Jira"
     static let iconName = "checkmark.square.fill"
     static let brandColor = Color(red: 0.03, green: 0.47, blue: 0.95)

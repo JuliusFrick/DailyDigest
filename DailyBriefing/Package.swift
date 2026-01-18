@@ -22,10 +22,7 @@ let package = Package(
                 "KeychainAccess",
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
-            path: "Sources",
-            resources: [
-                .process("Resources")
-            ]
+            path: "Sources"
         )
     ]
 )

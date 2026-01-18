@@ -7,6 +7,7 @@ struct DailyBriefingApp: App {
     @StateObject private var appState = AppState.shared
     @StateObject private var settingsStore = UserSettingsStore.shared
     @StateObject private var updateService = UpdateService.shared
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     // Services (initialized as singletons, referenced here to ensure they're started)
     private let briefingService = BriefingGenerationService.shared
@@ -23,6 +24,7 @@ struct DailyBriefingApp: App {
             ContentView()
                 .environmentObject(appState)
                 .environmentObject(settingsStore)
+                .background(OpenWindowRegistrar())
                 .onAppear {
                     AppIconService.shared.start()
                     setupMenuBarIcon()
@@ -67,57 +69,10 @@ struct DailyBriefingApp: App {
                 .environmentObject(appState)
                 .environmentObject(settingsStore)
         } label: {
-            // Keep the menu bar icon "alive" so it can change over the day.
-            // (Otherwise it would only update when other state changes, like `isOnline`.)
-            TimelineView(.periodic(from: .now, by: 60)) { context in
-                let style = menuBarIconStyle(date: context.date, isOnline: appState.isOnline)
-                Image(systemName: style.symbolName)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(style.color)
-            }
+            Image(systemName: "sun.max")
+                .symbolRenderingMode(.monochrome)
         }
         .menuBarExtraStyle(.window)
-    }
-
-    private func menuBarIconStyle(date: Date, isOnline: Bool) -> (symbolName: String, color: Color) {
-        let hour = Calendar.current.component(.hour, from: date)
-
-        // Day phases: morning, day, evening, night
-        let phase: String
-        switch hour {
-        case 5..<11: phase = "morning"
-        case 11..<17: phase = "day"
-        case 17..<22: phase = "evening"
-        default: phase = "night"
-        }
-
-        let symbolName: String
-        switch phase {
-        case "morning":
-            symbolName = isOnline ? "sun.horizon.fill" : "sun.horizon"
-        case "day":
-            symbolName = isOnline ? "sun.max.fill" : "sun.max"
-        case "evening":
-            symbolName = isOnline ? "sun.horizon.fill" : "sun.horizon"
-        default:
-            symbolName = isOnline ? "moon.stars.fill" : "moon.stars"
-        }
-
-        let color: Color
-        if !isOnline {
-            color = .gray
-        } else {
-            switch phase {
-            case "day":
-                color = .yellow
-            case "night":
-                color = .indigo
-            default:
-                color = .orange
-            }
-        }
-
-        return (symbolName, color)
     }
 
     private func setupMenuBarIcon() {
@@ -254,17 +209,7 @@ struct MenuBarView: View {
     }
 
     private func openMainWindow() {
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        // SwiftUI windows often have empty titles (hidden title bar), so don't rely on title matching.
-        // Prefer a "normal" app window that can become key, and avoid closing the MenuBarExtra window itself.
-        let candidates = NSApplication.shared.windows.filter { window in
-            window.canBecomeKey && window.level == .normal
-        }
-
-        if let window = candidates.first(where: { $0.isVisible }) ?? candidates.first {
-            window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
-        }
+        MainWindowCoordinator.shared.openMainWindow()
     }
 
     private func openSettings() {
@@ -313,6 +258,19 @@ struct MenuBarButton: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+    }
+}
+
+// MARK: - Window Registration
+
+private struct OpenWindowRegistrar: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Color.clear
+            .onAppear {
+                MainWindowCoordinator.shared.register(openWindow: openWindow)
+            }
     }
 }
 

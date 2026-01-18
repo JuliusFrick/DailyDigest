@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 
 /// Apple native TTS implementation using AVSpeechSynthesizer
+@MainActor
 final class AppleTTSService: NSObject, TTSProvider {
     private let synthesizer: AVSpeechSynthesizer
     private var currentUtterance: AVSpeechUtterance?
@@ -114,22 +115,26 @@ final class AppleTTSService: NSObject, TTSProvider {
 // MARK: - AVSpeechSynthesizerDelegate
 
 extension AppleTTSService: AVSpeechSynthesizerDelegate {
-    func speechSynthesizer(
+    nonisolated func speechSynthesizer(
         _ synthesizer: AVSpeechSynthesizer,
         didFinish utterance: AVSpeechUtterance
     ) {
-        if playbackState == .speaking {
-            playbackState = .idle
-            currentUtterance = nil
-            onSpeechFinished?()
+        Task { @MainActor in
+            if playbackState == .speaking {
+                playbackState = .idle
+                currentUtterance = nil
+                onSpeechFinished?()
+            }
         }
     }
 
-    func speechSynthesizer(
+    nonisolated func speechSynthesizer(
         _ synthesizer: AVSpeechSynthesizer,
         didCancel utterance: AVSpeechUtterance
     ) {
-        playbackState = .idle
-        currentUtterance = nil
+        Task { @MainActor in
+            playbackState = .idle
+            currentUtterance = nil
+        }
     }
 }

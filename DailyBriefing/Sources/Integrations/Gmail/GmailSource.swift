@@ -3,7 +3,7 @@ import SwiftUI
 /// Gmail integration for fetching unread emails
 @MainActor
 final class GmailSource: BriefingSource, ObservableObject {
-    static let sourceId = "gmail"
+    nonisolated static let sourceId = "gmail"
     static let displayName = "Gmail"
     static let iconName = "envelope.fill"
     static let brandColor = Color(red: 0.91, green: 0.26, blue: 0.21)

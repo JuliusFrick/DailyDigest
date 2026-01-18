@@ -24,6 +24,7 @@ enum TTSPlaybackState: Equatable, Sendable {
 }
 
 /// Protocol defining the interface for Text-to-Speech services
+@MainActor
 protocol TTSProvider: AnyObject {
     /// Current playback state
     var playbackState: TTSPlaybackState { get }

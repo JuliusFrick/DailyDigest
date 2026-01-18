@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 
 /// OpenAI TTS service implementation using the OpenAI Audio API
+@MainActor
 final class OpenAITTSService: NSObject, TTSProvider {
     // MARK: - OpenAI Voice Definitions
 
@@ -221,18 +222,22 @@ final class OpenAITTSService: NSObject, TTSProvider {
 // MARK: - AVAudioPlayerDelegate
 
 extension OpenAITTSService: AVAudioPlayerDelegate {
-    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        if playbackState == .speaking {
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in
+            if playbackState == .speaking {
+                playbackState = .idle
+                audioPlayer = nil
+                onSpeechFinished?()
+            }
+        }
+    }
+
+    nonisolated func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        Task { @MainActor in
             playbackState = .idle
             audioPlayer = nil
             onSpeechFinished?()
         }
-    }
-
-    func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
-        playbackState = .idle
-        audioPlayer = nil
-        onSpeechFinished?()
     }
 }
 
