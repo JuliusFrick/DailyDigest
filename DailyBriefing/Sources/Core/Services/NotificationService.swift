@@ -221,14 +221,7 @@ final class NotificationService: NSObject, ObservableObject {
 
     /// Bring the app to the foreground and navigate to dashboard
     private func openDashboard() {
-        NSApplication.shared.activate(ignoringOtherApps: true)
-
-        // Find and show the main window
-        if let window = NSApplication.shared.windows.first(where: {
-            $0.title == "Daily Briefing" || $0.title.isEmpty
-        }) {
-            window.makeKeyAndOrderFront(nil)
-        }
+        MainWindowCoordinator.shared.openMainWindow()
 
         // Notify listeners to navigate to dashboard
         onOpenDashboardRequested?()
