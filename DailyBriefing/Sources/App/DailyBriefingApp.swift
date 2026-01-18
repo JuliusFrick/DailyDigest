@@ -64,57 +64,10 @@ struct DailyBriefingApp: App {
                 .environmentObject(appState)
                 .environmentObject(settingsStore)
         } label: {
-            // Keep the menu bar icon "alive" so it can change over the day.
-            // (Otherwise it would only update when other state changes, like `isOnline`.)
-            TimelineView(.periodic(from: .now, by: 60)) { context in
-                let style = menuBarIconStyle(date: context.date, isOnline: appState.isOnline)
-                Image(systemName: style.symbolName)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(style.color)
-            }
+            Image(systemName: "sun.max")
+                .symbolRenderingMode(.monochrome)
         }
         .menuBarExtraStyle(.window)
-    }
-
-    private func menuBarIconStyle(date: Date, isOnline: Bool) -> (symbolName: String, color: Color) {
-        let hour = Calendar.current.component(.hour, from: date)
-
-        // Day phases: morning, day, evening, night
-        let phase: String
-        switch hour {
-        case 5..<11: phase = "morning"
-        case 11..<17: phase = "day"
-        case 17..<22: phase = "evening"
-        default: phase = "night"
-        }
-
-        let symbolName: String
-        switch phase {
-        case "morning":
-            symbolName = isOnline ? "sun.horizon.fill" : "sun.horizon"
-        case "day":
-            symbolName = isOnline ? "sun.max.fill" : "sun.max"
-        case "evening":
-            symbolName = isOnline ? "sun.horizon.fill" : "sun.horizon"
-        default:
-            symbolName = isOnline ? "moon.stars.fill" : "moon.stars"
-        }
-
-        let color: Color
-        if !isOnline {
-            color = .gray
-        } else {
-            switch phase {
-            case "day":
-                color = .yellow
-            case "night":
-                color = .indigo
-            default:
-                color = .orange
-            }
-        }
-
-        return (symbolName, color)
     }
 
     private func setupMenuBarIcon() {
