@@ -3,21 +3,21 @@ import Foundation
 
 // MARK: - Generate Briefing Intent
 
-/// App Intent for generating a daily briefing via Siri
-/// Usage: "Hey Siri, Daily Briefing" or "Hey Siri, generate my briefing"
+/// App Intent for generating a daily briefing via Siri and Shortcuts
+/// Usage: "Hey Siri, Daily Briefing" or via Shortcuts app
 @available(macOS 13.0, *)
 struct GenerateBriefingIntent: AppIntent {
 
-    static var title: LocalizedStringResource = "Briefing generieren"
-    static var description = IntentDescription("Generiert dein tägliches Briefing mit allen verbundenen Quellen")
+    static var title: LocalizedStringResource = "Generate Daily Briefing"
+    static var description = IntentDescription("Generates your daily briefing from all connected sources")
 
     static var openAppWhenRun: Bool = true
 
-    @Parameter(title: "Detailtiefe", default: .quick)
+    @Parameter(title: "Detail Level", default: .quick)
     var detailLevel: BriefingDetailLevelEntity
 
     @MainActor
-    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
         let briefingService = BriefingGenerationService.shared
 
         // Generate the briefing
@@ -25,15 +25,16 @@ struct GenerateBriefingIntent: AppIntent {
             detailLevel: detailLevel.briefingDetailLevel
         )
 
-        // Return a dialog with the summary
+        // Return the briefing summary as string value, plus dialog and snippet view
         return .result(
-            dialog: "Hier ist dein Briefing für heute.",
+            value: briefing.summary,
+            dialog: "Here is your briefing for today.",
             view: BriefingSnippetView(briefing: briefing)
         )
     }
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Generiere ein \(\.$detailLevel) Briefing")
+        Summary("Generate a \(\.$detailLevel) briefing")
     }
 }
 
@@ -102,7 +103,7 @@ struct ConfigureScheduleIntent: AppIntent {
 
 /// Entity for briefing detail level in App Intents
 @available(macOS 13.0, *)
-struct BriefingDetailLevelEntity: AppEnum {
+enum BriefingDetailLevelEntity: String, AppEnum {
     case quick
     case detailed
 
