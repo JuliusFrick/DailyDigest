@@ -15,6 +15,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             briefingSection
+            integrationsSection
             llmNavigationSection
             audioSection
             scheduleSection
@@ -23,6 +24,26 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .navigationTitle("Einstellungen")
         .onAppear(perform: loadSettings)
+    }
+
+    // MARK: - Integrations Section
+
+    private var integrationsSection: some View {
+        Section {
+            NavigationLink {
+                ServiceIntegrationsView()
+            } label: {
+                HStack {
+                    Label("Dienst-Integrationen", systemImage: "square.stack.3d.up.fill")
+                    Spacer()
+                    ConnectedServicesCount()
+                }
+            }
+        } header: {
+            Text("Datenquellen")
+        } footer: {
+            Text("Verbinde deine Produktivitäts-Tools um Daten für dein Briefing abzurufen.")
+        }
     }
 
     // MARK: - Briefing Section
@@ -162,6 +183,28 @@ struct SettingsView: View {
         let defaultSettings = UserSettings()
         modelContext.insert(defaultSettings)
         try? modelContext.save()
+    }
+}
+
+// MARK: - Connected Services Count
+
+struct ConnectedServicesCount: View {
+    @StateObject private var connectionManager = ServiceConnectionManager.shared
+
+    private var connectedCount: Int {
+        connectionManager.connectedSources.count
+    }
+
+    var body: some View {
+        if connectedCount > 0 {
+            Text("\(connectedCount) verbunden")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            Text("Keine")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 

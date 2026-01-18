@@ -45,10 +45,6 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
         isAuthenticated = oauthService.isAuthenticated
     }
 
-    required convenience init() {
-        self.init()
-    }
-
     // MARK: - BriefingSource Protocol
 
     func authenticate() async throws {
