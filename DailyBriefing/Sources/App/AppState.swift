@@ -43,6 +43,10 @@ final class AppState: ObservableObject {
     @Published var lastError: BriefingGenerationError?
     @Published var showError: Bool = false
 
+    // MARK: - Network State
+
+    @Published var isOnline: Bool = true
+
     // MARK: - Source Management
 
     @Published var connectedSources: [any BriefingSource] = []
@@ -54,6 +58,8 @@ final class AppState: ObservableObject {
     private let schedulingService = SchedulingService.shared
     private let shortcutService = GlobalShortcutService.shared
     private let ttsService = TTSService.shared
+    private let networkMonitor = NetworkMonitor.shared
+    private let cacheService = BriefingCacheService.shared
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Initialization
@@ -64,6 +70,7 @@ final class AppState: ObservableObject {
         setupSchedulingCallbacks()
         setupShortcutCallbacks()
         setupTTSBindings()
+        setupNetworkBindings()
     }
 
     private func checkOnboardingStatus() {
@@ -137,6 +144,13 @@ final class AppState: ObservableObject {
             .assign(to: &$isPlayingAudio)
     }
 
+    private func setupNetworkBindings() {
+        // Bind network monitor state to app state
+        networkMonitor.$isOnline
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isOnline)
+    }
+
     // MARK: - Briefing Actions
 
     /// Generate a new briefing
@@ -154,6 +168,28 @@ final class AppState: ObservableObject {
     func dismissError() {
         showError = false
         lastError = nil
+    }
+
+    /// Load the most recent cached briefing (for offline mode)
+    func loadCachedBriefing() {
+        if let cached = cacheService.loadLatest() {
+            currentBriefing = cached
+        }
+    }
+
+    /// Check if Ollama is available for offline generation
+    func checkOllamaAvailability() async -> Bool {
+        await networkMonitor.checkOllamaAvailability()
+    }
+
+    /// Whether Ollama is configured as the LLM provider
+    var isOllamaConfigured: Bool {
+        networkMonitor.isOllamaConfigured()
+    }
+
+    /// Whether there's a cached briefing available
+    var hasCachedBriefing: Bool {
+        cacheService.cachedBriefingCount > 0
     }
 
     func toggleAudioPlayback() {

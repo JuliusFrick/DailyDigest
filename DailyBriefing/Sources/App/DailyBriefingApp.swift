@@ -67,9 +67,13 @@ struct DailyBriefingApp: App {
         }
 
         // Register menu bar extra for quick access
-        MenuBarExtra("Daily Briefing", systemImage: "sun.horizon.fill") {
+        MenuBarExtra {
             MenuBarView()
                 .environmentObject(appState)
+        } label: {
+            Image(systemName: appState.isOnline ? "sun.horizon.fill" : "sun.horizon")
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(appState.isOnline ? .orange : .gray)
         }
         .menuBarExtraStyle(.window)
     }
@@ -106,11 +110,19 @@ struct MenuBarView: View {
         VStack(spacing: 12) {
             // Header
             HStack {
-                Image(systemName: "sun.horizon.fill")
-                    .foregroundStyle(.orange)
+                Image(systemName: appState.isOnline ? "sun.horizon.fill" : "sun.horizon")
+                    .foregroundStyle(appState.isOnline ? .orange : .gray)
                 Text("Daily Briefing")
                     .font(.headline)
                 Spacer()
+                if !appState.isOnline {
+                    Label("Offline", systemImage: "wifi.slash")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.orange.opacity(0.15), in: Capsule())
+                }
             }
             .padding(.bottom, 4)
 
@@ -139,6 +151,18 @@ struct MenuBarView: View {
 
             Divider()
 
+            // Offline: Load cached briefing button
+            if !appState.isOnline && appState.hasCachedBriefing && appState.currentBriefing == nil {
+                Button {
+                    appState.loadCachedBriefing()
+                } label: {
+                    HStack {
+                        Image(systemName: "clock.arrow.circlepath")
+                        Text("Letztes Briefing anzeigen")
+                    }
+                }
+            }
+
             // Actions
             Button {
                 Task { await appState.refreshBriefing() }
@@ -153,7 +177,7 @@ struct MenuBarView: View {
                     Text(appState.isLoadingBriefing ? "Generiere..." : "Briefing generieren")
                 }
             }
-            .disabled(appState.isLoadingBriefing)
+            .disabled(appState.isLoadingBriefing || (!appState.isOnline && !appState.isOllamaConfigured))
 
             Button {
                 openMainWindow()

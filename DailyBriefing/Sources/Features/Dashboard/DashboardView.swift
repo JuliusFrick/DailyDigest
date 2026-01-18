@@ -7,6 +7,9 @@ struct DashboardView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                if !appState.isOnline {
+                    offlineBanner
+                }
                 headerSection
                 audioPlayerSection
                 summarySection
@@ -41,6 +44,56 @@ struct DashboardView: View {
             if let error = appState.lastError {
                 Text(error.localizedDescription)
             }
+        }
+    }
+
+    // MARK: - Offline Banner
+
+    private var offlineBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "wifi.slash")
+                .font(.title3)
+                .foregroundStyle(.white)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Offline-Modus")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+
+                Text(offlineBannerSubtitle)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+
+            Spacer()
+
+            if appState.hasCachedBriefing && appState.currentBriefing == nil {
+                Button {
+                    appState.loadCachedBriefing()
+                } label: {
+                    Text("Letztes Briefing anzeigen")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.white.opacity(0.2))
+            }
+        }
+        .padding(16)
+        .background {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.orange.gradient)
+        }
+    }
+
+    private var offlineBannerSubtitle: String {
+        if appState.isOllamaConfigured {
+            return "Briefing-Generierung mit Ollama verfügbar"
+        } else if appState.hasCachedBriefing {
+            return "Gespeicherte Briefings verfügbar"
+        } else {
+            return "Keine Internetverbindung"
         }
     }
 
