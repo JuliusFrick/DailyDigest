@@ -46,6 +46,7 @@ final class SlackSource: BriefingSource, ObservableObject {
 
     @Published var selectedWorkspace: SlackWorkspace?
     @Published var availableWorkspaces: [SlackWorkspace] = []
+    @Published var availableChannels: [SlackChannel] = []
     @Published var includeDMs: Bool = true
     @Published var includeChannels: Bool = true
     @Published var includeMentions: Bool = true
@@ -70,8 +71,9 @@ final class SlackSource: BriefingSource, ObservableObject {
             isAuthenticated = true
             connectionStatus = .connected
 
-            // Fetch workspace info
+            // Fetch workspace info and channels
             try await fetchWorkspaceInfo()
+            availableChannels = try await fetchChannels()
         } catch {
             lastError = error
             connectionStatus = .error
@@ -89,6 +91,7 @@ final class SlackSource: BriefingSource, ObservableObject {
         connectionStatus = .disconnected
         selectedWorkspace = nil
         availableWorkspaces = []
+        availableChannels = []
     }
 
     func fetchItems(since: Date) async throws -> [BriefingItem] {
@@ -156,6 +159,54 @@ final class SlackSource: BriefingSource, ObservableObject {
                 name: team.name,
                 domain: team.domain,
                 icon: team.icon?.image68
+            )
+        }
+    }
+
+    /// Fetches available Slack channels (public and private)
+    func fetchChannels() async throws -> [SlackChannel] {
+        guard isAuthenticated else {
+            throw SourceError.authenticationFailed("Nicht mit Slack verbunden")
+        }
+
+        let tokens = try await oauthService.getValidTokens()
+
+        var components = URLComponents(string: "\(baseURL)/conversations.list")!
+        components.queryItems = [
+            URLQueryItem(name: "types", value: "public_channel,private_channel"),
+            URLQueryItem(name: "exclude_archived", value: "true"),
+            URLQueryItem(name: "limit", value: "200")
+        ]
+
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(tokens.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SourceError.networkError("Ungültige Server-Antwort")
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 401 {
+                connectionStatus = .tokenExpired
+                throw SourceError.tokenExpired
+            }
+            throw SourceError.networkError("Fehler \(httpResponse.statusCode)")
+        }
+
+        let channelsResponse = try JSONDecoder().decode(SlackChannelsResponse.self, from: data)
+
+        guard channelsResponse.ok else {
+            throw SourceError.networkError(channelsResponse.error ?? "Unbekannter Fehler")
+        }
+
+        return (channelsResponse.channels ?? []).map { channel in
+            SlackChannel(
+                id: channel.id,
+                name: channel.name ?? "Unbekannt",
+                isPrivate: channel.isPrivate ?? false,
+                memberCount: channel.numMembers ?? 0
             )
         }
     }
@@ -317,12 +368,14 @@ struct SlackConversation: Codable, Identifiable {
     let isIm: Bool
     let isPrivate: Bool?
     let isMpim: Bool?
+    let numMembers: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, name
         case isIm = "is_im"
         case isPrivate = "is_private"
         case isMpim = "is_mpim"
+        case numMembers = "num_members"
     }
 }
 
@@ -350,6 +403,21 @@ struct SlackWorkspace: Identifiable, Equatable {
     let name: String
     let domain: String
     let icon: String?
+}
+
+/// Model representing a Slack channel
+struct SlackChannel: Identifiable, Equatable, Codable {
+    let id: String
+    let name: String
+    let isPrivate: Bool
+    let memberCount: Int
+}
+
+/// API response for channels list
+struct SlackChannelsResponse: Codable {
+    let ok: Bool
+    let channels: [SlackConversation]?
+    let error: String?
 }
 
 // MARK: - Configuration
