@@ -123,6 +123,11 @@ ${SPARKLE_PLIST_KEYS}
 </plist>
 PLIST
 
+# Re-sign the app bundle with ad-hoc signature
+# This is critical after copying frameworks to ensure the app can launch
+echo "Signing app bundle..."
+codesign --force --deep --sign - "${APP_DIR}" >/dev/null 2>&1
+
 echo "Launching: ${APP_DIR}"
 open -n "${APP_DIR}"
 

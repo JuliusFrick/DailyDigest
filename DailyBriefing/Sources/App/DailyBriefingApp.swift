@@ -3,7 +3,8 @@ import AppIntents
 
 @main
 struct DailyBriefingApp: App {
-    @StateObject private var appState = AppState()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var appState = AppState.shared
     @StateObject private var settingsStore = UserSettingsStore.shared
     @StateObject private var updateService = UpdateService.shared
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -14,8 +15,12 @@ struct DailyBriefingApp: App {
     private let shortcutService = GlobalShortcutService.shared
     private let notificationService = NotificationService.shared
 
+    init() {
+        // Window is shown by AppDelegate after NSApplication finished launching.
+    }
+
     var body: some Scene {
-        WindowGroup(id: "main") {
+        Window("Daily Briefing", id: "main") {
             ContentView()
                 .environmentObject(appState)
                 .environmentObject(settingsStore)

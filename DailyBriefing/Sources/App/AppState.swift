@@ -4,6 +4,7 @@ import Combine
 /// Central app state management
 @MainActor
 final class AppState: ObservableObject {
+    static let shared = AppState()
 
     // MARK: - Navigation
 
