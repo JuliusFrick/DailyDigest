@@ -133,6 +133,11 @@ PLIST
 
 popd >/dev/null
 
+# Re-sign the app bundle with ad-hoc signature
+# This is critical after copying frameworks to ensure the app can launch
+echo "Signing app bundle..."
+codesign --force --deep --sign - "${APP_DIR}"
+
 ZIP_PATH="${DIST_DIR}/${APP_NAME}-${VERSION}.zip"
 rm -f "${ZIP_PATH}"
 ditto -c -k --sequesterRsrc --keepParent "${APP_DIR}" "${ZIP_PATH}"
