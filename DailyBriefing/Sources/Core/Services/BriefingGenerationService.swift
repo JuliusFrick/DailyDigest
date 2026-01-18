@@ -103,27 +103,47 @@ final class BriefingGenerationService: ObservableObject {
         var errors: [SourceFetchError] = []
 
         // Fetch from all sources concurrently
-        await withTaskGroup(of: SourceFetchResult?.self) { group in
+        await withTaskGroup(of: (SourceFetchResult?, SourceFetchError?).self) { group in
             for source in sources {
                 group.addTask {
                     do {
                         let items = try await source.fetchItems(since: since)
-                        return SourceFetchResult(
+                        return (SourceFetchResult(
                             sourceId: type(of: source).sourceId,
                             sourceName: type(of: source).displayName,
                             sourceIcon: type(of: source).iconName,
                             items: items
-                        )
+                        ), nil)
                     } catch {
-                        // Capture error but don't fail the entire operation
-                        return nil
+                        // Capture error for potential reporting
+                        return (nil, SourceFetchError(
+                            sourceId: type(of: source).sourceId,
+                            error: error
+                        ))
                     }
                 }
             }
 
-            for await result in group {
+            for await (result, error) in group {
                 if let result = result {
                     results.append(result)
+                }
+                if let error = error {
+                    errors.append(error)
+                }
+            }
+        }
+
+        // Check for critical errors that should be surfaced
+        for fetchError in errors {
+            if let sourceError = fetchError.error as? SourceError {
+                switch sourceError {
+                case .tokenExpired:
+                    throw BriefingGenerationError.tokenExpired(sourceId: fetchError.sourceId)
+                case .networkError:
+                    throw BriefingGenerationError.networkError(fetchError.error)
+                default:
+                    break
                 }
             }
         }
@@ -331,6 +351,8 @@ enum BriefingGenerationError: LocalizedError {
     case allSourcesFailed
     case llmNotConfigured
     case llmError(Error)
+    case tokenExpired(sourceId: String)
+    case networkError(Error)
     case unknown(Error)
 
     var errorDescription: String? {
@@ -345,8 +367,20 @@ enum BriefingGenerationError: LocalizedError {
             return "KI-Provider nicht konfiguriert. Bitte richte einen Provider in den Einstellungen ein."
         case .llmError(let error):
             return "KI-Fehler: \(error.localizedDescription)"
+        case .tokenExpired(let sourceId):
+            return "Sitzung für '\(sourceId)' abgelaufen. Bitte erneut verbinden."
+        case .networkError(let error):
+            return "Netzwerkfehler: \(error.localizedDescription)"
         case .unknown(let error):
             return "Unbekannter Fehler: \(error.localizedDescription)"
         }
+    }
+
+    /// The source ID for token-related errors
+    var affectedSourceId: String? {
+        if case .tokenExpired(let sourceId) = self {
+            return sourceId
+        }
+        return nil
     }
 }

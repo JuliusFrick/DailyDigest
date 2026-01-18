@@ -2,7 +2,9 @@ import SwiftUI
 
 struct DashboardView: View {
     @EnvironmentObject private var appState: AppState
+    @StateObject private var connectionManager = ServiceConnectionManager.shared
     @State private var selectedDetailLevel: Briefing.DetailLevel = .quick
+    @State private var isReconnecting = false
 
     var body: some View {
         ScrollView {
@@ -24,21 +26,18 @@ struct DashboardView: View {
                 refreshButton
             }
         }
-        .alert("Fehler", isPresented: $appState.showError) {
-            Button("OK") {
+        .alert(errorAlertTitle, isPresented: $appState.showError) {
+            // Primary action button based on error type
+            errorRecoveryButton
+
+            // Help button for all errors
+            Button("Hilfe") {
+                openHelpSupport()
+            }
+
+            // Dismiss button
+            Button("OK", role: .cancel) {
                 appState.dismissError()
-            }
-            if case .noSourcesConnected = appState.lastError {
-                Button("Quellen verbinden") {
-                    appState.dismissError()
-                    appState.selectedTab = .sources
-                }
-            }
-            if case .llmNotConfigured = appState.lastError {
-                Button("KI konfigurieren") {
-                    appState.dismissError()
-                    appState.selectedTab = .settings
-                }
             }
         } message: {
             if let error = appState.lastError {
@@ -47,37 +46,140 @@ struct DashboardView: View {
         }
     }
 
+    // MARK: - Error Alert
+
+    private var errorAlertTitle: String {
+        guard let error = appState.lastError else { return "Fehler" }
+
+        switch error {
+        case .llmNotConfigured:
+            return "KI nicht konfiguriert"
+        case .noSourcesConnected:
+            return "Keine Quellen"
+        case .tokenExpired:
+            return "Sitzung abgelaufen"
+        case .networkError:
+            return "Netzwerkfehler"
+        case .allSourcesFailed:
+            return "Quellen nicht erreichbar"
+        case .llmError:
+            return "KI-Fehler"
+        default:
+            return "Fehler"
+        }
+    }
+
+    @ViewBuilder
+    private var errorRecoveryButton: some View {
+        if let error = appState.lastError {
+            switch error {
+            case .llmNotConfigured:
+                Button("KI konfigurieren") {
+                    appState.dismissError()
+                    appState.selectedTab = .settings
+                }
+
+            case .noSourcesConnected:
+                Button("Quellen verbinden") {
+                    appState.dismissError()
+                    appState.selectedTab = .sources
+                }
+
+            case .tokenExpired(let sourceId):
+                Button("Erneut verbinden") {
+                    appState.dismissError()
+                    reconnectSource(sourceId: sourceId)
+                }
+
+            case .networkError, .allSourcesFailed:
+                if appState.hasCachedBriefing {
+                    Button("Cached Briefing laden") {
+                        appState.dismissError()
+                        appState.loadCachedBriefing()
+                    }
+                } else {
+                    EmptyView()
+                }
+
+            default:
+                EmptyView()
+            }
+        }
+    }
+
+    private func reconnectSource(sourceId: String) {
+        guard let serviceType = ServiceType(rawValue: sourceId) else { return }
+
+        Task {
+            isReconnecting = true
+            do {
+                try await connectionManager.reconnect(serviceType)
+            } catch {
+                // Error will be handled by the connection manager
+            }
+            isReconnecting = false
+        }
+    }
+
+    private func openHelpSupport() {
+        if let url = URL(string: "https://dailybriefing.app/support") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     // MARK: - Offline Banner
 
     private var offlineBanner: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "wifi.slash")
-                .font(.title3)
-                .foregroundStyle(.white)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Offline-Modus")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "wifi.slash")
+                    .font(.title3)
                     .foregroundStyle(.white)
 
-                Text(offlineBannerSubtitle)
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.8))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Offline-Modus")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+
+                    Text(offlineBannerSubtitle)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+
+                Spacer()
             }
 
-            Spacer()
+            // Action buttons row
+            if appState.hasCachedBriefing || appState.isOllamaConfigured {
+                HStack(spacing: 8) {
+                    if appState.hasCachedBriefing && appState.currentBriefing == nil {
+                        Button {
+                            appState.loadCachedBriefing()
+                        } label: {
+                            Label("Cached Briefing laden", systemImage: "arrow.down.doc")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.white.opacity(0.2))
+                    }
 
-            if appState.hasCachedBriefing && appState.currentBriefing == nil {
-                Button {
-                    appState.loadCachedBriefing()
-                } label: {
-                    Text("Letztes Briefing anzeigen")
-                        .font(.caption)
-                        .fontWeight(.medium)
+                    if appState.isOllamaConfigured && appState.currentBriefing == nil {
+                        Button {
+                            Task { await appState.refreshBriefing(detailLevel: selectedDetailLevel) }
+                        } label: {
+                            Label("Mit Ollama generieren", systemImage: "sparkles")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.white.opacity(0.2))
+                        .disabled(appState.isLoadingBriefing)
+                    }
+
+                    Spacer()
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.white.opacity(0.2))
             }
         }
         .padding(16)
