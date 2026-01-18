@@ -16,6 +16,7 @@ struct SettingsView: View {
 
     @StateObject private var schedulingService = SchedulingService.shared
     @StateObject private var shortcutService = GlobalShortcutService.shared
+    @StateObject private var launchAtLoginService = LaunchAtLoginService.shared
 
     var body: some View {
         Form {
@@ -26,6 +27,7 @@ struct SettingsView: View {
             scheduleSection
             shortcutSection
             siriSection
+            generalSection
             aboutSection
         }
         .formStyle(.grouped)
@@ -244,6 +246,27 @@ struct SettingsView: View {
             Text("Siri Integration")
         } footer: {
             Text("Nutze Siri um dein Briefing freihändig zu steuern. Die Shortcuts sind automatisch in der Shortcuts App verfügbar.")
+        }
+    }
+
+    // MARK: - General Section
+
+    private var generalSection: some View {
+        Section {
+            Toggle("Bei Anmeldung starten", isOn: Binding(
+                get: { launchAtLoginService.enabled },
+                set: { newValue in
+                    if newValue {
+                        launchAtLoginService.enable()
+                    } else {
+                        launchAtLoginService.disable()
+                    }
+                }
+            ))
+        } header: {
+            Text("Allgemein")
+        } footer: {
+            Text("Die App wird automatisch gestartet, wenn du dich an deinem Mac anmeldest.")
         }
     }
 
