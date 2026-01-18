@@ -1,7 +1,7 @@
 import Foundation
 
 /// Represents a voice available for text-to-speech
-struct TTSVoice: Identifiable, Hashable {
+struct TTSVoice: Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let language: String
@@ -16,7 +16,7 @@ struct TTSVoice: Identifiable, Hashable {
 }
 
 /// Playback state for TTS
-enum TTSPlaybackState: Equatable {
+enum TTSPlaybackState: Equatable, Sendable {
     case idle
     case speaking
     case paused

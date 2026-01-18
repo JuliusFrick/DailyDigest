@@ -11,52 +11,311 @@ struct ContentView: View {
                 MainView()
             }
         }
-        .frame(minWidth: 380, minHeight: 600)
+        .frame(minWidth: 500, minHeight: 400)
     }
 }
 
 struct MainView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var showSettings = false
+    @State private var showSources = false
+    @State private var showHistory = false
 
     var body: some View {
-        NavigationSplitView {
-            SidebarView()
-        } detail: {
-            DetailView()
+        ZStack {
+            Color.tuiBackground
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Top bar
+                TopBar(
+                    showSettings: $showSettings,
+                    showSources: $showSources,
+                    showHistory: $showHistory
+                )
+
+                // Main content
+                TUIDashboardView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                // Bottom status bar
+                StatusBar()
+            }
+
+            // Modal overlays
+            if showSettings {
+                ModalOverlay(isPresented: $showSettings, title: "Settings") {
+                    SettingsView()
+                }
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                    removal: .opacity.combined(with: .scale(scale: 0.98))
+                ))
+            }
+
+            if showSources {
+                ModalOverlay(isPresented: $showSources, title: "Sources") {
+                    TUISourcesView()
+                }
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                    removal: .opacity.combined(with: .scale(scale: 0.98))
+                ))
+            }
+
+            if showHistory {
+                ModalOverlay(isPresented: $showHistory, title: "History") {
+                    TUIHistoryView()
+                }
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                    removal: .opacity.combined(with: .scale(scale: 0.98))
+                ))
+            }
         }
-        .navigationSplitViewStyle(.balanced)
+        .animation(.tuiSnappy, value: showSettings)
+        .animation(.tuiSnappy, value: showSources)
+        .animation(.tuiSnappy, value: showHistory)
+        .onKeyPress(.escape) {
+            if showSettings || showSources || showHistory {
+                showSettings = false
+                showSources = false
+                showHistory = false
+                return .handled
+            }
+            return .ignored
+        }
+        .modifier(ContentViewKeyboardModifier(
+            showSettings: $showSettings,
+            showSources: $showSources,
+            showHistory: $showHistory
+        ))
     }
 }
 
-struct SidebarView: View {
-    @EnvironmentObject private var appState: AppState
+// MARK: - Top Bar
+
+struct TopBar: View {
+    @Binding var showSettings: Bool
+    @Binding var showSources: Bool
+    @Binding var showHistory: Bool
 
     var body: some View {
-        List(selection: $appState.selectedTab) {
-            ForEach(AppState.Tab.allCases) { tab in
-                NavigationLink(value: tab) {
-                    Label(tab.title, systemImage: tab.icon)
+        HStack(spacing: 0) {
+            // Logo/Title
+            Text("DAILY BRIEFING")
+                .font(.system(.caption, design: .monospaced))
+                .fontWeight(.bold)
+                .foregroundStyle(.primary)
+
+            Spacer()
+
+            // Nav items
+            HStack(spacing: 2) {
+                NavButton(label: "1", title: "Home", isActive: !showHistory && !showSources && !showSettings) {
+                    showHistory = false; showSources = false; showSettings = false
+                }
+                NavButton(label: "2", title: "History", isActive: showHistory) {
+                    showHistory.toggle(); showSources = false; showSettings = false
+                }
+                NavButton(label: "3", title: "Sources", isActive: showSources) {
+                    showSources.toggle(); showHistory = false; showSettings = false
+                }
+                NavButton(label: ",", title: "Settings", isActive: showSettings) {
+                    showSettings.toggle(); showHistory = false; showSources = false
                 }
             }
         }
-        .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 250)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .background(Color.tuiBackground)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.tuiBorder)
+                .frame(height: 1)
+        }
     }
 }
 
-struct DetailView: View {
+struct NavButton: View {
+    let label: String
+    let title: String
+    let isActive: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Text("⌘\(label)")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+
+                Text(title)
+                    .font(.system(.caption, design: .monospaced))
+            }
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.xs)
+            .background(
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(isActive ? Color.tuiHighlight : (isHovered ? Color.tuiHover : Color.clear))
+            )
+            .foregroundStyle(isActive ? .primary : .secondary)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+}
+
+// MARK: - Status Bar
+
+struct StatusBar: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
-        switch appState.selectedTab {
-        case .dashboard:
-            DashboardView()
-        case .history:
-            BriefingHistoryView()
-        case .sources:
-            SourcesView()
-        case .settings:
-            SettingsView()
+        HStack(spacing: Spacing.md) {
+            // Online status
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(appState.isOnline ? Color.green : Color.orange)
+                    .frame(width: 6, height: 6)
+                Text(appState.isOnline ? "online" : "offline")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer()
+
+            // Keyboard hints - context-aware
+            HStack(spacing: Spacing.sm) {
+                if appState.currentBriefing != nil {
+                    KeyHint(key: "SPC", action: appState.isPlayingAudio ? "pause" : "play")
+                    if appState.isPlayingAudio {
+                        KeyHint(key: "⌘.", action: "stop")
+                    }
+                }
+                
+                KeyHint(key: "⌘R", action: "refresh")
+                KeyHint(key: "⌘⇧Q", action: "quick")
+                KeyHint(key: "⌘⇧D", action: "detail")
+                KeyHint(key: "ESC", action: "close")
+            }
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.xs)
+        .background(Color.tuiBackground)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.tuiBorder)
+                .frame(height: 1)
+        }
+    }
+}
+
+struct KeyHint: View {
+    let key: String
+    let action: String
+    
+    var body: some View {
+        Text("\(key) \(action)")
+            .font(.system(.caption2, design: .monospaced))
+            .foregroundStyle(.quaternary)
+    }
+}
+
+// MARK: - Content View Keyboard Modifier
+
+struct ContentViewKeyboardModifier: ViewModifier {
+    @Binding var showSettings: Bool
+    @Binding var showSources: Bool
+    @Binding var showHistory: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .onKeyPress("w", modifiers: .command) {
+                if showSettings || showSources || showHistory {
+                    showSettings = false
+                    showSources = false
+                    showHistory = false
+                    return .handled
+                }
+                return .ignored
+            }
+            .onKeyPress("1", modifiers: .command) {
+                showHistory = false; showSources = false; showSettings = false
+                return .handled
+            }
+            .onKeyPress("2", modifiers: .command) {
+                showHistory.toggle(); showSources = false; showSettings = false
+                return .handled
+            }
+            .onKeyPress("3", modifiers: .command) {
+                showSources.toggle(); showHistory = false; showSettings = false
+                return .handled
+            }
+            .onKeyPress(",", modifiers: .command) {
+                showSettings.toggle(); showHistory = false; showSources = false
+                return .handled
+            }
+    }
+}
+
+// MARK: - Modal Overlay
+
+struct ModalOverlay<Content: View>: View {
+    @Binding var isPresented: Bool
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ZStack {
+            // Backdrop
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    isPresented = false
+                }
+
+            // Modal
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text(title.uppercased())
+                        .font(.system(.caption, design: .monospaced))
+                        .fontWeight(.bold)
+
+                    Spacer()
+
+                    Button {
+                        isPresented = false
+                    } label: {
+                        Text("[ESC]")
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(Spacing.md)
+                .background(Color.tuiBackground)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(Color.tuiBorder)
+                        .frame(height: 1)
+                }
+
+                // Content
+                content()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(maxWidth: 600, maxHeight: 500)
+            .background(Color.tuiBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .overlay(
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(Color.tuiBorder, lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.3), radius: 20, y: 10)
         }
     }
 }

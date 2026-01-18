@@ -1,7 +1,6 @@
 import Foundation
 import Combine
 import AppKit
-import UserNotifications
 
 /// Service responsible for scheduling automatic briefing generation
 /// Handles daily scheduled briefings and notifications
@@ -30,7 +29,6 @@ final class SchedulingService: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let briefingService = BriefingGenerationService.shared
     private let notificationService = NotificationService.shared
-    private let notificationCenter = UNUserNotificationCenter.current()
 
     // MARK: - Constants
 
@@ -49,7 +47,6 @@ final class SchedulingService: ObservableObject {
     // MARK: - Initialization
 
     private init() {
-        setupNotifications()
         loadScheduledTime()
         observeSystemWake()
     }
@@ -91,26 +88,10 @@ final class SchedulingService: ObservableObject {
 
     /// Request notification permissions
     func requestNotificationPermission() async -> Bool {
-        do {
-            let granted = try await notificationCenter.requestAuthorization(options: [.alert, .sound, .badge])
-            return granted
-        } catch {
-            return false
-        }
+        await notificationService.requestPermission()
     }
 
     // MARK: - Private Methods
-
-    private func setupNotifications() {
-        // Check current notification settings
-        notificationCenter.getNotificationSettings { settings in
-            if settings.authorizationStatus == .notDetermined {
-                Task { @MainActor in
-                    _ = await self.requestNotificationPermission()
-                }
-            }
-        }
-    }
 
     private func loadScheduledTime() {
         if let savedTime = UserDefaults.standard.object(forKey: "scheduledBriefingTime") as? Date {

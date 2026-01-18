@@ -1,400 +1,335 @@
 import SwiftUI
 
-/// View for displaying and managing briefing history
-struct BriefingHistoryView: View {
+// MARK: - TUI History View
+
+struct TUIHistoryView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var cacheService = BriefingCacheService.shared
 
     @State private var cachedBriefings: [Briefing] = []
     @State private var selectedBriefing: Briefing?
-    @State private var showDeleteAllConfirmation = false
+    @State private var selectedIndex: Int = 0
 
     var body: some View {
-        Group {
-            if selectedBriefing != nil {
-                briefingDetailView
-            } else {
-                historyListView
-            }
+        HStack(spacing: 0) {
+            // Left: List
+            listPanel
+                .frame(width: 200)
+
+            Rectangle()
+                .fill(Color.tuiBorder)
+                .frame(width: 1)
+
+            // Right: Detail
+            detailPanel
+                .frame(maxWidth: .infinity)
         }
         .onAppear {
             loadBriefings()
         }
+        .onKeyPress(.upArrow) {
+            if selectedIndex > 0 {
+                selectedIndex -= 1
+                selectedBriefing = cachedBriefings[safe: selectedIndex]
+            }
+            return .handled
+        }
+        .onKeyPress(.downArrow) {
+            if selectedIndex < cachedBriefings.count - 1 {
+                selectedIndex += 1
+                selectedBriefing = cachedBriefings[safe: selectedIndex]
+            }
+            return .handled
+        }
+        .onKeyPress(.delete) {
+            if let briefing = selectedBriefing {
+                deleteBriefing(briefing)
+            }
+            return .handled
+        }
     }
 
-    // MARK: - History List View
+    // MARK: - List Panel
 
-    @ViewBuilder
-    private var historyListView: some View {
+    private var listPanel: some View {
         VStack(spacing: 0) {
-            headerSection
-
-            if cachedBriefings.isEmpty {
-                emptyStateView
-            } else {
-                briefingsList
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.briefingBackground)
-    }
-
-    @ViewBuilder
-    private var headerSection: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Briefing-Verlauf")
-                    .font(.largeTitle)
+            // Header
+            HStack {
+                Text("BRIEFINGS")
+                    .font(.tuiMonoTiny)
                     .fontWeight(.bold)
+                    .foregroundStyle(.tertiary)
 
-                Text("\(cachedBriefings.count) Briefings gespeichert")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                Text("[\(cachedBriefings.count)]")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.quaternary)
+
+                Spacer()
+            }
+            .padding(Spacing.md)
+            .background(Color.tuiBackground)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color.tuiBorder)
+                    .frame(height: 1)
             }
 
-            Spacer()
-
-            if !cachedBriefings.isEmpty {
-                Button(role: .destructive) {
-                    showDeleteAllConfirmation = true
-                } label: {
-                    Label("Alle löschen", systemImage: "trash")
+            // List
+            if cachedBriefings.isEmpty {
+                VStack(spacing: Spacing.sm) {
+                    Text("no history")
+                        .font(.tuiMonoSmall)
+                        .foregroundStyle(.tertiary)
                 }
-                .buttonStyle(.subtle)
-            }
-        }
-        .padding()
-        .alert("Alle Briefings löschen?", isPresented: $showDeleteAllConfirmation) {
-            Button("Abbrechen", role: .cancel) {}
-            Button("Alle löschen", role: .destructive) {
-                deleteAllBriefings()
-            }
-        } message: {
-            Text("Diese Aktion kann nicht rückgängig gemacht werden. Alle \(cachedBriefings.count) gespeicherten Briefings werden gelöscht.")
-        }
-    }
-
-    @ViewBuilder
-    private var emptyStateView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "clock.badge.questionmark")
-                .font(.system(size: 64))
-                .foregroundStyle(.tertiary)
-
-            Text("Keine Briefings vorhanden")
-                .font(.title2)
-                .fontWeight(.semibold)
-
-            Text("Generierte Briefings werden hier automatisch gespeichert.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-
-            Button {
-                appState.selectedTab = .dashboard
-            } label: {
-                Text("Zum Dashboard")
-            }
-            .buttonStyle(.prominent)
-            .padding(.top, 8)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-    }
-
-    @ViewBuilder
-    private var briefingsList: some View {
-        ScrollView {
-            LazyVStack(spacing: 12) {
-                ForEach(cachedBriefings) { briefing in
-                    BriefingHistoryRow(briefing: briefing) {
-                        selectedBriefing = briefing
-                    }
-                    .contextMenu {
-                        Button(role: .destructive) {
-                            deleteBriefing(briefing)
-                        } label: {
-                            Label("Löschen", systemImage: "trash")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(cachedBriefings.enumerated()), id: \.element.id) { index, briefing in
+                            TUIHistoryRow(
+                                briefing: briefing,
+                                isSelected: selectedBriefing?.id == briefing.id,
+                                onSelect: {
+                                    withAnimation(.tuiFast) {
+                                        selectedBriefing = briefing
+                                        selectedIndex = index
+                                    }
+                                }
+                            )
                         }
                     }
                 }
             }
-            .padding()
+
+            // Footer with hints
+            HStack {
+                Text("↑↓ navigate")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.quaternary)
+
+                Spacer()
+
+                Text("⌫ delete")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.quaternary)
+            }
+            .padding(Spacing.sm)
+            .background(Color.tuiBackground)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(Color.tuiBorder)
+                    .frame(height: 1)
+            }
         }
     }
 
-    // MARK: - Briefing Detail View
+    // MARK: - Detail Panel
 
-    @ViewBuilder
-    private var briefingDetailView: some View {
+    private var detailPanel: some View {
         VStack(spacing: 0) {
-            detailHeaderSection
-
             if let briefing = selectedBriefing {
-                BriefingDetailContent(briefing: briefing)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.briefingBackground)
-    }
+                // Header
+                HStack {
+                    Text(briefing.generatedAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.tuiMonoSmall)
+                        .fontWeight(.medium)
 
-    @ViewBuilder
-    private var detailHeaderSection: some View {
-        HStack {
-            Button {
-                withAnimation(.briefingEaseOut) {
-                    selectedBriefing = nil
+                    Text("·")
+                        .foregroundStyle(.quaternary)
+
+                    Text(briefing.detailLevel.displayName.lowercased())
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.tertiary)
+
+                    Spacer()
+
+                    Button {
+                        deleteBriefing(briefing)
+                    } label: {
+                        Text("delete")
+                            .font(.tuiMonoTiny)
+                    }
+                    .buttonStyle(.tuiGhost)
                 }
-            } label: {
-                Label("Zurück", systemImage: "chevron.left")
-            }
-            .buttonStyle(.subtle)
+                .padding(Spacing.md)
+                .background(Color.tuiBackground)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(Color.tuiBorder)
+                        .frame(height: 1)
+                }
 
-            Spacer()
+                // Content
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Spacing.lg) {
+                        // Summary
+                        VStack(alignment: .leading, spacing: Spacing.sm) {
+                            Text("SUMMARY")
+                                .font(.tuiMonoTiny)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.tertiary)
 
-            if let briefing = selectedBriefing {
-                Text(briefing.generatedAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                            Text(briefing.summary)
+                                .font(.tuiMonoSmall)
+                                .foregroundStyle(.secondary)
+                                .lineSpacing(4)
+                        }
+
+                        // Sections
+                        ForEach(briefing.sections) { section in
+                            TUIHistorySectionView(section: section)
+                        }
+                    }
+                    .padding(Spacing.md)
+                }
+            } else {
+                VStack(spacing: Spacing.md) {
+                    Text("─────────────────")
+                        .font(.tuiMonoSmall)
+                        .foregroundStyle(.quaternary)
+
+                    Text("select a briefing")
+                        .font(.tuiMonoSmall)
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .padding()
     }
 
     // MARK: - Actions
 
     private func loadBriefings() {
         cachedBriefings = cacheService.loadAll()
+        if let first = cachedBriefings.first {
+            selectedBriefing = first
+            selectedIndex = 0
+        }
     }
 
     private func deleteBriefing(_ briefing: Briefing) {
-        withAnimation(.briefingEaseOut) {
+        withAnimation(.tuiFast) {
             try? cacheService.delete(id: briefing.id)
             cachedBriefings.removeAll { $0.id == briefing.id }
-        }
-    }
 
-    private func deleteAllBriefings() {
-        withAnimation(.briefingEaseOut) {
-            try? cacheService.clearAll()
-            cachedBriefings.removeAll()
+            if selectedBriefing?.id == briefing.id {
+                selectedBriefing = cachedBriefings[safe: selectedIndex] ?? cachedBriefings.first
+            }
         }
     }
 }
 
-// MARK: - Briefing History Row
+// MARK: - TUI History Row
 
-struct BriefingHistoryRow: View {
+struct TUIHistoryRow: View {
     let briefing: Briefing
-    let onTap: () -> Void
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    @State private var isHovered = false
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 16) {
-                dateColumn
+        Button(action: onSelect) {
+            HStack(spacing: Spacing.sm) {
+                Text(isSelected ? "▶" : " ")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 12)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text(briefing.detailLevel.displayName)
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(.quaternary, in: Capsule())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(briefing.generatedAt.formatted(.dateTime.day().month(.abbreviated)))
+                        .font(.tuiMonoSmall)
+                        .fontWeight(isSelected ? .medium : .regular)
 
-                        Spacer()
-
-                        Text("\(briefing.sections.count) Quellen")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text(briefing.summary.prefix(150) + (briefing.summary.count > 150 ? "..." : ""))
-                        .font(.body)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .foregroundStyle(.primary)
+                    Text(briefing.generatedAt.formatted(.dateTime.hour().minute()))
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.tertiary)
                 }
 
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                Spacer()
+
+                Text("[\(briefing.sections.count)]")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.quaternary)
             }
-            .padding()
-            .cardStyle(padding: 0)
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
+            .background(isSelected ? Color.tuiHighlight : (isHovered ? Color.tuiHover : Color.clear))
         }
         .buttonStyle(.plain)
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(role: .destructive) {
-                try? BriefingCacheService.shared.delete(id: briefing.id)
-            } label: {
-                Label("Löschen", systemImage: "trash")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var dateColumn: some View {
-        VStack(spacing: 2) {
-            Text(briefing.generatedAt.formatted(.dateTime.day()))
-                .font(.title2)
-                .fontWeight(.bold)
-
-            Text(briefing.generatedAt.formatted(.dateTime.month(.abbreviated)))
-                .font(.caption)
-                .textCase(.uppercase)
-                .foregroundStyle(.secondary)
-
-            Text(briefing.generatedAt.formatted(.dateTime.hour().minute()))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-        }
-        .frame(width: 50)
+        .onHover { isHovered = $0 }
+        .animation(.tuiFast, value: isHovered)
+        .animation(.tuiFast, value: isSelected)
     }
 }
 
-// MARK: - Briefing Detail Content
+// MARK: - TUI History Section View
 
-struct BriefingDetailContent: View {
-    let briefing: Briefing
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                summarySection
-                sourceSectionsView
-            }
-            .padding()
-        }
-    }
-
-    @ViewBuilder
-    private var summarySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Zusammenfassung", systemImage: "text.quote")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-
-            Text(briefing.summary)
-                .font(.body)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .cardStyle()
-    }
-
-    @ViewBuilder
-    private var sourceSectionsView: some View {
-        ForEach(briefing.sections) { section in
-            HistorySectionCard(section: section)
-        }
-    }
-}
-
-// MARK: - History Section Card
-
-struct HistorySectionCard: View {
+struct TUIHistorySectionView: View {
     let section: BriefingSection
     @State private var isExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
             Button {
-                withAnimation(.spring(response: 0.3)) {
+                withAnimation(.tuiSnappy) {
                     isExpanded.toggle()
                 }
             } label: {
-                HStack {
-                    Image(systemName: section.sourceIcon)
-                        .font(.title3)
-                        .foregroundStyle(.tint)
-                        .frame(width: 28)
+                HStack(spacing: Spacing.sm) {
+                    Text(isExpanded ? "▼" : "▶")
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.tertiary)
 
-                    Text(section.sourceName)
-                        .font(.headline)
+                    Text(section.sourceName.uppercased())
+                        .font(.tuiMonoTiny)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.tertiary)
+
+                    Text("[\(section.items.count)]")
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.quaternary)
 
                     Spacer()
-
-                    Text("\(section.items.count)")
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(.quaternary, in: Capsule())
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 }
             }
             .buttonStyle(.plain)
 
             if isExpanded {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(section.summary)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .padding(.bottom, 4)
-
+                VStack(alignment: .leading, spacing: Spacing.xs) {
                     ForEach(section.items) { item in
-                        HistoryItemRow(item: item)
+                        HStack(spacing: Spacing.sm) {
+                            Text("·")
+                                .font(.tuiMonoTiny)
+                                .foregroundStyle(.tertiary)
+
+                            Text(item.title)
+                                .font(.tuiMonoSmall)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .padding(.leading, Spacing.md)
                     }
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .cardStyle()
     }
 }
 
-// MARK: - History Item Row
+// MARK: - Legacy View (for compatibility)
 
-struct HistoryItemRow: View {
-    let item: BriefingItem
-
+struct BriefingHistoryView: View {
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Circle()
-                .fill(priorityColor)
-                .frame(width: 8, height: 8)
-                .padding(.top, 6)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-
-                if let subtitle = item.subtitle {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-
-            if item.deepLink != nil {
-                Image(systemName: "arrow.up.forward")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 8)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if let url = item.deepLink {
-                NSWorkspace.shared.open(url)
-            }
-        }
+        TUIHistoryView()
     }
+}
 
-    private var priorityColor: Color {
-        switch item.priority {
-        case .low: return .gray
-        case .medium: return .blue
-        case .high: return .orange
-        case .urgent: return .red
-        }
+// MARK: - Array Safe Subscript
+
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        guard index >= 0, index < count else { return nil }
+        return self[index]
     }
 }

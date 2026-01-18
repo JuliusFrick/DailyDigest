@@ -6,3 +6,6 @@ tasks/
 # Logs
 firebase-debug.log
 tasks/firebase-debug.log
+
+# Release artifacts
+dist/

@@ -18,7 +18,17 @@ final class NotificationService: NSObject, ObservableObject {
 
     // MARK: - Private Properties
 
-    private let notificationCenter = UNUserNotificationCenter.current()
+    /// `UNUserNotificationCenter.current()` can assert/crash if the process is not running from
+    /// a proper app bundle (e.g. SwiftPM-built executable in a DerivedData/Debug folder).
+    /// We therefore gate all notification functionality behind a runtime bundle check.
+    private static var canUseUserNotifications: Bool {
+        Bundle.main.bundleURL.pathExtension == "app"
+    }
+
+    private var notificationCenter: UNUserNotificationCenter? {
+        guard Self.canUseUserNotifications else { return nil }
+        return UNUserNotificationCenter.current()
+    }
 
     // MARK: - Constants
 
@@ -45,11 +55,16 @@ final class NotificationService: NSObject, ObservableObject {
 
     private override init() {
         super.init()
-        setupNotificationCategories()
-        notificationCenter.delegate = self
-        Task {
-            await checkAuthorizationStatus()
+        guard let notificationCenter else {
+            // Running without an app bundle: disable notifications instead of crashing.
+            isAuthorized = false
+            authorizationStatus = .notDetermined
+            return
         }
+
+        setupNotificationCategories(using: notificationCenter)
+        notificationCenter.delegate = self
+        Task { await checkAuthorizationStatus(using: notificationCenter) }
     }
 
     // MARK: - Public API
@@ -59,11 +74,12 @@ final class NotificationService: NSObject, ObservableObject {
     /// - Returns: Whether permission was granted
     @discardableResult
     func requestPermission() async -> Bool {
+        guard let notificationCenter else { return false }
         do {
             let granted = try await notificationCenter.requestAuthorization(
                 options: [.alert, .sound, .badge]
             )
-            await checkAuthorizationStatus()
+            await checkAuthorizationStatus(using: notificationCenter)
             return granted
         } catch {
             return false
@@ -72,6 +88,7 @@ final class NotificationService: NSObject, ObservableObject {
 
     /// Check if permissions have been requested before
     func hasRequestedPermission() async -> Bool {
+        guard let notificationCenter else { return true }
         let settings = await notificationCenter.notificationSettings()
         return settings.authorizationStatus != .notDetermined
     }
@@ -79,6 +96,7 @@ final class NotificationService: NSObject, ObservableObject {
     /// Schedule a daily morning reminder notification
     /// - Parameter time: The time to show the reminder each day
     func scheduleMorningReminder(at time: Date) {
+        guard let notificationCenter else { return }
         // Cancel any existing morning reminder
         cancelMorningReminder()
 
@@ -116,6 +134,7 @@ final class NotificationService: NSObject, ObservableObject {
 
     /// Cancel the morning reminder notification
     func cancelMorningReminder() {
+        guard let notificationCenter else { return }
         notificationCenter.removePendingNotificationRequests(
             withIdentifiers: [NotificationIdentifier.morningReminder]
         )
@@ -123,6 +142,7 @@ final class NotificationService: NSObject, ObservableObject {
 
     /// Send an immediate notification that the briefing is ready
     func sendBriefingReadyNotification() async {
+        guard let notificationCenter else { return }
         guard isAuthorized else { return }
 
         let content = UNMutableNotificationContent()
@@ -149,17 +169,19 @@ final class NotificationService: NSObject, ObservableObject {
 
     /// Remove all pending notifications
     func cancelAllNotifications() {
+        guard let notificationCenter else { return }
         notificationCenter.removeAllPendingNotificationRequests()
     }
 
     /// Remove all delivered notifications from notification center
     func clearDeliveredNotifications() {
+        guard let notificationCenter else { return }
         notificationCenter.removeAllDeliveredNotifications()
     }
 
     // MARK: - Private Methods
 
-    private func setupNotificationCategories() {
+    private func setupNotificationCategories(using notificationCenter: UNUserNotificationCenter) {
         // Define actions
         let openAction = UNNotificationAction(
             identifier: NotificationAction.openDashboard,
@@ -185,7 +207,7 @@ final class NotificationService: NSObject, ObservableObject {
         notificationCenter.setNotificationCategories([briefingCategory])
     }
 
-    private func checkAuthorizationStatus() async {
+    private func checkAuthorizationStatus(using notificationCenter: UNUserNotificationCenter) async {
         let settings = await notificationCenter.notificationSettings()
         authorizationStatus = settings.authorizationStatus
         isAuthorized = settings.authorizationStatus == .authorized

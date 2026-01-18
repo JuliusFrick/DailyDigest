@@ -108,16 +108,20 @@ final class BriefingGenerationService: ObservableObject {
                 group.addTask {
                     do {
                         let items = try await source.fetchItems(since: since)
+                        let (sourceId, sourceName, sourceIcon) = await MainActor.run {
+                            (type(of: source).sourceId, type(of: source).displayName, type(of: source).iconName)
+                        }
                         return (SourceFetchResult(
-                            sourceId: type(of: source).sourceId,
-                            sourceName: type(of: source).displayName,
-                            sourceIcon: type(of: source).iconName,
+                            sourceId: sourceId,
+                            sourceName: sourceName,
+                            sourceIcon: sourceIcon,
                             items: items
                         ), nil)
                     } catch {
                         // Capture error for potential reporting
+                        let sourceId = await MainActor.run { type(of: source).sourceId }
                         return (nil, SourceFetchError(
-                            sourceId: type(of: source).sourceId,
+                            sourceId: sourceId,
                             error: error
                         ))
                     }

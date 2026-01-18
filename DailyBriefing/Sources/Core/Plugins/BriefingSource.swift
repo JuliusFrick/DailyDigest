@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Protocol that all briefing sources must implement
 /// This enables a modular plugin architecture for adding new data sources
+@MainActor
 protocol BriefingSource: Identifiable, ObservableObject {
     /// Sources must be constructible without parameters (used by `SourceRegistry`).
     init()
@@ -37,7 +38,6 @@ protocol BriefingSource: Identifiable, ObservableObject {
     func fetchItems(since: Date) async throws -> [BriefingItem]
 
     /// Configuration view for this source
-    @MainActor
     func configurationView() -> AnyView
 }
 

@@ -3,146 +3,173 @@ import SwiftUI
 struct OnboardingView: View {
     @EnvironmentObject private var appState: AppState
     @State private var currentStep = 0
+    @State private var typedText = ""
+    @State private var showCursor = true
 
     private let steps = [
         OnboardingStep(
-            icon: "sun.horizon.fill",
-            title: "Willkommen bei Daily Briefing",
-            description: "Starte jeden Tag informiert mit einem personalisierten Briefing aus all deinen wichtigen Quellen.",
-            accentColor: .orange
+            title: "DAILY BRIEFING",
+            description: "your morning intelligence. all sources. one summary."
         ),
         OnboardingStep(
-            icon: "square.stack.3d.up.fill",
-            title: "Verbinde deine Quellen",
-            description: "Google Calendar, Jira, Slack, Email – alles an einem Ort. Du entscheidest welche Quellen du nutzen möchtest.",
-            accentColor: .blue
+            title: "SOURCES",
+            description: "calendar. jira. slack. email. connect what you need."
         ),
         OnboardingStep(
-            icon: "waveform",
-            title: "Hör dein Briefing",
-            description: "Lass dir dein Briefing vorlesen während du deinen Kaffee trinkst. Quick oder Detailed – du wählst.",
-            accentColor: .purple
+            title: "AUDIO",
+            description: "listen while you commute. quick or detailed mode."
         ),
         OnboardingStep(
-            icon: "sparkles",
-            title: "KI-generierte Zusammenfassung",
-            description: "Unsere KI fasst das Wichtigste zusammen und priorisiert automatisch. Du verpasst nichts mehr.",
-            accentColor: .pink
+            title: "AI SUMMARY",
+            description: "auto-prioritized. nothing missed."
         )
     ]
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Content
-            TabView(selection: $currentStep) {
-                ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
-                    OnboardingStepView(step: step)
-                        .tag(index)
-                }
-            }
-            .tabViewStyle(.automatic)
-            .frame(maxHeight: .infinity)
+        ZStack {
+            Color.tuiBackground
+                .ignoresSafeArea()
 
-            // Bottom section
-            VStack(spacing: 20) {
-                // Page indicators
-                HStack(spacing: 8) {
-                    ForEach(0..<steps.count, id: \.self) { index in
-                        Circle()
-                            .fill(index == currentStep ? Color.accentColor : Color.secondary.opacity(0.3))
-                            .frame(width: 8, height: 8)
-                            .animation(.easeInOut, value: currentStep)
+            VStack(spacing: 0) {
+                // ASCII art header
+                Text(asciiHeader)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, Spacing.xl)
+
+                Spacer()
+
+                // Content
+                VStack(spacing: Spacing.lg) {
+                    // Step counter
+                    Text("[\(currentStep + 1)/\(steps.count)]")
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.tertiary)
+
+                    // Title with typing effect
+                    HStack(spacing: 0) {
+                        Text(steps[currentStep].title)
+                            .font(.tuiMono)
+                            .fontWeight(.bold)
+
+                        Text(showCursor ? "_" : " ")
+                            .font(.tuiMono)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.primary)
                     }
+
+                    // Description
+                    Text(steps[currentStep].description)
+                        .font(.tuiMonoSmall)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 300)
                 }
 
-                // Buttons
-                HStack(spacing: 16) {
-                    if currentStep > 0 {
-                        Button("Zurück") {
-                            withAnimation {
-                                currentStep -= 1
+                Spacer()
+
+                // Progress and controls
+                VStack(spacing: Spacing.lg) {
+                    // ASCII progress bar
+                    Text(progressBar)
+                        .font(.tuiMonoSmall)
+                        .foregroundStyle(.tertiary)
+
+                    // Controls
+                    HStack(spacing: Spacing.md) {
+                        if currentStep > 0 {
+                            Button {
+                                withAnimation(.tuiSnappy) {
+                                    currentStep -= 1
+                                }
+                            } label: {
+                                Text("← back")
                             }
+                            .buttonStyle(.tuiGhost)
                         }
-                        .buttonStyle(.bordered)
-                    }
 
-                    Spacer()
+                        Spacer()
 
-                    if currentStep < steps.count - 1 {
-                        Button("Weiter") {
-                            withAnimation {
-                                currentStep += 1
+                        Button {
+                            if currentStep < steps.count - 1 {
+                                withAnimation(.tuiSnappy) {
+                                    currentStep += 1
+                                }
+                            } else {
+                                appState.completeOnboarding()
                             }
+                        } label: {
+                            Text(currentStep < steps.count - 1 ? "next →" : "start →")
                         }
-                        .buttonStyle(.borderedProminent)
-                    } else {
-                        Button("Los geht's") {
-                            appState.completeOnboarding()
-                        }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.tuiPrimary)
                     }
+
+                    // Keyboard hint
+                    Text("press ENTER to continue")
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.quaternary)
                 }
+                .padding(Spacing.xl)
             }
-            .padding(32)
         }
-        .frame(minWidth: 500, minHeight: 600)
-        .background {
-            LinearGradient(
-                colors: [
-                    steps[currentStep].accentColor.opacity(0.1),
-                    Color.clear
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .animation(.easeInOut, value: currentStep)
+        .frame(minWidth: 450, minHeight: 400)
+        .onAppear {
+            startCursorBlink()
+        }
+        .onKeyPress(.return) {
+            if currentStep < steps.count - 1 {
+                withAnimation(.tuiSnappy) {
+                    currentStep += 1
+                }
+            } else {
+                appState.completeOnboarding()
+            }
+            return .handled
+        }
+        .onKeyPress(.leftArrow) {
+            if currentStep > 0 {
+                withAnimation(.tuiSnappy) {
+                    currentStep -= 1
+                }
+            }
+            return .handled
+        }
+        .onKeyPress(.rightArrow) {
+            if currentStep < steps.count - 1 {
+                withAnimation(.tuiSnappy) {
+                    currentStep += 1
+                }
+            }
+            return .handled
+        }
+    }
+
+    private var asciiHeader: String {
+        """
+        ╔═══════════════════════════════════════╗
+        ║                                       ║
+        ║          D A I L Y                    ║
+        ║       B R I E F I N G                 ║
+        ║                                       ║
+        ╚═══════════════════════════════════════╝
+        """
+    }
+
+    private var progressBar: String {
+        let filled = String(repeating: "█", count: currentStep + 1)
+        let empty = String(repeating: "░", count: steps.count - currentStep - 1)
+        return "[\(filled)\(empty)]"
+    }
+
+    private func startCursorBlink() {
+        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+            showCursor.toggle()
         }
     }
 }
 
 struct OnboardingStep {
-    let icon: String
     let title: String
     let description: String
-    let accentColor: Color
-}
-
-struct OnboardingStepView: View {
-    let step: OnboardingStep
-
-    var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
-
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(step.accentColor.gradient.opacity(0.2))
-                    .frame(width: 120, height: 120)
-
-                Image(systemName: step.icon)
-                    .font(.system(size: 48))
-                    .foregroundStyle(step.accentColor.gradient)
-            }
-
-            // Text
-            VStack(spacing: 16) {
-                Text(step.title)
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .multilineTextAlignment(.center)
-
-                Text(step.description)
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-                    .frame(maxWidth: 400)
-            }
-
-            Spacer()
-            Spacer()
-        }
-        .padding(32)
-    }
 }

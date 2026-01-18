@@ -25,7 +25,7 @@ struct DailyBriefingApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
-        .defaultSize(width: 420, height: 680)
+        .defaultSize(width: 700, height: 500)
         .commands {
             // Add keyboard shortcut for refreshing briefing
             CommandGroup(after: .newItem) {
@@ -86,125 +86,98 @@ struct MenuBarView: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
-                Image(systemName: appState.isOnline ? "sun.horizon.fill" : "sun.horizon")
-                    .foregroundStyle(appState.isOnline ? .orange : .gray)
-                Text("Daily Briefing")
-                    .font(.headline)
+                Text("DAILY BRIEFING")
+                    .font(.system(.caption, design: .monospaced))
+                    .fontWeight(.bold)
+
                 Spacer()
-                if !appState.isOnline {
-                    Label("Offline", systemImage: "wifi.slash")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.orange.opacity(0.15), in: Capsule())
-                }
+
+                Text(appState.isOnline ? "●" : "○")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(appState.isOnline ? .green : .orange)
             }
-            .padding(.bottom, 4)
+            .padding(Spacing.md)
 
             Divider()
 
             // Quick status
-            if let briefing = appState.currentBriefing {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Letztes Briefing")
-                        .font(.caption)
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                if let briefing = appState.currentBriefing {
+                    Text(briefing.summary)
+                        .font(.system(.caption, design: .monospaced))
+                        .lineLimit(3)
                         .foregroundStyle(.secondary)
 
-                    Text(briefing.summary)
-                        .font(.caption)
-                        .lineLimit(3)
-
                     Text(formatDate(briefing.generatedAt))
-                        .font(.caption2)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                } else {
+                    Text("no briefing yet")
+                        .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(.tertiary)
                 }
-            } else {
-                Text("Noch kein Briefing generiert")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
+            .padding(Spacing.md)
 
             Divider()
-
-            // Offline: Load cached briefing button
-            if !appState.isOnline && appState.hasCachedBriefing && appState.currentBriefing == nil {
-                Button {
-                    appState.loadCachedBriefing()
-                } label: {
-                    HStack {
-                        Image(systemName: "clock.arrow.circlepath")
-                        Text("Letztes Briefing anzeigen")
-                    }
-                }
-            }
 
             // Actions
-            Button {
-                Task { await appState.refreshBriefing() }
-            } label: {
-                HStack {
-                    if appState.isLoadingBriefing {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
+            VStack(spacing: 2) {
+                if !appState.isOnline && appState.hasCachedBriefing && appState.currentBriefing == nil {
+                    MenuBarButton(title: "load cached", shortcut: nil) {
+                        appState.loadCachedBriefing()
                     }
-                    Text(appState.isLoadingBriefing ? "Generiere..." : "Briefing generieren")
                 }
-            }
-            .disabled(appState.isLoadingBriefing || (!appState.isOnline && !appState.isOllamaConfigured))
 
-            Button {
-                openMainWindow()
-            } label: {
-                HStack {
-                    Image(systemName: "macwindow")
-                    Text("App öffnen")
+                MenuBarButton(
+                    title: appState.isLoadingBriefing ? "generating..." : "generate",
+                    shortcut: "⌘R",
+                    isLoading: appState.isLoadingBriefing
+                ) {
+                    Task { await appState.refreshBriefing() }
+                }
+                .disabled(appState.isLoadingBriefing || (!appState.isOnline && !appState.isOllamaConfigured))
+
+                MenuBarButton(title: "open app", shortcut: nil) {
+                    openMainWindow()
                 }
             }
+            .padding(.vertical, Spacing.xs)
 
             Divider()
 
-            // Schedule info
-            if appState.isSchedulingEnabled {
-                if let nextTime = appState.nextScheduledBriefingTime {
-                    HStack {
-                        Image(systemName: "clock")
-                            .foregroundStyle(.secondary)
-                        Text("Nächstes: \(nextTime)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+            // Info
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                if appState.isSchedulingEnabled, let nextTime = appState.nextScheduledBriefingTime {
+                    Text("next: \(nextTime)")
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.tertiary)
                 }
-            }
 
-            // Shortcut hint
-            HStack {
-                Image(systemName: "keyboard")
-                    .foregroundStyle(.secondary)
-                Text(appState.currentShortcut.displayString)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("shortcut: \(appState.currentShortcut.displayString)")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.quaternary)
             }
+            .padding(Spacing.md)
 
             Divider()
 
-            Button("Einstellungen...") {
-                openSettings()
-            }
-            .keyboardShortcut(",", modifiers: .command)
+            // Bottom actions
+            VStack(spacing: 2) {
+                MenuBarButton(title: "settings", shortcut: "⌘,") {
+                    openSettings()
+                }
 
-            Button("Beenden") {
-                NSApplication.shared.terminate(nil)
+                MenuBarButton(title: "quit", shortcut: "⌘Q") {
+                    NSApplication.shared.terminate(nil)
+                }
             }
-            .keyboardShortcut("q", modifiers: .command)
+            .padding(.vertical, Spacing.xs)
         }
-        .padding()
-        .frame(width: 280)
+        .frame(width: 240)
     }
 
     private func formatDate(_ date: Date) -> String {
@@ -228,6 +201,45 @@ struct MenuBarView: View {
         } else {
             NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
         }
+    }
+}
+
+// MARK: - Menu Bar Button
+
+struct MenuBarButton: View {
+    let title: String
+    let shortcut: String?
+    var isLoading: Bool = false
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 12, height: 12)
+                }
+
+                Text(title)
+                    .font(.system(.caption, design: .monospaced))
+
+                Spacer()
+
+                if let shortcut = shortcut {
+                    Text(shortcut)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
+            .background(isHovered ? Color.primary.opacity(0.1) : Color.clear)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
     }
 }
 

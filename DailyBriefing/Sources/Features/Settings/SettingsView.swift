@@ -358,38 +358,26 @@ struct SettingsView: View {
     private var siriSection: some View {
         Section {
             HStack {
-                Image(systemName: "waveform")
-                    .foregroundStyle(.purple)
-                VStack(alignment: .leading) {
-                    Text("Siri Shortcuts")
-                        .font(.headline)
-                    Text("\"Hey Siri, Daily Briefing\"")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text("Siri Shortcuts")
                 Spacer()
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                Text("Aktiviert")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Verfügbare Befehle:")
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Verfügbare Befehle")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+
+                Text("Briefing generieren · Briefing anzeigen · Zeit einstellen")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-
-                HStack {
-                    SiriCommandBadge(text: "Briefing generieren")
-                    SiriCommandBadge(text: "Briefing anzeigen")
-                }
-                HStack {
-                    SiriCommandBadge(text: "Briefing-Zeit einstellen")
-                }
             }
-            .padding(.vertical, 4)
         } header: {
-            Text("Siri Integration")
+            Text("Siri")
         } footer: {
-            Text("Nutze Siri um dein Briefing freihändig zu steuern. Die Shortcuts sind automatisch in der Shortcuts App verfügbar.")
+            Text("Die Shortcuts sind automatisch in der Shortcuts App verfügbar.")
         }
     }
 
@@ -552,21 +540,6 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - Siri Command Badge
-
-struct SiriCommandBadge: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .font(.caption2)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(.purple.opacity(0.1))
-            .foregroundStyle(.purple)
-            .clipShape(Capsule())
-    }
-}
 
 // MARK: - Connected Services Count
 

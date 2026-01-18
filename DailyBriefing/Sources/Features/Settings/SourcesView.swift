@@ -1,66 +1,189 @@
 import SwiftUI
 
-struct SourcesView: View {
+// MARK: - TUI Sources View
+
+struct TUISourcesView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var connectionManager = ServiceConnectionManager.shared
-    @State private var showingAddSource = false
 
     var body: some View {
-        List {
-            connectedSourcesSection
-            availableSourcesSection
+        ScrollView {
+            VStack(spacing: 0) {
+                // Connected sources
+                TUISourceSection(title: "CONNECTED", count: connectionManager.connectedSources.count) {
+                    if connectionManager.connectedSources.isEmpty {
+                        TUIEmptyRow(text: "no sources connected")
+                    } else {
+                        ForEach(connectionManager.connectedSources, id: \.id) { source in
+                            TUIConnectedSourceRow(source: source, connectionManager: connectionManager)
+                        }
+                    }
+                }
+
+                // Available sources
+                TUISourceSection(title: "AVAILABLE", count: ServiceType.allCases.filter { !connectionManager.isConnected($0) }.count) {
+                    ForEach(ServiceType.allCases.filter { !connectionManager.isConnected($0) }) { serviceType in
+                        TUIAvailableSourceRow(serviceType: serviceType, connectionManager: connectionManager)
+                    }
+                }
+            }
         }
-        .listStyle(.inset)
-        .navigationTitle("Quellen")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+    }
+}
+
+struct TUISourceSection<Content: View>: View {
+    let title: String
+    let count: Int
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text(title)
+                    .font(.tuiMonoTiny)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.tertiary)
+
+                Text("[\(count)]")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.quaternary)
+
+                Spacer()
+            }
+            .padding(Spacing.md)
+            .background(Color.tuiBackground)
+
+            Rectangle()
+                .fill(Color.tuiBorder)
+                .frame(height: 1)
+
+            // Content
+            content()
+
+            Rectangle()
+                .fill(Color.tuiBorder)
+                .frame(height: 1)
+        }
+    }
+}
+
+struct TUIEmptyRow: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.tuiMonoSmall)
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Spacing.md)
+    }
+}
+
+struct TUIConnectedSourceRow: View {
+    let source: any BriefingSource
+    @ObservedObject var connectionManager: ServiceConnectionManager
+    @State private var isHovered = false
+
+    private var serviceType: ServiceType? {
+        ServiceType(rawValue: type(of: source).sourceId)
+    }
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            Text(source.isAuthenticated ? "●" : "○")
+                .font(.tuiMonoTiny)
+                .foregroundStyle(source.isAuthenticated ? .green : .orange)
+
+            Text(type(of: source).displayName.lowercased())
+                .font(.tuiMonoSmall)
+
+            Spacer()
+
+            if let serviceType = serviceType {
                 Button {
-                    showingAddSource = true
+                    Task {
+                        await connectionManager.disconnect(serviceType)
+                    }
                 } label: {
-                    Image(systemName: "plus")
+                    Text("disconnect")
+                        .font(.tuiMonoTiny)
                 }
+                .buttonStyle(.tuiGhost)
+                .opacity(isHovered ? 1 : 0.5)
             }
         }
-        .sheet(isPresented: $showingAddSource) {
-            AddSourceSheet(connectionManager: connectionManager)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .background(isHovered ? Color.tuiHover : Color.clear)
+        .onHover { isHovered = $0 }
+        .animation(.tuiFast, value: isHovered)
+    }
+}
+
+struct TUIAvailableSourceRow: View {
+    let serviceType: ServiceType
+    @ObservedObject var connectionManager: ServiceConnectionManager
+    @State private var isConnecting = false
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            Text("○")
+                .font(.tuiMonoTiny)
+                .foregroundStyle(.tertiary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(serviceType.displayName.lowercased())
+                    .font(.tuiMonoSmall)
+
+                Text(serviceType.description.lowercased())
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer()
+
+            Button {
+                connect()
+            } label: {
+                if isConnecting {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 50)
+                } else {
+                    Text("connect")
+                        .font(.tuiMonoTiny)
+                }
+            }
+            .buttonStyle(.tui)
+            .disabled(isConnecting)
         }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .background(isHovered ? Color.tuiHover : Color.clear)
+        .onHover { isHovered = $0 }
+        .animation(.tuiFast, value: isHovered)
     }
 
-    // MARK: - Connected Sources
-
-    private var connectedSourcesSection: some View {
-        Section {
-            if connectionManager.connectedSources.isEmpty {
-                ContentUnavailableView {
-                    Label("Keine Quellen verbunden", systemImage: "square.stack.3d.up.slash")
-                } description: {
-                    Text("Verbinde Quellen um dein Briefing zu erstellen.")
-                }
-            } else {
-                ForEach(connectionManager.connectedSources, id: \.id) { source in
-                    ConnectedSourceRow(source: source, connectionManager: connectionManager)
-                }
+    private func connect() {
+        isConnecting = true
+        Task {
+            do {
+                try await connectionManager.connect(serviceType)
+            } catch {
+                print("Connection error: \(error)")
             }
-        } header: {
-            Text("Verbundene Quellen")
+            isConnecting = false
         }
     }
+}
 
-    // MARK: - Available Sources
+// MARK: - Legacy Sources View (for Settings navigation)
 
-    private var availableSourcesSection: some View {
-        Section {
-            ForEach(ServiceType.allCases.filter { !connectionManager.isConnected($0) }) { serviceType in
-                AvailableSourceRowNew(
-                    serviceType: serviceType,
-                    connectionManager: connectionManager
-                )
-            }
-        } header: {
-            Text("Verfügbare Quellen")
-        } footer: {
-            Text("Weitere Quellen werden in zukünftigen Updates hinzugefügt.")
-        }
+struct SourcesView: View {
+    var body: some View {
+        TUISourcesView()
     }
 }
 
@@ -79,34 +202,22 @@ struct ConnectedSourceRow: View {
         Button {
             showingConfig = true
         } label: {
-            HStack(spacing: 12) {
-                Image(systemName: type(of: source).iconName)
-                    .font(.title2)
-                    .foregroundStyle(type(of: source).brandColor)
-                    .frame(width: 40, height: 40)
-                    .background(type(of: source).brandColor.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-
+            HStack(spacing: Spacing.sm) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(type(of: source).displayName)
-                        .font(.headline)
+                        .font(.subheadline)
                         .foregroundStyle(.primary)
 
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(source.isAuthenticated ? .green : .orange)
-                            .frame(width: 6, height: 6)
-                        Text(source.isAuthenticated ? "Verbunden" : "Nicht verbunden")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text(source.isAuthenticated ? "Verbunden" : "Nicht verbunden")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
 
                 Spacer()
 
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(source.isAuthenticated ? Color.primary : Color.primary.opacity(0.3))
+                    .frame(width: 6, height: 6)
             }
         }
         .buttonStyle(.plain)
@@ -132,7 +243,7 @@ struct ConnectedSourceRow: View {
                             }
                         }
                 }
-                .frame(minWidth: 450, minHeight: 400)
+                .frame(minWidth: 400, minHeight: 350)
             }
         }
     }
@@ -146,20 +257,13 @@ struct AvailableSourceRowNew: View {
     @State private var isConnecting = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: serviceType.iconName)
-                .font(.title2)
-                .foregroundStyle(serviceType.brandColor)
-                .frame(width: 40, height: 40)
-                .background(serviceType.brandColor.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
+        HStack(spacing: Spacing.sm) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(serviceType.displayName)
-                    .font(.headline)
+                    .font(.subheadline)
                 Text(serviceType.description)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
             }
 
             Spacer()
@@ -169,12 +273,13 @@ struct AvailableSourceRowNew: View {
             } label: {
                 if isConnecting {
                     ProgressView()
-                        .scaleEffect(0.7)
+                        .scaleEffect(0.6)
                 } else {
-                    Text("Verbinden")
+                    Text("+")
+                        .fontWeight(.medium)
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.subtle)
             .disabled(isConnecting)
         }
     }
@@ -201,7 +306,7 @@ struct AddSourceSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Cloud-Dienste") {
+                Section("Cloud") {
                     ForEach([ServiceType.googleCalendar, .gmail, .slack, .jira]) { serviceType in
                         if !connectionManager.isConnected(serviceType) {
                             AvailableSourceRowNew(
@@ -212,7 +317,7 @@ struct AddSourceSheet: View {
                     }
                 }
 
-                Section("Apple-Dienste") {
+                Section("Apple") {
                     ForEach([ServiceType.appleMail, .appleReminders]) { serviceType in
                         if !connectionManager.isConnected(serviceType) {
                             AvailableSourceRowNew(
@@ -223,23 +328,24 @@ struct AddSourceSheet: View {
                     }
                 }
 
-                Section("Bald verfügbar") {
+                Section("Soon") {
                     ComingSoonRow(name: "WhatsApp", icon: "message.fill", color: .green)
                     ComingSoonRow(name: "iMessage", icon: "bubble.left.fill", color: .blue)
                     ComingSoonRow(name: "Notion", icon: "doc.text", color: .primary)
                     ComingSoonRow(name: "Linear", icon: "line.3.horizontal", color: .purple)
                 }
             }
-            .navigationTitle("Quelle hinzufügen")
+            .listStyle(.plain)
+            .navigationTitle("Quelle")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") {
+                    Button("Fertig") {
                         dismiss()
                     }
                 }
             }
         }
-        .frame(minWidth: 400, minHeight: 500)
+        .frame(minWidth: 350, minHeight: 400)
     }
 }
 
@@ -249,26 +355,16 @@ struct ComingSoonRow: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(color.opacity(0.5))
-                .frame(width: 40, height: 40)
-                .background(color.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
+        HStack(spacing: Spacing.sm) {
             Text(name)
-                .font(.headline)
-                .foregroundStyle(.secondary)
+                .font(.subheadline)
+                .foregroundStyle(.tertiary)
 
             Spacer()
 
-            Text("Bald")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.quaternary, in: Capsule())
+            Text("Soon")
+                .font(.caption2)
+                .foregroundStyle(.quaternary)
         }
     }
 }
