@@ -35,6 +35,7 @@ struct SettingsView: View {
             shortcutSection
             siriSection
             generalSection
+            privacySection
             aboutSection
         }
         .formStyle(.grouped)
@@ -411,6 +412,23 @@ struct SettingsView: View {
             Text("Allgemein")
         } footer: {
             Text("Die App wird automatisch gestartet, wenn du dich an deinem Mac anmeldest.")
+        }
+    }
+
+    // MARK: - Privacy Section
+
+    private var privacySection: some View {
+        Section {
+            NavigationLink {
+                PrivacySettingsView()
+                    .navigationTitle("Datenschutz")
+            } label: {
+                Label("Datenschutz", systemImage: "hand.raised.fill")
+            }
+        } header: {
+            Text("Datenschutz")
+        } footer: {
+            Text("Verwalte deinen Cache, lösche Zugangsdaten oder exportiere deine Daten.")
         }
     }
 

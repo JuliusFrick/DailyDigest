@@ -286,4 +286,15 @@ final class ServiceConnectionManager: ObservableObject {
         // Also sync to iCloud if enabled
         syncToICloud()
     }
+
+    // MARK: - Disconnect All Sources
+
+    /// Disconnect all connected services and set their status to disconnected
+    func disconnectAllSources() async {
+        for serviceType in ServiceType.allCases {
+            await disconnect(serviceType)
+        }
+        connections.removeAll()
+        saveConnections()
+    }
 }

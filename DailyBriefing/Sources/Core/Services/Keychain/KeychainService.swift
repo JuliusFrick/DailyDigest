@@ -174,3 +174,20 @@ extension KeychainService {
         exists(for: llmKeyIdentifier(for: provider))
     }
 }
+
+// MARK: - Delete All Credentials
+
+extension KeychainService {
+    /// Delete all credentials stored in the keychain for this app
+    func deleteAllCredentials() throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service
+        ]
+
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError.unableToDelete(status)
+        }
+    }
+}
