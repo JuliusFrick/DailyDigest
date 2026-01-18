@@ -21,6 +21,27 @@ struct DashboardView: View {
                 refreshButton
             }
         }
+        .alert("Fehler", isPresented: $appState.showError) {
+            Button("OK") {
+                appState.dismissError()
+            }
+            if case .noSourcesConnected = appState.lastError {
+                Button("Quellen verbinden") {
+                    appState.dismissError()
+                    appState.selectedTab = .sources
+                }
+            }
+            if case .llmNotConfigured = appState.lastError {
+                Button("KI konfigurieren") {
+                    appState.dismissError()
+                    appState.selectedTab = .settings
+                }
+            }
+        } message: {
+            if let error = appState.lastError {
+                Text(error.localizedDescription)
+            }
+        }
     }
 
     // MARK: - Header
@@ -31,9 +52,19 @@ struct DashboardView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text(dateText)
-                .font(.title3)
-                .foregroundStyle(.secondary)
+            HStack {
+                Text(dateText)
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+
+                if let nextTime = appState.nextScheduledBriefingTime {
+                    Text("•")
+                        .foregroundStyle(.tertiary)
+                    Label(nextTime, systemImage: "clock")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -61,7 +92,12 @@ struct DashboardView: View {
         AudioPlayerCard(
             isPlaying: $appState.isPlayingAudio,
             detailLevel: $selectedDetailLevel,
-            onPlayToggle: { appState.toggleAudioPlayback() }
+            onPlayToggle: { appState.toggleAudioPlayback() },
+            onGenerateBriefing: {
+                Task { await appState.refreshBriefing(detailLevel: selectedDetailLevel) }
+            },
+            isLoading: appState.isLoadingBriefing,
+            hasBriefing: appState.currentBriefing != nil
         )
     }
 
@@ -72,7 +108,7 @@ struct DashboardView: View {
             if let briefing = appState.currentBriefing {
                 SummaryCard(summary: briefing.summary)
             } else if appState.isLoadingBriefing {
-                LoadingCard()
+                GenerationProgressCard(progress: appState.generationProgress)
             } else {
                 EmptyStateCard(
                     title: "Noch kein Briefing",
@@ -101,7 +137,7 @@ struct DashboardView: View {
 
     private var refreshButton: some View {
         Button {
-            Task { await appState.refreshBriefing() }
+            Task { await appState.refreshBriefing(detailLevel: selectedDetailLevel) }
         } label: {
             if appState.isLoadingBriefing {
                 ProgressView()
@@ -111,7 +147,8 @@ struct DashboardView: View {
             }
         }
         .disabled(appState.isLoadingBriefing)
-        .help("Briefing aktualisieren")
+        .help("Briefing aktualisieren (\(appState.currentShortcut.displayString))")
+        .keyboardShortcut("r", modifiers: .command)
     }
 }
 
@@ -122,29 +159,40 @@ struct AudioPlayerCard: View {
     @Binding var detailLevel: Briefing.DetailLevel
 
     var onPlayToggle: () -> Void
+    var onGenerateBriefing: () -> Void
+    var isLoading: Bool
+    var hasBriefing: Bool
 
     var body: some View {
         HStack(spacing: 16) {
             // Play Button
-            Button(action: onPlayToggle) {
+            Button(action: hasBriefing ? onPlayToggle : onGenerateBriefing) {
                 ZStack {
                     Circle()
                         .fill(.tint.gradient)
                         .frame(width: 56, height: 56)
 
-                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title2)
-                        .foregroundStyle(.white)
-                        .offset(x: isPlaying ? 0 : 2)
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .scaleEffect(0.8)
+                            .tint(.white)
+                    } else {
+                        Image(systemName: hasBriefing ? (isPlaying ? "pause.fill" : "play.fill") : "sparkles")
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                            .offset(x: (hasBriefing && !isPlaying) ? 2 : 0)
+                    }
                 }
             }
             .buttonStyle(.plain)
+            .disabled(isLoading)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Audio Briefing")
+                Text(hasBriefing ? "Audio Briefing" : "Briefing erstellen")
                     .font(.headline)
 
-                Text(isPlaying ? "Wird abgespielt..." : "Tippe zum Abspielen")
+                Text(statusText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -160,11 +208,22 @@ struct AudioPlayerCard: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 160)
+            .disabled(isLoading)
         }
         .padding(16)
         .background {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.ultraThinMaterial)
+        }
+    }
+
+    private var statusText: String {
+        if isLoading {
+            return "Wird generiert..."
+        } else if hasBriefing {
+            return isPlaying ? "Wird abgespielt..." : "Tippe zum Abspielen"
+        } else {
+            return "Tippe zum Generieren"
         }
     }
 }
@@ -194,21 +253,98 @@ struct SummaryCard: View {
     }
 }
 
-// MARK: - Loading Card
+// MARK: - Generation Progress Card
 
-struct LoadingCard: View {
+struct GenerationProgressCard: View {
+    let progress: GenerationProgress
+
+    @State private var animationPhase: CGFloat = 0
+
     var body: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-            Text("Briefing wird generiert...")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        VStack(spacing: 20) {
+            // Animated icon
+            ZStack {
+                // Outer rotating ring
+                Circle()
+                    .stroke(
+                        AngularGradient(
+                            colors: [.accentColor.opacity(0.1), .accentColor.opacity(0.8), .accentColor.opacity(0.1)],
+                            center: .center
+                        ),
+                        lineWidth: 3
+                    )
+                    .frame(width: 64, height: 64)
+                    .rotationEffect(.degrees(animationPhase * 360))
+
+                // Inner pulsing circle
+                Circle()
+                    .fill(.tint.opacity(0.2))
+                    .frame(width: 48, height: 48)
+                    .scaleEffect(1 + sin(animationPhase * .pi * 2) * 0.1)
+
+                // Center icon
+                Image(systemName: progressIcon)
+                    .font(.title2)
+                    .foregroundStyle(.tint)
+                    .symbolEffect(.pulse, isActive: true)
+            }
+
+            VStack(spacing: 8) {
+                Text(progress.displayText)
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+
+                // Progress steps indicator
+                HStack(spacing: 8) {
+                    ForEach(0..<4, id: \.self) { index in
+                        Circle()
+                            .fill(index <= progressStep ? Color.accentColor : Color.secondary.opacity(0.3))
+                            .frame(width: 8, height: 8)
+                            .animation(.easeInOut(duration: 0.3), value: progressStep)
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(32)
         .background {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.ultraThinMaterial)
+        }
+        .onAppear {
+            withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
+                animationPhase = 1
+            }
+        }
+    }
+
+    private var progressIcon: String {
+        switch progress {
+        case .idle, .starting:
+            return "sparkles"
+        case .fetchingSources:
+            return "arrow.down.circle"
+        case .processingSources:
+            return "gearshape.2"
+        case .generatingSummary:
+            return "brain.head.profile"
+        case .finalizing:
+            return "checkmark.circle"
+        case .completed:
+            return "checkmark.seal.fill"
+        case .failed:
+            return "exclamationmark.triangle"
+        }
+    }
+
+    private var progressStep: Int {
+        switch progress {
+        case .idle, .starting: return 0
+        case .fetchingSources: return 1
+        case .processingSources: return 2
+        case .generatingSummary: return 3
+        case .finalizing, .completed: return 4
+        case .failed: return 0
         }
     }
 }

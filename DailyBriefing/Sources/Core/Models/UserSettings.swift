@@ -25,6 +25,11 @@ final class UserSettings {
     var sourceOrder: [String]
     var theme: String
 
+    // Keyboard Shortcut preferences
+    var globalShortcutEnabled: Bool
+    var globalShortcutKeyCode: UInt16
+    var globalShortcutModifiers: UInt
+
     init(
         id: UUID = UUID(),
         defaultDetailLevel: String = "quick",
@@ -37,7 +42,10 @@ final class UserSettings {
         llmProvider: String = "openai",
         llmApiKey: String? = nil,
         sourceOrder: [String] = [],
-        theme: String = "system"
+        theme: String = "system",
+        globalShortcutEnabled: Bool = false,
+        globalShortcutKeyCode: UInt16 = 0x02,  // D key
+        globalShortcutModifiers: UInt = 0x180100  // Cmd + Shift
     ) {
         self.id = id
         self.defaultDetailLevel = defaultDetailLevel
@@ -51,6 +59,9 @@ final class UserSettings {
         self.llmApiKey = llmApiKey
         self.sourceOrder = sourceOrder
         self.theme = theme
+        self.globalShortcutEnabled = globalShortcutEnabled
+        self.globalShortcutKeyCode = globalShortcutKeyCode
+        self.globalShortcutModifiers = globalShortcutModifiers
     }
 }
 

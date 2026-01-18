@@ -11,6 +11,11 @@ struct SettingsView: View {
     @State private var selectedTTSProvider = "apple"
     @State private var autoRefreshEnabled = false
     @State private var autoRefreshTime = Date()
+    @State private var globalShortcutEnabled = false
+    @State private var currentShortcut: KeyboardShortcut = .default
+
+    @StateObject private var schedulingService = SchedulingService.shared
+    @StateObject private var shortcutService = GlobalShortcutService.shared
 
     var body: some View {
         Form {
@@ -19,11 +24,24 @@ struct SettingsView: View {
             llmNavigationSection
             audioSection
             scheduleSection
+            shortcutSection
+            siriSection
             aboutSection
         }
         .formStyle(.grouped)
         .navigationTitle("Einstellungen")
         .onAppear(perform: loadSettings)
+        .onChange(of: autoRefreshEnabled) { _, newValue in
+            handleSchedulingChange(enabled: newValue)
+        }
+        .onChange(of: autoRefreshTime) { _, newValue in
+            if autoRefreshEnabled {
+                schedulingService.updateScheduledTime(newValue)
+            }
+        }
+        .onChange(of: globalShortcutEnabled) { _, newValue in
+            handleShortcutChange(enabled: newValue)
+        }
     }
 
     // MARK: - Integrations Section
@@ -135,11 +153,97 @@ struct SettingsView: View {
                     selection: $autoRefreshTime,
                     displayedComponents: .hourAndMinute
                 )
+
+                if let nextTime = schedulingService.formattedNextTime {
+                    HStack {
+                        Image(systemName: "clock")
+                            .foregroundStyle(.secondary)
+                        Text("Nächstes Briefing: \(nextTime)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         } header: {
             Text("Zeitplan")
         } footer: {
-            Text("Das Briefing wird automatisch zur eingestellten Zeit generiert.")
+            Text("Das Briefing wird automatisch zur eingestellten Zeit generiert und eine Benachrichtigung erscheint.")
+        }
+    }
+
+    // MARK: - Shortcut Section
+
+    private var shortcutSection: some View {
+        Section {
+            Toggle("Globale Tastenkombination", isOn: $globalShortcutEnabled)
+
+            if globalShortcutEnabled {
+                HStack {
+                    Text("Tastenkombination")
+                    Spacer()
+                    ShortcutRecorderView(shortcut: $currentShortcut)
+                        .onChange(of: currentShortcut) { _, newValue in
+                            shortcutService.updateShortcut(newValue)
+                        }
+                }
+
+                if !GlobalShortcutService.hasAccessibilityPermissions() {
+                    Button {
+                        GlobalShortcutService.requestAccessibilityPermissions()
+                    } label: {
+                        Label("Bedienungshilfen-Zugriff erlauben", systemImage: "hand.raised.fill")
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+        } header: {
+            Text("Tastenkombination")
+        } footer: {
+            if globalShortcutEnabled {
+                Text("Drücke \(currentShortcut.displayString) um von überall ein Briefing zu generieren.")
+            } else {
+                Text("Aktiviere eine globale Tastenkombination um von überall ein Briefing zu generieren.")
+            }
+        }
+    }
+
+    // MARK: - Siri Section
+
+    private var siriSection: some View {
+        Section {
+            HStack {
+                Image(systemName: "waveform")
+                    .foregroundStyle(.purple)
+                VStack(alignment: .leading) {
+                    Text("Siri Shortcuts")
+                        .font(.headline)
+                    Text("\"Hey Siri, Daily Briefing\"")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Verfügbare Befehle:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    SiriCommandBadge(text: "Briefing generieren")
+                    SiriCommandBadge(text: "Briefing anzeigen")
+                }
+                HStack {
+                    SiriCommandBadge(text: "Briefing-Zeit einstellen")
+                }
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("Siri Integration")
+        } footer: {
+            Text("Nutze Siri um dein Briefing freihändig zu steuern. Die Shortcuts sind automatisch in der Shortcuts App verfügbar.")
         }
     }
 
@@ -177,12 +281,78 @@ struct SettingsView: View {
         if let time = userSettings.autoRefreshTime {
             autoRefreshTime = time
         }
+        globalShortcutEnabled = userSettings.globalShortcutEnabled
+        currentShortcut = KeyboardShortcut(
+            keyCode: userSettings.globalShortcutKeyCode,
+            modifiers: NSEvent.ModifierFlags(rawValue: userSettings.globalShortcutModifiers)
+        )
+
+        // Sync with services
+        if autoRefreshEnabled {
+            schedulingService.updateScheduledTime(autoRefreshTime)
+            schedulingService.enableScheduling()
+        }
+        if globalShortcutEnabled {
+            shortcutService.updateShortcut(currentShortcut)
+            shortcutService.enable()
+        }
     }
 
     private func createDefaultSettings() {
         let defaultSettings = UserSettings()
         modelContext.insert(defaultSettings)
         try? modelContext.save()
+    }
+
+    private func handleSchedulingChange(enabled: Bool) {
+        if enabled {
+            schedulingService.updateScheduledTime(autoRefreshTime)
+            schedulingService.enableScheduling()
+            Task {
+                _ = await schedulingService.requestNotificationPermission()
+            }
+        } else {
+            schedulingService.disableScheduling()
+        }
+        saveSettings()
+    }
+
+    private func handleShortcutChange(enabled: Bool) {
+        if enabled {
+            if !GlobalShortcutService.hasAccessibilityPermissions() {
+                GlobalShortcutService.requestAccessibilityPermissions()
+            }
+            shortcutService.enable()
+        } else {
+            shortcutService.disable()
+        }
+        saveSettings()
+    }
+
+    private func saveSettings() {
+        guard let userSettings = settings.first else { return }
+        userSettings.autoRefreshEnabled = autoRefreshEnabled
+        userSettings.autoRefreshTime = autoRefreshTime
+        userSettings.globalShortcutEnabled = globalShortcutEnabled
+        userSettings.globalShortcutKeyCode = currentShortcut.keyCode
+        userSettings.globalShortcutModifiers = currentShortcut.modifiers.rawValue
+        try? modelContext.save()
+    }
+}
+
+// MARK: - Siri Command Badge
+
+struct SiriCommandBadge: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption2)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.purple.opacity(0.1))
+            .foregroundStyle(.purple)
+            .clipShape(Capsule())
     }
 }
 
