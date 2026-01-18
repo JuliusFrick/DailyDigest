@@ -29,6 +29,7 @@ final class SchedulingService: ObservableObject {
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private let briefingService = BriefingGenerationService.shared
+    private let notificationService = NotificationService.shared
     private let notificationCenter = UNUserNotificationCenter.current()
 
     // MARK: - Constants
@@ -198,27 +199,12 @@ final class SchedulingService: ObservableObject {
     }
 
     private func scheduleNotification(for date: Date) {
-        cancelPendingNotifications()
-
-        let content = UNMutableNotificationContent()
-        content.title = "Daily Briefing"
-        content.body = "Dein tägliches Briefing ist bereit!"
-        content.sound = .default
-
-        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
-
-        let request = UNNotificationRequest(
-            identifier: "daily-briefing",
-            content: content,
-            trigger: trigger
-        )
-
-        notificationCenter.add(request)
+        // Delegate to NotificationService for morning reminder scheduling
+        notificationService.scheduleMorningReminder(at: date)
     }
 
     private func cancelPendingNotifications() {
-        notificationCenter.removePendingNotificationRequests(withIdentifiers: ["daily-briefing"])
+        notificationService.cancelMorningReminder()
     }
 
     private func generateBriefing() async {
@@ -234,18 +220,8 @@ final class SchedulingService: ObservableObject {
     }
 
     private func sendBriefingReadyNotification() async {
-        let content = UNMutableNotificationContent()
-        content.title = "Briefing bereit"
-        content.body = "Dein tägliches Briefing wurde erstellt. Tippe zum Ansehen."
-        content.sound = .default
-
-        let request = UNNotificationRequest(
-            identifier: "briefing-ready-\(UUID().uuidString)",
-            content: content,
-            trigger: nil  // Immediate
-        )
-
-        try? await notificationCenter.add(request)
+        // Delegate to NotificationService for briefing ready notification
+        await notificationService.sendBriefingReadyNotification()
     }
 }
 

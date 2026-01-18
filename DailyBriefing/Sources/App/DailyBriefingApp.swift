@@ -12,6 +12,7 @@ struct DailyBriefingApp: App {
     private let briefingService = BriefingGenerationService.shared
     private let schedulingService = SchedulingService.shared
     private let shortcutService = GlobalShortcutService.shared
+    private let notificationService = NotificationService.shared
 
     init() {
         do {
@@ -40,6 +41,8 @@ struct DailyBriefingApp: App {
                 .modelContainer(container)
                 .onAppear {
                     setupMenuBarIcon()
+                    setupNotificationHandling()
+                    requestNotificationPermissionIfNeeded()
                 }
         }
         .windowStyle(.hiddenTitleBar)
@@ -74,6 +77,23 @@ struct DailyBriefingApp: App {
     private func setupMenuBarIcon() {
         // Ensure the app stays running in the menu bar
         NSApp.setActivationPolicy(.regular)
+    }
+
+    private func setupNotificationHandling() {
+        // Set up callback for when user taps notification to open dashboard
+        notificationService.onOpenDashboardRequested = { [weak appState] in
+            appState?.selectedTab = .dashboard
+        }
+    }
+
+    private func requestNotificationPermissionIfNeeded() {
+        Task {
+            // Request permission on first start if not already determined
+            let hasRequested = await notificationService.hasRequestedPermission()
+            if !hasRequested {
+                await notificationService.requestPermission()
+            }
+        }
     }
 }
 
