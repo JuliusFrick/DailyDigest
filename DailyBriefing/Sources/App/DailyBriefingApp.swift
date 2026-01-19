@@ -7,7 +7,6 @@ struct DailyBriefingApp: App {
     @StateObject private var appState = AppState.shared
     @StateObject private var settingsStore = UserSettingsStore.shared
     @StateObject private var updateService = UpdateService.shared
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     // Services (initialized as singletons, referenced here to ensure they're started)
     private let briefingService = BriefingGenerationService.shared
