@@ -172,6 +172,8 @@ final class OAuthService: NSObject, ObservableObject {
         if tokens.isExpired, let refreshToken = tokens.refreshToken {
             tokens = try await refreshTokens(refreshToken)
             try keychain.saveTokens(tokens, for: sourceId)
+        } else if tokens.isExpired {
+            throw OAuthError.notAuthenticated
         }
 
         return tokens

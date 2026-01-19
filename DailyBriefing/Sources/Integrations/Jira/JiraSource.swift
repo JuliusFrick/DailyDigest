@@ -69,6 +69,24 @@ final class JiraSource: BriefingSource, ObservableObject {
             case .oauth3LO:
                 // Rebuild to pick up latest credentials from UserDefaults
                 oauthService = Self.makeOAuthService()
+                if oauthService.isAuthenticated {
+                    do {
+                        _ = try await oauthService.getValidTokens()
+                        isAuthenticated = true
+                        connectionStatus = .connected
+                        try await fetchAccessibleResources()
+                        return
+                    } catch OAuthError.notAuthenticated {
+                        // Fall through to interactive login
+                    } catch OAuthError.tokenRefreshFailed {
+                        // Fall through to interactive login
+                    } catch SourceError.tokenExpired {
+                        // Fall through to interactive login
+                    } catch {
+                        throw error
+                    }
+                }
+
                 _ = try await oauthService.authorize()
                 isAuthenticated = true
                 connectionStatus = .connected

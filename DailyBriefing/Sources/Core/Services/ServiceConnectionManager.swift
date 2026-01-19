@@ -38,6 +38,7 @@ final class ServiceConnectionManager: ObservableObject {
 
     private init() {
         loadConnections()
+        restoreConnectionsFromKeychain()
         initializeServices()
         setupICloudSync()
     }
@@ -270,6 +271,30 @@ final class ServiceConnectionManager: ObservableObject {
             case .none:
                 break
             }
+        }
+    }
+
+    private func restoreConnectionsFromKeychain() {
+        var didUpdate = false
+
+        for serviceType in ServiceType.allCases {
+            guard keychain.hasTokens(for: serviceType.rawValue) else { continue }
+
+            var connection = connections[serviceType.rawValue] ?? ServiceConnection(
+                serviceId: serviceType.rawValue,
+                serviceName: serviceType.displayName
+            )
+
+            if connection.status != .connected {
+                connection.status = .connected
+                didUpdate = true
+            }
+
+            connections[serviceType.rawValue] = connection
+        }
+
+        if didUpdate {
+            saveConnections()
         }
     }
 
