@@ -1,0 +1,209 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggered when a tag like v1.0.0 is pushed
+  workflow_dispatch:  # Allow manual trigger
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: true
+      build_number:
+        description: 'Build number (e.g., 1)'
+        required: true
+
+env:
+  APP_NAME: DailyBriefing
+  MACOS_VERSION: '14.0'
+
+jobs:
+  build-and-release:
+    runs-on: macos-14
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for git operations
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v1
+        with:
+          swift-version: '5.9'
+
+      - name: Extract version from tag or input
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+            BUILD_NUMBER="${{ github.event.inputs.build_number }}"
+          else
+            # Extract version from tag (e.g., v1.0.0 -> 1.0.0)
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG_NAME#v}"
+            # Use tag as build number or extract from tag
+            BUILD_NUMBER="${TAG_NAME##*.}"
+            if [[ ! "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
+              BUILD_NUMBER="1"
+            fi
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "build_number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+          echo "Version: ${VERSION}, Build: ${BUILD_NUMBER}"
+
+      - name: Build app
+        run: |
+          cd DailyBriefing
+          swift build -c release
+
+      - name: Package app bundle
+        run: |
+          VERSION="${{ steps.version.outputs.version }}" \
+          BUILD_NUMBER="${{ steps.version.outputs.build_number }}" \
+          ./scripts/package-release.sh
+
+      - name: Create DMG
+        run: |
+          VERSION="${{ steps.version.outputs.version }}" \
+          BUILD_NUMBER="${{ steps.version.outputs.build_number }}" \
+          ./scripts/package-dmg.sh
+
+      - name: Generate appcast.xml
+        id: appcast
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          BUILD_NUMBER="${{ steps.version.outputs.build_number }}"
+          DMG_PATH="dist/${APP_NAME}-${VERSION}.dmg"
+          ZIP_PATH="dist/${APP_NAME}-${VERSION}.zip"
+          
+          # Get file sizes
+          DMG_SIZE=$(stat -f%z "${DMG_PATH}")
+          ZIP_SIZE=$(stat -f%z "${ZIP_PATH}")
+          
+          # Get current date in RSS format
+          PUB_DATE=$(date -u +"%a, %d %b %Y %H:%M:%S +0000")
+          
+          # Generate download URLs (will be updated after release)
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}"
+          DMG_URL="${RELEASE_URL}/${APP_NAME}-${VERSION}.dmg"
+          ZIP_URL="${RELEASE_URL}/${APP_NAME}-${VERSION}.zip"
+          
+          # Create new item XML
+          NEW_ITEM=$(cat <<ITEM
+              <item>
+                <title>Version ${VERSION}</title>
+                <link>https://github.com/${{ github.repository }}</link>
+                <sparkle:version>${BUILD_NUMBER}</sparkle:version>
+                <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>${MACOS_VERSION}</sparkle:minimumSystemVersion>
+                <pubDate>${PUB_DATE}</pubDate>
+                <description><![CDATA[
+                  <h2>Version ${VERSION}</h2>
+                  <p>Neue Version von ${APP_NAME}</p>
+                ]]></description>
+                <enclosure
+                  url="${DMG_URL}"
+                  length="${DMG_SIZE}"
+                  type="application/octet-stream" />
+              </item>
+ITEM
+)
+          
+          # Try to fetch existing appcast.xml from gh-pages
+          EXISTING_ITEMS=""
+          if git fetch origin gh-pages:gh-pages 2>/dev/null && git show gh-pages:DailyDigest/appcast.xml > dist/existing-appcast.xml 2>/dev/null; then
+            # Extract existing items (between <channel> and </channel>, excluding channel tags)
+            EXISTING_ITEMS=$(sed -n '/<channel>/,/<\/channel>/p' dist/existing-appcast.xml | sed '1d;$d' | grep -v '^[[:space:]]*</channel>' || true)
+          fi
+          
+          # Create appcast.xml with new item first, then existing items
+          mkdir -p dist
+          cat > dist/appcast.xml <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0"
+               xmlns:sparkle="https://sparkle-project.org/xml-namespaces/sparkle"
+               xmlns:dc="http://purl.org/dc/elements/1.1/">
+            <channel>
+              <title>${APP_NAME} Updates</title>
+              <link>https://juliusfrick.github.io/DailyDigest/appcast.xml</link>
+              <description>Latest versions of ${APP_NAME}</description>
+              <language>de</language>
+              
+          ${NEW_ITEM}
+          ${EXISTING_ITEMS}
+            </channel>
+          </rss>
+          EOF
+          
+          echo "appcast_path=dist/appcast.xml" >> $GITHUB_OUTPUT
+          echo "dmg_size=${DMG_SIZE}" >> $GITHUB_OUTPUT
+          echo "dmg_url=${DMG_URL}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.dmg
+            dist/${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.zip
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
+          body: |
+            ## Version ${{ steps.version.outputs.version }}
+            
+            ### Downloads
+            - [DMG Installer](https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.dmg)
+            - [ZIP Archive](https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.zip)
+            
+            ### Installation
+            1. Download the DMG file
+            2. Open the DMG and drag DailyBriefing.app to Applications
+            3. Launch DailyBriefing from Applications
+          draft: false
+          prerelease: false
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+
+      - name: Update appcast.xml on GitHub Pages
+        run: |
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Fetch all branches including gh-pages
+          git fetch origin
+          
+          # Try to checkout gh-pages branch, create if it doesn't exist
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git checkout -b gh-pages origin/gh-pages || git checkout gh-pages
+          else
+            git checkout --orphan gh-pages
+            git rm -rf . || true
+          fi
+          
+          # Create DailyDigest directory if it doesn't exist
+          mkdir -p DailyDigest
+          
+          # Copy the new appcast.xml (generated in previous step)
+          cp dist/appcast.xml DailyDigest/appcast.xml
+          
+          # Commit and push
+          git add DailyDigest/appcast.xml
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update appcast.xml for version ${{ steps.version.outputs.version }}"
+            git push origin gh-pages
+          fi
+
+      - name: Upload appcast.xml artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: appcast.xml
+          path: dist/appcast.xml
+          retention-days: 30

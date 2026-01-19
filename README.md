@@ -73,6 +73,44 @@ Integrations currently read OAuth client configuration from `UserDefaults` keys 
 
 LLM/TTS provider API keys are stored in the system keychain by the app (see Settings).
 
+### Automatic Releases via GitHub Actions
+
+The repository includes a GitHub Actions workflow that automatically:
+
+1. **Builds the app** when you push a tag (e.g., `v1.0.0`) or trigger manually
+2. **Creates a DMG** installer
+3. **Generates appcast.xml** for Sparkle updates
+4. **Creates a GitHub Release** with the DMG and ZIP files
+5. **Updates GitHub Pages** with the new appcast.xml
+
+#### Creating a Release
+
+**Option 1: Push a tag**
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+**Option 2: Manual trigger**
+1. Go to Actions → Release → Run workflow
+2. Enter version (e.g., `1.0.0`) and build number (e.g., `1`)
+3. Click "Run workflow"
+
+#### GitHub Pages Setup
+
+For automatic updates to work, you need to enable GitHub Pages:
+
+1. Go to Settings → Pages in your GitHub repository
+2. Source: Deploy from a branch
+3. Branch: `gh-pages` (will be created automatically by the workflow)
+4. Folder: `/ (root)`
+5. Save
+
+The appcast.xml will be available at:
+`https://juliusfrick.github.io/DailyDigest/appcast.xml`
+
+Make sure this URL matches the `SPARKLE_FEED_URL` in your build scripts.
+
 ### Signing + notarization checklist (Developer ID)
 
 This repo’s packaging script intentionally does not sign/notarize. A typical flow:
