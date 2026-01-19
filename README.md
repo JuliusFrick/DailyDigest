@@ -120,9 +120,43 @@ For automatic updates to work, you need to enable GitHub Pages:
 5. Save
 
 The appcast.xml will be available at:
-`https://juliusfrick.github.io/DailyDigest/DailyDigest/appcast.xml`
+`https://juliusfrick.github.io/DailyDigest/appcast.xml`
 
 Make sure this URL matches the `SPARKLE_FEED_URL` in your build scripts.
+
+#### GitHub Secrets Setup
+
+For Sparkle updates to work properly, you need to configure the following GitHub Secrets:
+
+1. **SPARKLE_PUBLIC_ED_KEY**: Your public Ed25519 key (starts with `+` or base64 encoded)
+   - This is embedded in the app's Info.plist
+   - Users' apps use this to verify update signatures
+
+2. **SPARKLE_PRIVATE_ED_KEY**: Your private Ed25519 key (keep this secret!)
+   - Used by the CI workflow to sign DMG files
+   - Never commit this to the repository
+
+To generate these keys, you can use Sparkle's `generate_keys` tool:
+
+```bash
+# Download Sparkle release
+curl -L -o sparkle.tar.xz https://github.com/sparkle-project/Sparkle/releases/download/2.8.1/Sparkle-2.8.1.tar.xz
+tar -xf sparkle.tar.xz
+
+# Generate keys
+./Sparkle-2.8.1/bin/generate_keys
+
+# This will output:
+# Private key: <your-private-key>
+# Public key: <your-public-key>
+```
+
+Then add these as GitHub Secrets:
+- Go to Settings → Secrets and variables → Actions
+- Add `SPARKLE_PUBLIC_ED_KEY` with your public key
+- Add `SPARKLE_PRIVATE_ED_KEY` with your private key
+
+**Important**: Without these secrets, updates will fail with a signature verification error.
 
 ### Signing + notarization checklist (Developer ID)
 

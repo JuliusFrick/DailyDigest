@@ -13,10 +13,10 @@ final class UpdateService: NSObject, ObservableObject {
     // MARK: - Constants
 
     /// Default appcast URL used when Info.plist doesn't provide one
-    private static let defaultFeedURL = "https://juliusfrick.github.io/DailyDigest/DailyDigest/appcast.xml"
+    private static let defaultFeedURL = "https://juliusfrick.github.io/DailyDigest/appcast.xml"
     private static let legacyFeedURLMappings: [String: String] = [
         "https://juliusfrick.github.io/DailyBriefing/appcast.xml": defaultFeedURL,
-        "https://juliusfrick.github.io/DailyDigest/appcast.xml": defaultFeedURL
+        "https://juliusfrick.github.io/DailyDigest/DailyDigest/appcast.xml": defaultFeedURL
     ]
 
     // MARK: - Published Properties
@@ -111,15 +111,48 @@ final class UpdateService: NSObject, ObservableObject {
     private func formatErrorDetails(_ error: Error) -> String {
         let nsError = error as NSError
         var details = "\(nsError.domain) (\(nsError.code))"
+        
+        // Add human-readable error description for common Sparkle errors
+        if nsError.domain == "SUSparkleErrorDomain" {
+            switch nsError.code {
+            case 1001:
+                details += " (No update available)"
+            case 1002:
+                details += " (Appcast download failed)"
+            case 1003:
+                details += " (Appcast parsing failed)"
+            case 3001:
+                details += " (Signature verification failed)"
+            case 3002:
+                details += " (Validation failed)"
+            default:
+                break
+            }
+        }
 
         if let url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL {
-            details += " · \(url.absoluteString)"
+            details += " · URL: \(url.absoluteString)"
         } else if let urlString = nsError.userInfo[NSURLErrorFailingURLStringErrorKey] as? String {
-            details += " · \(urlString)"
+            details += " · URL: \(urlString)"
+        }
+        
+        // Include localized failure reason if available
+        if let failureReason = nsError.localizedFailureReason {
+            details += " · Reason: \(failureReason)"
+        }
+        
+        // Include recovery suggestion if available
+        if let recoverySuggestion = nsError.localizedRecoverySuggestion {
+            details += " · Suggestion: \(recoverySuggestion)"
         }
 
         if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
-            details += " · underlying: \(underlying.domain) (\(underlying.code))"
+            details += " · Underlying: \(underlying.domain) (\(underlying.code))"
+        }
+        
+        // Log feed URL for debugging
+        if let feedURL = feedURL {
+            details += " · Feed: \(feedURL.absoluteString)"
         }
 
         return details
@@ -141,8 +174,20 @@ extension UpdateService: SPUUpdaterDelegate {
     func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
         let message = error.localizedDescription
         let details = formatErrorDetails(error)
-        logger.error("Update check failed: \(message, privacy: .public) (\(details, privacy: .public))")
+        
+        // Log with more context
+        logger.error("Update check failed: \(message, privacy: .public)")
+        logger.debug("Error details: \(details, privacy: .public)")
+        
+        // Store error information for UI display
         lastUpdateError = message
         lastUpdateErrorDetails = details
+        
+        // For error 1001 (no update available), provide a more user-friendly message
+        let nsError = error as NSError
+        if nsError.domain == "SUSparkleErrorDomain" && nsError.code == 1001 {
+            lastUpdateError = "Keine Updates verfügbar"
+            lastUpdateErrorDetails = "Die aktuelle Version ist bereits die neueste verfügbare Version."
+        }
     }
 }

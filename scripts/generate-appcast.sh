@@ -12,6 +12,7 @@ VERSION="${VERSION:-0.1.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 DMG_URL="${DMG_URL:-}"
 DMG_PATH="${DMG_PATH:-dist/${APP_NAME}-${VERSION}.dmg}"
+DMG_SIGNATURE="${DMG_SIGNATURE:-}"
 
 if [[ -z "${DMG_URL}" ]]; then
   echo "Error: DMG_URL must be provided" >&2
@@ -62,7 +63,7 @@ cat > "${APPCAST_PATH}" <<EOF
       <enclosure
         url="${DMG_URL}"
         length="${DMG_SIZE}"
-        type="application/octet-stream" />
+        type="application/octet-stream"${DMG_SIGNATURE:+ sparkle:edSignature="${DMG_SIGNATURE}"} />
     </item>
 ${EXISTING_ITEMS}
   </channel>
