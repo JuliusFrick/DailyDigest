@@ -146,6 +146,24 @@ final class ServiceConnectionManager: ObservableObject {
         try await connect(serviceType)
     }
 
+    /// Ensure a source instance exists (useful for configuration before connecting)
+    func ensureSource(_ serviceType: ServiceType) {
+        switch serviceType {
+        case .googleCalendar:
+            if googleCalendarSource == nil { googleCalendarSource = GoogleCalendarSource() }
+        case .gmail:
+            if gmailSource == nil { gmailSource = GmailSource() }
+        case .slack:
+            if slackSource == nil { slackSource = SlackSource() }
+        case .jira:
+            if jiraSource == nil { jiraSource = JiraSource() }
+        case .appleMail:
+            if appleMailSource == nil { appleMailSource = AppleMailSource() }
+        case .appleReminders:
+            if appleRemindersSource == nil { appleRemindersSource = AppleRemindersSource() }
+        }
+    }
+
     /// Get the source for a service type
     func source(for serviceType: ServiceType) -> (any BriefingSource)? {
         switch serviceType {

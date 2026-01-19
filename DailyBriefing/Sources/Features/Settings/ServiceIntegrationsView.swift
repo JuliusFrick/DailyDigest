@@ -38,28 +38,28 @@ struct ServiceIntegrationsView: View {
                 serviceType: .googleCalendar,
                 connectionManager: connectionManager
             ) {
-                selectedService = .googleCalendar
+                openService(.googleCalendar)
             }
 
             ServiceRow(
                 serviceType: .gmail,
                 connectionManager: connectionManager
             ) {
-                selectedService = .gmail
+                openService(.gmail)
             }
 
             ServiceRow(
                 serviceType: .slack,
                 connectionManager: connectionManager
             ) {
-                selectedService = .slack
+                openService(.slack)
             }
 
             ServiceRow(
                 serviceType: .jira,
                 connectionManager: connectionManager
             ) {
-                selectedService = .jira
+                openService(.jira)
             }
         } header: {
             Text("Cloud-Dienste")
@@ -76,14 +76,14 @@ struct ServiceIntegrationsView: View {
                 serviceType: .appleMail,
                 connectionManager: connectionManager
             ) {
-                selectedService = .appleMail
+                openService(.appleMail)
             }
 
             ServiceRow(
                 serviceType: .appleReminders,
                 connectionManager: connectionManager
             ) {
-                selectedService = .appleReminders
+                openService(.appleReminders)
             }
         } header: {
             Text("Apple-Dienste")
@@ -105,6 +105,11 @@ struct ServiceIntegrationsView: View {
         } footer: {
             Text("Wenn aktiviert, werden deine Verbindungseinstellungen (nicht Zugangsdaten) mit iCloud synchronisiert.")
         }
+    }
+
+    private func openService(_ serviceType: ServiceType) {
+        connectionManager.ensureSource(serviceType)
+        selectedService = serviceType
     }
 }
 
@@ -159,7 +164,11 @@ struct ServiceRow: View {
                 .buttonStyle(.plain)
             } else {
                 Button {
-                    connect()
+                    if serviceType.requiresOAuth {
+                        onTap()
+                    } else {
+                        connect()
+                    }
                 } label: {
                     if isConnecting {
                         ProgressView()
@@ -174,9 +183,7 @@ struct ServiceRow: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            if status == .connected {
-                onTap()
-            }
+            onTap()
         }
     }
 

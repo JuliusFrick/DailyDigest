@@ -5,6 +5,7 @@ import SwiftUI
 struct TUISourcesView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var connectionManager = ServiceConnectionManager.shared
+    @State private var selectedService: ServiceType?
 
     var body: some View {
         ScrollView {
@@ -15,7 +16,11 @@ struct TUISourcesView: View {
                         TUIEmptyRow(text: "no sources connected")
                     } else {
                         ForEach(connectionManager.connectedSources, id: \.id) { source in
-                            TUIConnectedSourceRow(source: source, connectionManager: connectionManager)
+                            TUIConnectedSourceRow(
+                                source: source,
+                                connectionManager: connectionManager,
+                                onConfigure: openService
+                            )
                         }
                     }
                 }
@@ -23,11 +28,34 @@ struct TUISourcesView: View {
                 // Available sources
                 TUISourceSection(title: "AVAILABLE", count: ServiceType.allCases.filter { !connectionManager.isConnected($0) }.count) {
                     ForEach(ServiceType.allCases.filter { !connectionManager.isConnected($0) }) { serviceType in
-                        TUIAvailableSourceRow(serviceType: serviceType, connectionManager: connectionManager)
+                        TUIAvailableSourceRow(
+                            serviceType: serviceType,
+                            connectionManager: connectionManager,
+                            onConfigure: { openService(serviceType) }
+                        )
                     }
                 }
             }
         }
+        .sheet(item: $selectedService) { serviceType in
+            NavigationStack {
+                ServiceDetailView(serviceType: serviceType)
+                    .navigationTitle(serviceType.displayName)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Fertig") {
+                                selectedService = nil
+                            }
+                        }
+                    }
+            }
+            .frame(minWidth: 450, minHeight: 400)
+        }
+    }
+
+    private func openService(_ serviceType: ServiceType) {
+        connectionManager.ensureSource(serviceType)
+        selectedService = serviceType
     }
 }
 
@@ -83,6 +111,7 @@ struct TUIEmptyRow: View {
 struct TUIConnectedSourceRow: View {
     let source: any BriefingSource
     @ObservedObject var connectionManager: ServiceConnectionManager
+    let onConfigure: (ServiceType) -> Void
     @State private var isHovered = false
 
     private var serviceType: ServiceType? {
@@ -116,7 +145,13 @@ struct TUIConnectedSourceRow: View {
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.sm)
         .background(isHovered ? Color.tuiHover : Color.clear)
+        .contentShape(Rectangle())
         .onHover { isHovered = $0 }
+        .onTapGesture {
+            if let serviceType = serviceType {
+                onConfigure(serviceType)
+            }
+        }
         .animation(.tuiFast, value: isHovered)
     }
 }
@@ -124,6 +159,7 @@ struct TUIConnectedSourceRow: View {
 struct TUIAvailableSourceRow: View {
     let serviceType: ServiceType
     @ObservedObject var connectionManager: ServiceConnectionManager
+    let onConfigure: () -> Void
     @State private var isConnecting = false
     @State private var isHovered = false
 
@@ -145,7 +181,11 @@ struct TUIAvailableSourceRow: View {
             Spacer()
 
             Button {
-                connect()
+                if serviceType.requiresOAuth {
+                    onConfigure()
+                } else {
+                    connect()
+                }
             } label: {
                 if isConnecting {
                     ProgressView()
@@ -162,7 +202,11 @@ struct TUIAvailableSourceRow: View {
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.sm)
         .background(isHovered ? Color.tuiHover : Color.clear)
+        .contentShape(Rectangle())
         .onHover { isHovered = $0 }
+        .onTapGesture {
+            onConfigure()
+        }
         .animation(.tuiFast, value: isHovered)
     }
 
