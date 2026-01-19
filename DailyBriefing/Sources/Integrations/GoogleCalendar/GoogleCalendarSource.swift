@@ -42,10 +42,23 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
         do {
             // Rebuild to pick up latest credentials from UserDefaults
             oauthService = Self.makeOAuthService()
+            if oauthService.isAuthenticated {
+                do {
+                    _ = try await oauthService.getValidTokens()
+                    isAuthenticated = true
+                    try await fetchCalendarList()
+                    return
+                } catch OAuthError.notAuthenticated {
+                    // Fall through to interactive login
+                } catch OAuthError.tokenRefreshFailed {
+                    // Fall through to interactive login
+                } catch {
+                    throw error
+                }
+            }
+
             _ = try await oauthService.authorize()
             isAuthenticated = true
-
-            // Fetch available calendars
             try await fetchCalendarList()
         } catch {
             lastError = error
