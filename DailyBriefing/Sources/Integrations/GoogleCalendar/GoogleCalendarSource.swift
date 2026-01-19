@@ -123,6 +123,7 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
 
             // Build metadata
             var metadata: [String: String] = [
+                "eventId": event.id,
                 "location": event.location ?? "",
                 "organizer": event.organizer?.displayName ?? event.organizer?.email ?? ""
             ]

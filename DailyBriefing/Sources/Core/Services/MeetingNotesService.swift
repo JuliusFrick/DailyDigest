@@ -27,6 +27,21 @@ final class MeetingNotesService: ObservableObject {
         let key = notesKeyPrefix + meetingId
         return userDefaults.string(forKey: key)
     }
+
+    /// Get meeting notes for a briefing item with fallback to legacy IDs
+    func getNotes(for item: BriefingItem) -> String? {
+        let preferredId = meetingId(for: item)
+        if let notes = getNotes(meetingId: preferredId) {
+            return notes
+        }
+
+        let legacyId = legacyMeetingId(for: item)
+        if legacyId != preferredId {
+            return getNotes(meetingId: legacyId)
+        }
+
+        return nil
+    }
     
     /// Delete meeting notes for a specific meeting
     /// - Parameter meetingId: Unique identifier for the meeting
@@ -36,8 +51,16 @@ final class MeetingNotesService: ObservableObject {
     }
     
     /// Generate a meeting ID from a BriefingItem
-    /// Uses timestamp + title as identifier
+    /// Prefer stable event identifiers when available
     func meetingId(for item: BriefingItem) -> String {
+        if let eventId = item.metadata["eventId"], !eventId.isEmpty {
+            return "google_calendar_\(eventId)"
+        }
+
+        return legacyMeetingId(for: item)
+    }
+
+    private func legacyMeetingId(for item: BriefingItem) -> String {
         let timestamp = item.timestamp?.timeIntervalSince1970 ?? 0
         let titleHash = item.title.hash
         return "\(timestamp)_\(titleHash)"

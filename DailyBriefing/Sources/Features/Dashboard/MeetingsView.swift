@@ -191,8 +191,7 @@ struct MeetingRow: View {
     }
     
     private func loadMeetingNotes() {
-        let meetingId = notesService.meetingId(for: item)
-        meetingNotes = notesService.getNotes(meetingId: meetingId) ?? item.metadata["meetingNotes"]
+        meetingNotes = notesService.getNotes(for: item) ?? item.metadata["meetingNotes"]
     }
     
     private var expandedDetails: some View {
