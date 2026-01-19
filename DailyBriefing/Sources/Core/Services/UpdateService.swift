@@ -12,7 +12,7 @@ final class UpdateService: NSObject, ObservableObject {
     // MARK: - Constants
 
     /// Default appcast URL used when Info.plist doesn't provide one
-    private static let defaultFeedURL = "https://juliusfrick.github.io/DailyDigest/appcast.xml"
+    private static let defaultFeedURL = "https://juliusfrick.github.io/DailyBriefing/appcast.xml"
 
     // MARK: - Published Properties
 
