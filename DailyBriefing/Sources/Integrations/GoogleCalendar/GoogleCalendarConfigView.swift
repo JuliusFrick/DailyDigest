@@ -7,6 +7,7 @@ struct GoogleCalendarConfigView: View {
 
     var body: some View {
         Form {
+            GoogleOAuthCredentialsSection()
             connectionSection
             if source.isAuthenticated {
                 calendarSelectionSection

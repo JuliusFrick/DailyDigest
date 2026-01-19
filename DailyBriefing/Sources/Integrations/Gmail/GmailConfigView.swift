@@ -6,6 +6,7 @@ struct GmailConfigView: View {
 
     var body: some View {
         Form {
+            GoogleOAuthCredentialsSection()
             connectionSection
             if source.isAuthenticated {
                 filterSection

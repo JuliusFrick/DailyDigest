@@ -5,12 +5,12 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Ensure the main window is visible on first launch.
-        MainWindowController.shared.show()
+        MainWindowCoordinator.shared.openMainWindow()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
-            MainWindowController.shared.show()
+            MainWindowCoordinator.shared.openMainWindow()
         }
         return true
     }
