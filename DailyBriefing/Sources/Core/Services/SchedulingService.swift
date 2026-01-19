@@ -168,10 +168,11 @@ final class SchedulingService: ObservableObject {
         // Schedule the timer
         let timeInterval = nextDate.timeIntervalSince(now)
         timer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
             Task { @MainActor in
-                await self?.generateBriefing()
+                await self.generateBriefing()
                 // Schedule the next day's briefing
-                self?.scheduleNextBriefing()
+                self.scheduleNextBriefing()
             }
         }
 

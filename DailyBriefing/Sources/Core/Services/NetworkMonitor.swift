@@ -70,8 +70,9 @@ final class NetworkMonitor: ObservableObject {
     /// Start monitoring network changes
     func startMonitoring() {
         monitor.pathUpdateHandler = { [weak self] path in
+            guard let self = self else { return }
             Task { @MainActor in
-                self?.handlePathUpdate(path)
+                self.handlePathUpdate(path)
             }
         }
         monitor.start(queue: monitorQueue)

@@ -1,8 +1,9 @@
 import Foundation
+import Combine
 
 /// Service for storing and retrieving meeting notes
 @MainActor
-final class MeetingNotesService {
+final class MeetingNotesService: ObservableObject {
     static let shared = MeetingNotesService()
     
     private let userDefaults = UserDefaults.standard

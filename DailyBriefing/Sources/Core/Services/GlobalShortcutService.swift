@@ -35,7 +35,7 @@ final class GlobalShortcutService: ObservableObject {
 
     deinit {
         Task { @MainActor in
-            await unregisterHotKey()
+            unregisterHotKey()
         }
     }
 

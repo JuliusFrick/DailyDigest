@@ -17,7 +17,7 @@ struct GenerateBriefingIntent: AppIntent {
     var detailLevel: BriefingDetailLevelEntity
 
     @MainActor
-    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
         let briefingService = BriefingGenerationService.shared
 
         // Generate the briefing
@@ -25,12 +25,11 @@ struct GenerateBriefingIntent: AppIntent {
             detailLevel: detailLevel.briefingDetailLevel
         )
 
-        // Return the briefing summary as string value, plus dialog and snippet view
+        // Return the briefing summary as string value, plus dialog
         return .result(
             value: briefing.summary,
             dialog: "Here is your briefing for today."
         )
-        .snippet(BriefingSnippetView(briefing: briefing))
     }
 
     static var parameterSummary: some ParameterSummary {
