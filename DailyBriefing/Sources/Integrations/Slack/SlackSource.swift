@@ -709,7 +709,8 @@ private extension SlackSource {
                 "users:read"
             ],
             scopeSeparator: ",",
-            additionalAuthorizationQueryItems: []
+            additionalAuthorizationQueryItems: [],
+            useExternalBrowser: true
         )
         return OAuthService(configuration: config, sourceId: Self.sourceId)
     }

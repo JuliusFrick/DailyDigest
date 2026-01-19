@@ -8,11 +8,16 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="DailyBriefing"
 MACOS_VERSION="14.0"
 
-VERSION="${VERSION:-0.1.0}"
-BUILD_NUMBER="${BUILD_NUMBER:-1}"
+VERSION="${VERSION:-}"
+BUILD_NUMBER="${BUILD_NUMBER:-}"
 DMG_URL="${DMG_URL:-}"
 DMG_PATH="${DMG_PATH:-dist/${APP_NAME}-${VERSION}.dmg}"
 DMG_SIGNATURE="${DMG_SIGNATURE:-}"
+
+if [[ -z "${VERSION}" || -z "${BUILD_NUMBER}" ]]; then
+  echo "Error: VERSION and BUILD_NUMBER must be provided (e.g. VERSION=1.2.3 BUILD_NUMBER=42)" >&2
+  exit 1
+fi
 
 if [[ -z "${DMG_URL}" ]]; then
   echo "Error: DMG_URL must be provided" >&2

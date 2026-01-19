@@ -24,6 +24,9 @@ struct DailyBriefingApp: App {
                 .environmentObject(appState)
                 .environmentObject(settingsStore)
                 .background(OpenWindowRegistrar())
+                .onOpenURL { url in
+                    OAuthCallbackRouter.shared.handleIncomingURL(url)
+                }
                 .onAppear {
                     AppIconService.shared.start()
                     setupMenuBarIcon()
@@ -59,6 +62,9 @@ struct DailyBriefingApp: App {
                 SettingsView()
                     .environmentObject(appState)
                     .environmentObject(settingsStore)
+                    .onOpenURL { url in
+                        OAuthCallbackRouter.shared.handleIncomingURL(url)
+                    }
             }
         }
 

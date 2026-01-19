@@ -8,6 +8,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PKG_DIR="${ROOT_DIR}/DailyBriefing"
+ASSETS_DIR="${ROOT_DIR}/assets"
 
 APP_NAME="DailyBriefing"
 DIST_DIR="${ROOT_DIR}/dist"
@@ -18,8 +19,11 @@ RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 PLIST_PATH="${CONTENTS_DIR}/Info.plist"
 ICON_ICNS="${ROOT_DIR}/assets/AppIcon.icns"
 
-VERSION="${VERSION:-0.1.0}"
-BUILD_NUMBER="${BUILD_NUMBER:-1}"
+SOURCE_ICON_PNG="${SOURCE_ICON_PNG:-/Users/julius.frick/Downloads/Gemini_Generated_Image_qvpmarqvpmarqvpm.png}"
+SOURCE_ICON_VERTICAL_PNG="${SOURCE_ICON_VERTICAL_PNG:-/Users/julius.frick/Downloads/VERT_Gemini_Generated_Image_z36h4wz36h4wz36h.png}"
+
+VERSION="${VERSION:-}"
+BUILD_NUMBER="${BUILD_NUMBER:-}"
 
 SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://juliusfrick.github.io/DailyDigest/appcast.xml}"
 SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-}"
@@ -33,9 +37,24 @@ EOF
 )"
 fi
 
+if [[ -z "${VERSION}" || -z "${BUILD_NUMBER}" ]]; then
+  echo "Error: VERSION and BUILD_NUMBER must be provided (e.g. VERSION=1.2.3 BUILD_NUMBER=42)" >&2
+  exit 1
+fi
+
 mkdir -p "${DIST_DIR}"
 
 pushd "${PKG_DIR}" >/dev/null
+
+# Refresh app icons from the latest source images when available.
+mkdir -p "${ASSETS_DIR}"
+if [[ -f "${SOURCE_ICON_PNG}" ]]; then
+  "${ROOT_DIR}/scripts/generate-app-icon.sh" "${SOURCE_ICON_PNG}"
+  cp -f "${SOURCE_ICON_PNG}" "${ASSETS_DIR}/icon.png"
+fi
+if [[ -f "${SOURCE_ICON_VERTICAL_PNG}" ]]; then
+  cp -f "${SOURCE_ICON_VERTICAL_PNG}" "${ASSETS_DIR}/icon-vertical.png"
+fi
 
 swift build -c release
 

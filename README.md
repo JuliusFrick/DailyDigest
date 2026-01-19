@@ -51,7 +51,11 @@ Output:
 ./scripts/generate-app-icon.sh ~/Downloads/icon.png
 ```
 
-3) Rebuild the app/DMG (the scripts will automatically include the icon if `assets/AppIcon.icns` exists):
+3) Rebuild the app/DMG (the scripts will automatically include the icon if `assets/AppIcon.icns` exists).
+   The run/packaging scripts also auto-refresh icons from these defaults when present:
+   - `/Users/julius.frick/Downloads/Gemini_Generated_Image_qvpmarqvpmarqvpm.png` (square app icon)
+   - `/Users/julius.frick/Downloads/VERT_Gemini_Generated_Image_z36h4wz36h4wz36h.png` (vertical marketing icon)
+   You can override with `SOURCE_ICON_PNG` and `SOURCE_ICON_VERTICAL_PNG`.
 
 ```bash
 VERSION=0.1.0 BUILD_NUMBER=1 ./scripts/package-dmg.sh

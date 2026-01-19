@@ -14,4 +14,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         return true
     }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        urls.forEach { url in
+            OAuthCallbackRouter.shared.handleIncomingURL(url)
+        }
+    }
 }

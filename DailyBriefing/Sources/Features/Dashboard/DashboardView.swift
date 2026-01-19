@@ -385,6 +385,8 @@ struct TUIItemRow: View {
     let item: BriefingItem
     @State private var isHovered = false
     @State private var isExpanded = false
+    @StateObject private var notesService = MeetingNotesService.shared
+    @State private var meetingNotes: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -437,6 +439,12 @@ struct TUIItemRow: View {
                             .font(.tuiMonoTiny)
                     }
 
+                    // Meeting notes indicator
+                    if meetingNotes?.isEmpty == false || item.metadata["meetingNotes"]?.isEmpty == false {
+                        Text("📝")
+                            .font(.tuiMonoTiny)
+                    }
+
                     // Expand/Link indicator
                     if hasDetails {
                         Text(isExpanded ? "▼" : "▶")
@@ -457,6 +465,12 @@ struct TUIItemRow: View {
             .buttonStyle(.plain)
             .onHover { isHovered = $0 }
             .animation(.tuiFast, value: isHovered)
+            .onAppear {
+                loadMeetingNotes()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+                loadMeetingNotes()
+            }
 
             // Expanded details
             if isExpanded {
@@ -472,7 +486,12 @@ struct TUIItemRow: View {
     private var hasDetails: Bool {
         item.body != nil ||
         item.metadata["attendees"] != nil ||
+        meetingNotes?.isEmpty == false ||
         item.metadata["location"]?.isEmpty == false
+    }
+
+    private func loadMeetingNotes() {
+        meetingNotes = notesService.getNotes(for: item) ?? item.metadata["meetingNotes"]
     }
 
     private var expandedDetails: some View {
@@ -508,6 +527,26 @@ struct TUIItemRow: View {
                     .foregroundStyle(.tertiary)
                     .lineLimit(4)
                     .padding(.top, Spacing.xs)
+            }
+
+            // Meeting notes
+            if let notes = meetingNotes, !notes.isEmpty {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    HStack(spacing: Spacing.xs) {
+                        Text("📝")
+                            .font(.tuiMonoTiny)
+                        Text("Meeting-Notizen")
+                            .font(.tuiMonoTiny)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(notes)
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.tertiary)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, Spacing.xs)
             }
 
             // Meeting link button

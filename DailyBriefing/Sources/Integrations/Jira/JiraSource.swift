@@ -442,7 +442,8 @@ private extension JiraSource {
                 // Atlassian requires the audience parameter for 3LO.
                 URLQueryItem(name: "audience", value: "api.atlassian.com"),
                 URLQueryItem(name: "prompt", value: "consent")
-            ]
+            ],
+            useExternalBrowser: true
         )
         return OAuthService(configuration: config, sourceId: Self.sourceId)
     }
