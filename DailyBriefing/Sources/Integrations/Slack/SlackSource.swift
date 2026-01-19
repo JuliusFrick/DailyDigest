@@ -138,7 +138,7 @@ final class SlackSource: BriefingSource, ObservableObject {
         do {
             let clientId = SlackConfig.clientId.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !clientId.isEmpty else {
-                throw SourceError.configurationMissing("Slack Client ID")
+                throw SourceError.configurationMissing("Slack OAuth Konfiguration fehlt")
             }
 
             // Rebuild to pick up latest credentials from UserDefaults
@@ -681,11 +681,23 @@ struct SlackReminder: Codable {
 
 enum SlackConfig {
     static var clientId: String {
-        UserDefaults.standard.string(forKey: "slack_client_id") ?? ""
+        let bundled = OAuthClientConfigStore.normalized(OAuthClientConfigStore.shared?.slack?.clientId)
+        if !bundled.isEmpty {
+            return bundled
+        }
+        return UserDefaults.standard.string(forKey: "slack_client_id") ?? ""
     }
 
     static var clientSecret: String? {
-        UserDefaults.standard.string(forKey: "slack_client_secret")
+        let bundled = OAuthClientConfigStore.normalized(OAuthClientConfigStore.shared?.slack?.clientSecret)
+        if !bundled.isEmpty {
+            return bundled
+        }
+        return UserDefaults.standard.string(forKey: "slack_client_secret")
+    }
+
+    static var hasBundledConfig: Bool {
+        !OAuthClientConfigStore.normalized(OAuthClientConfigStore.shared?.slack?.clientId).isEmpty
     }
 }
 

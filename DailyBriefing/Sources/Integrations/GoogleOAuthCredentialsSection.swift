@@ -1,18 +1,23 @@
 import SwiftUI
 
 struct GoogleOAuthCredentialsSection: View {
-    @AppStorage("google_client_id") private var googleClientId: String = ""
-    @AppStorage("google_client_secret") private var googleClientSecret: String = ""
-
     var body: some View {
         Section {
-            TextField("Client ID", text: $googleClientId)
-                .autocorrectionDisabled(true)
-                .font(.system(.body, design: .monospaced))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Anmeldung erfolgt im Browser bei Google.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-            SecureField("Client Secret (optional)", text: $googleClientSecret)
-                .autocorrectionDisabled(true)
-                .font(.system(.body, design: .monospaced))
+                if GoogleConfig.hasBundledConfig {
+                    Text("OAuth ist in der App vorkonfiguriert.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("OAuth-Konfiguration fehlt in der App. Bitte eine gültige Google Client ID hinterlegen.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Redirect URL (in Google OAuth Client hinterlegen):")
@@ -23,15 +28,11 @@ struct GoogleOAuthCredentialsSection: View {
                     .textSelection(.enabled)
             }
 
-            Link("Google Cloud Console oeffnen", destination: URL(string: "https://console.cloud.google.com/apis/credentials")!)
+            Link("Google Cloud Console öffnen", destination: URL(string: "https://console.cloud.google.com/apis/credentials")!)
         } header: {
             Text("OAuth")
         } footer: {
-            if googleClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("Fuer den Login wird mindestens eine Google Client ID benoetigt.")
-            } else {
-                Text("Client-ID/Secret werden in UserDefaults gespeichert (fuer Development ok).")
-            }
+            Text("Für den Login wird eine gültige Google Client ID benötigt.")
         }
     }
 }

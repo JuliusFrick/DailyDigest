@@ -5,6 +5,10 @@ struct GoogleCalendarConfigView: View {
     @ObservedObject var source: GoogleCalendarSource
     @State private var isLoadingCalendars = false
 
+    private var canConnect: Bool {
+        !GoogleCalendarConfig.clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         Form {
             GoogleOAuthCredentialsSection()
@@ -51,7 +55,7 @@ struct GoogleCalendarConfigView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(source.isLoading)
+                    .disabled(source.isLoading || !canConnect)
                 }
             }
 

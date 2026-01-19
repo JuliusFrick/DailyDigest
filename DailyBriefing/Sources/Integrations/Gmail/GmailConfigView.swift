@@ -4,6 +4,10 @@ import SwiftUI
 struct GmailConfigView: View {
     @ObservedObject var source: GmailSource
 
+    private var canConnect: Bool {
+        !GoogleConfig.clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         Form {
             GoogleOAuthCredentialsSection()
@@ -50,7 +54,7 @@ struct GmailConfigView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(source.isLoading)
+                    .disabled(source.isLoading || !canConnect)
                 }
             }
 

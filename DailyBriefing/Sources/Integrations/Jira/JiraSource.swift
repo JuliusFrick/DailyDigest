@@ -406,11 +406,19 @@ enum JiraConfig {
     }
 
     static var clientId: String {
-        UserDefaults.standard.string(forKey: "jira_client_id") ?? ""
+        let bundled = OAuthClientConfigStore.normalized(OAuthClientConfigStore.shared?.jira?.clientId)
+        if !bundled.isEmpty {
+            return bundled
+        }
+        return UserDefaults.standard.string(forKey: "jira_client_id") ?? ""
     }
 
     static var clientSecret: String? {
-        UserDefaults.standard.string(forKey: "jira_client_secret")
+        let bundled = OAuthClientConfigStore.normalized(OAuthClientConfigStore.shared?.jira?.clientSecret)
+        if !bundled.isEmpty {
+            return bundled
+        }
+        return UserDefaults.standard.string(forKey: "jira_client_secret")
     }
 
     static var siteURL: String {
@@ -419,6 +427,10 @@ enum JiraConfig {
 
     static var email: String {
         UserDefaults.standard.string(forKey: "jira_email") ?? ""
+    }
+
+    static var hasBundledOAuthConfig: Bool {
+        !OAuthClientConfigStore.normalized(OAuthClientConfigStore.shared?.jira?.clientId).isEmpty
     }
 }
 

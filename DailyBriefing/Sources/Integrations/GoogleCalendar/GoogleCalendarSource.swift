@@ -443,13 +443,24 @@ struct EventAttendee: Codable {
 enum GoogleCalendarConfig {
     // These should be loaded from environment or config file
     static var clientId: String {
-        // TODO: Load from secure configuration
-        UserDefaults.standard.string(forKey: "google_client_id") ?? ""
+        let bundled = OAuthClientConfigStore.normalized(OAuthClientConfigStore.shared?.google?.clientId)
+        if !bundled.isEmpty {
+            return bundled
+        }
+        return UserDefaults.standard.string(forKey: "google_client_id") ?? ""
     }
 
     static var clientSecret: String? {
         // For desktop apps, client secret is optional with PKCE
-        UserDefaults.standard.string(forKey: "google_client_secret")
+        let bundled = OAuthClientConfigStore.normalized(OAuthClientConfigStore.shared?.google?.clientSecret)
+        if !bundled.isEmpty {
+            return bundled
+        }
+        return UserDefaults.standard.string(forKey: "google_client_secret")
+    }
+
+    static var hasBundledConfig: Bool {
+        !OAuthClientConfigStore.normalized(OAuthClientConfigStore.shared?.google?.clientId).isEmpty
     }
 }
 

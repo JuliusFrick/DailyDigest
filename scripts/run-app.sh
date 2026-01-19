@@ -33,6 +33,43 @@ fi
 
 pushd "${PKG_DIR}" >/dev/null
 
+write_oauth_clients() {
+  local target_path="${RESOURCES_DIR}/oauth_clients.json"
+
+  if [[ -n "${OAUTH_CLIENTS_JSON_PATH:-}" && -f "${OAUTH_CLIENTS_JSON_PATH}" ]]; then
+    cp -f "${OAUTH_CLIENTS_JSON_PATH}" "${target_path}"
+    return
+  fi
+
+  if [[ -n "${OAUTH_CLIENTS_JSON:-}" ]]; then
+    printf '%s' "${OAUTH_CLIENTS_JSON}" > "${target_path}"
+    return
+  fi
+
+  if [[ -z "${OAUTH_GOOGLE_CLIENT_ID:-}" && -z "${OAUTH_GOOGLE_CLIENT_SECRET:-}" \
+     && -z "${OAUTH_SLACK_CLIENT_ID:-}" && -z "${OAUTH_SLACK_CLIENT_SECRET:-}" \
+     && -z "${OAUTH_JIRA_CLIENT_ID:-}" && -z "${OAUTH_JIRA_CLIENT_SECRET:-}" ]]; then
+    return
+  fi
+
+  cat > "${target_path}" <<EOF
+{
+  "google": {
+    "clientId": "${OAUTH_GOOGLE_CLIENT_ID:-}",
+    "clientSecret": "${OAUTH_GOOGLE_CLIENT_SECRET:-}"
+  },
+  "slack": {
+    "clientId": "${OAUTH_SLACK_CLIENT_ID:-}",
+    "clientSecret": "${OAUTH_SLACK_CLIENT_SECRET:-}"
+  },
+  "jira": {
+    "clientId": "${OAUTH_JIRA_CLIENT_ID:-}",
+    "clientSecret": "${OAUTH_JIRA_CLIENT_SECRET:-}"
+  }
+}
+EOF
+}
+
 # Refresh app icons from the latest source images when available.
 mkdir -p "${ASSETS_DIR}"
 if [[ -f "${SOURCE_ICON_PNG}" ]]; then
@@ -83,6 +120,8 @@ fi
 if [[ -f "${ICON_ICNS}" ]]; then
   cp -f "${ICON_ICNS}" "${RESOURCES_DIR}/AppIcon.icns"
 fi
+
+write_oauth_clients
 
 cat > "${PLIST_PATH}" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

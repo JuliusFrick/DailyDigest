@@ -15,7 +15,7 @@ struct JiraConfigView: View {
     private var canConnect: Bool {
         switch JiraAuthMethod(rawValue: jiraAuthMethodRaw) ?? .oauth3LO {
         case .oauth3LO:
-            return !jiraClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return !JiraConfig.clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .apiToken:
             return !jiraSiteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && !jiraEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -81,19 +81,30 @@ struct JiraConfigView: View {
         Section {
             switch authMethod {
             case .oauth3LO:
-                TextField("Client ID", text: $jiraClientId)
-                    .textFieldStyle(.roundedBorder)
-
-                SecureField("Client Secret", text: $jiraClientSecret)
-                    .textFieldStyle(.roundedBorder)
-
-                if jiraClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    HStack {
-                        Image(systemName: "info.circle")
-                            .foregroundStyle(.secondary)
-                        Text("Ohne Client ID kann Atlassian die App nicht identifizieren (Login schlägt dann sofort fehl).")
+                if JiraConfig.hasBundledOAuthConfig {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Anmeldung erfolgt im Browser bei Atlassian.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        Text("OAuth ist in der App vorkonfiguriert.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    TextField("Client ID", text: $jiraClientId)
+                        .textFieldStyle(.roundedBorder)
+
+                    SecureField("Client Secret", text: $jiraClientSecret)
+                        .textFieldStyle(.roundedBorder)
+
+                    if jiraClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        HStack {
+                            Image(systemName: "info.circle")
+                                .foregroundStyle(.secondary)
+                            Text("Ohne Client ID kann Atlassian die App nicht identifizieren (Login schlägt dann sofort fehl).")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
@@ -111,7 +122,7 @@ struct JiraConfigView: View {
             Text(authMethod == .oauth3LO ? "Atlassian OAuth" : "API Token")
         } footer: {
             if authMethod == .oauth3LO {
-                Text("Trage hier die OAuth Client ID und das Client Secret deiner Atlassian (3LO) App ein. Redirect URI muss exakt `dailybriefing://oauth/jira` sein.")
+                Text("Für OAuth muss die Redirect URI exakt `dailybriefing://oauth/jira` sein.")
             } else {
                 Text("Den API Token kannst du in deinem Atlassian Account erstellen. Er wird lokal im Keychain gespeichert.")
             }
