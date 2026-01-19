@@ -407,11 +407,11 @@ struct EventBlock: View {
             let components = durationStr.lowercased().components(separatedBy: " ")
             for component in components {
                 if component.contains("h") {
-                    if let hours = Double(component.replacingOccurrences(of: "h", of: "")) {
+                    if let hours = Double(component.replacingOccurrences(of: "h", with: "")) {
                         totalMinutes += CGFloat(hours) * 60
                     }
                 } else if component.contains("m") {
-                    if let minutes = Double(component.replacingOccurrences(of: "m", of: "")) {
+                    if let minutes = Double(component.replacingOccurrences(of: "m", with: "")) {
                         totalMinutes += CGFloat(minutes)
                     }
                 }
@@ -674,7 +674,7 @@ struct AdHocMeetingRow: View {
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                         
-                        Text("\(meeting.notes.prefix(50))...")
+                        Text(String(meeting.notes.prefix(50)) + "...")
                             .font(.tuiMonoTiny)
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)

@@ -67,7 +67,9 @@ final class LoopbackServer {
             }
             
             listener.newConnectionHandler = { [weak self] connection in
-                self?.handleConnection(connection)
+                Task { @MainActor in
+                    self?.handleConnection(connection)
+                }
             }
             
             listener.start(queue: .main)
@@ -115,13 +117,15 @@ final class LoopbackServer {
     
     private func handleConnection(_ connection: NWConnection) {
         connection.stateUpdateHandler = { [weak self] state in
-            switch state {
-            case .ready:
-                self?.receiveData(from: connection)
-            case .failed, .cancelled:
-                connection.cancel()
-            default:
-                break
+            Task { @MainActor in
+                switch state {
+                case .ready:
+                    self?.receiveData(from: connection)
+                case .failed, .cancelled:
+                    connection.cancel()
+                default:
+                    break
+                }
             }
         }
         connection.start(queue: .main)
@@ -129,28 +133,30 @@ final class LoopbackServer {
     
     private func receiveData(from connection: NWConnection) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
-            guard let self = self, let data = data, error == nil else {
-                connection.cancel()
-                return
+            Task { @MainActor [weak self] in
+                guard let self = self, let data = data, error == nil else {
+                    connection.cancel()
+                    return
+                }
+                
+                // Parse HTTP request
+                guard let requestString = String(data: data, encoding: .utf8),
+                      let callbackURL = self.parseHTTPRequest(requestString) else {
+                    self.sendResponse(to: connection, success: false)
+                    return
+                }
+                
+                // Send success response
+                self.sendResponse(to: connection, success: true)
+                
+                // Resume continuation with the callback URL
+                self.timeoutTask?.cancel()
+                self.timeoutTask = nil
+                self.listener?.cancel()
+                self.listener = nil
+                self.continuation?.resume(returning: callbackURL)
+                self.continuation = nil
             }
-            
-            // Parse HTTP request
-            guard let requestString = String(data: data, encoding: .utf8),
-                  let callbackURL = self.parseHTTPRequest(requestString) else {
-                self.sendResponse(to: connection, success: false)
-                return
-            }
-            
-            // Send success response
-            self.sendResponse(to: connection, success: true)
-            
-            // Resume continuation with the callback URL
-            self.timeoutTask?.cancel()
-            self.timeoutTask = nil
-            self.listener?.cancel()
-            self.listener = nil
-            self.continuation?.resume(returning: callbackURL)
-            self.continuation = nil
         }
     }
     

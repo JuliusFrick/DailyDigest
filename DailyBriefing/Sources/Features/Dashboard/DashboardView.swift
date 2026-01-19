@@ -127,7 +127,7 @@ struct TUIDashboardView: View {
                     icon: "●",
                     value: "\(connectionManager.connectedSources.count)",
                     label: "sources",
-                    color: connectionManager.connectedSources.isEmpty ? .tertiary : .green
+                    color: connectionManager.connectedSources.isEmpty ? .secondary : .green
                 )
                 
                 if !upcomingMeetings.isEmpty {
