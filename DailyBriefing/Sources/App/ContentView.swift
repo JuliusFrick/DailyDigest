@@ -20,6 +20,7 @@ struct MainView: View {
     @State private var showSettings = false
     @State private var showSources = false
     @State private var showHistory = false
+    @State private var showMeetings = false
 
     var body: some View {
         ZStack {
@@ -31,7 +32,8 @@ struct MainView: View {
                 TopBar(
                     showSettings: $showSettings,
                     showSources: $showSources,
-                    showHistory: $showHistory
+                    showHistory: $showHistory,
+                    showMeetings: $showMeetings
                 )
 
                 // Main content
@@ -81,15 +83,27 @@ struct MainView: View {
                     removal: .opacity.combined(with: .scale(scale: 0.98))
                 ))
             }
+
+            if showMeetings {
+                ModalOverlay(isPresented: $showMeetings, title: "Meetings") {
+                    TUIMeetingsView()
+                }
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                    removal: .opacity.combined(with: .scale(scale: 0.98))
+                ))
+            }
         }
         .animation(.tuiSnappy, value: showSettings)
         .animation(.tuiSnappy, value: showSources)
         .animation(.tuiSnappy, value: showHistory)
+        .animation(.tuiSnappy, value: showMeetings)
         .onKeyPress(.escape) {
-            if showSettings || showSources || showHistory {
+            if showSettings || showSources || showHistory || showMeetings {
                 showSettings = false
                 showSources = false
                 showHistory = false
+                showMeetings = false
                 return .handled
             }
             return .ignored
@@ -97,7 +111,8 @@ struct MainView: View {
         .modifier(ContentViewKeyboardModifier(
             showSettings: $showSettings,
             showSources: $showSources,
-            showHistory: $showHistory
+            showHistory: $showHistory,
+            showMeetings: $showMeetings
         ))
     }
 }
@@ -108,6 +123,7 @@ struct TopBar: View {
     @Binding var showSettings: Bool
     @Binding var showSources: Bool
     @Binding var showHistory: Bool
+    @Binding var showMeetings: Bool
 
     var body: some View {
         HStack(spacing: 0) {
@@ -121,17 +137,20 @@ struct TopBar: View {
 
             // Nav items
             HStack(spacing: 2) {
-                NavButton(label: "1", title: "Home", isActive: !showHistory && !showSources && !showSettings) {
-                    showHistory = false; showSources = false; showSettings = false
+                NavButton(label: "1", title: "Home", isActive: !showHistory && !showSources && !showSettings && !showMeetings) {
+                    showHistory = false; showSources = false; showSettings = false; showMeetings = false
                 }
                 NavButton(label: "2", title: "History", isActive: showHistory) {
-                    showHistory.toggle(); showSources = false; showSettings = false
+                    showHistory.toggle(); showSources = false; showSettings = false; showMeetings = false
                 }
                 NavButton(label: "3", title: "Sources", isActive: showSources) {
-                    showSources.toggle(); showHistory = false; showSettings = false
+                    showSources.toggle(); showHistory = false; showSettings = false; showMeetings = false
+                }
+                NavButton(label: "4", title: "Meetings", isActive: showMeetings) {
+                    showMeetings.toggle(); showHistory = false; showSources = false; showSettings = false
                 }
                 NavButton(label: ",", title: "Settings", isActive: showSettings) {
-                    showSettings.toggle(); showHistory = false; showSources = false
+                    showSettings.toggle(); showHistory = false; showSources = false; showMeetings = false
                 }
             }
         }
@@ -239,32 +258,38 @@ struct ContentViewKeyboardModifier: ViewModifier {
     @Binding var showSettings: Bool
     @Binding var showSources: Bool
     @Binding var showHistory: Bool
+    @Binding var showMeetings: Bool
 
     func body(content: Content) -> some View {
         content
             .onKeyPress("w", modifiers: .command) {
-                if showSettings || showSources || showHistory {
+                if showSettings || showSources || showHistory || showMeetings {
                     showSettings = false
                     showSources = false
                     showHistory = false
+                    showMeetings = false
                     return .handled
                 }
                 return .ignored
             }
             .onKeyPress("1", modifiers: .command) {
-                showHistory = false; showSources = false; showSettings = false
+                showHistory = false; showSources = false; showSettings = false; showMeetings = false
                 return .handled
             }
             .onKeyPress("2", modifiers: .command) {
-                showHistory.toggle(); showSources = false; showSettings = false
+                showHistory.toggle(); showSources = false; showSettings = false; showMeetings = false
                 return .handled
             }
             .onKeyPress("3", modifiers: .command) {
-                showSources.toggle(); showHistory = false; showSettings = false
+                showSources.toggle(); showHistory = false; showSettings = false; showMeetings = false
+                return .handled
+            }
+            .onKeyPress("4", modifiers: .command) {
+                showMeetings.toggle(); showHistory = false; showSources = false; showSettings = false
                 return .handled
             }
             .onKeyPress(",", modifiers: .command) {
-                showSettings.toggle(); showHistory = false; showSources = false
+                showSettings.toggle(); showHistory = false; showSources = false; showMeetings = false
                 return .handled
             }
     }
