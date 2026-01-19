@@ -41,10 +41,15 @@ final class UpdateService: NSObject, ObservableObject {
 
     private override init() {
         // Resolve feed URL: prefer Info.plist, fall back to default
-        if let plistURL = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String,
-           let normalized = Self.legacyFeedURLMappings[plistURL] ?? plistURL,
-           let url = URL(string: normalized) {
-            self.feedURL = url
+        if let plistURL = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String {
+            let normalized = Self.legacyFeedURLMappings[plistURL] ?? plistURL
+            if let url = URL(string: normalized) {
+                self.feedURL = url
+            } else if let url = URL(string: Self.defaultFeedURL) {
+                self.feedURL = url
+            } else {
+                self.feedURL = nil
+            }
         } else if let url = URL(string: Self.defaultFeedURL) {
             self.feedURL = url
         } else {
