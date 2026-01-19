@@ -7,5 +7,28 @@
     <link>https://juliusfrick.github.io/DailyDigest/appcast.xml</link>
     <description>Latest versions of DailyBriefing</description>
     <language>de</language>
+    
+    <item>
+      <title>Version 0.1.1</title>
+      <link>https://github.com/JuliusFrick/DailyDigest</link>
+      <sparkle:version>1</sparkle:version>
+      <sparkle:shortVersionString>0.1.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <pubDate>Sun, 19 Jan 2025 11:00:00 +0000</pubDate>
+      <description><![CDATA[
+        <h2>Version 0.1.1</h2>
+        <p>Neue Version von DailyBriefing</p>
+        <ul>
+          <li>Audio Recording Service hinzugefügt</li>
+          <li>Meeting Notes Service hinzugefügt</li>
+          <li>Transcription Service hinzugefügt</li>
+          <li>UI Verbesserungen</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/JuliusFrick/DailyDigest/releases/download/v0.1.1/DailyBriefing-0.1.1.dmg"
+        length="0"
+        type="application/octet-stream" />
+    </item>
   </channel>
 </rss>
