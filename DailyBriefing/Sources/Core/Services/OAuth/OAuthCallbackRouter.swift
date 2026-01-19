@@ -11,11 +11,13 @@ final class OAuthCallbackRouter: ObservableObject {
     func waitForCallback(state: String) async throws -> URL {
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
-                continuations[state] = continuation
+                Task { @MainActor in
+                    continuations[state] = continuation
+                }
             }
-        } onCancel: { [weak self] in
+        } onCancel: {
             Task { @MainActor in
-                self?.cancel(state: state, error: CancellationError())
+                OAuthCallbackRouter.shared.cancel(state: state, error: CancellationError())
             }
         }
     }
