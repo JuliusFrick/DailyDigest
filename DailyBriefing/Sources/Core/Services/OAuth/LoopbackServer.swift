@@ -66,9 +66,10 @@ final class LoopbackServer {
                 }
             }
             
-            listener.newConnectionHandler = { [weak self] connection in
-                Task { @MainActor in
-                    self?.handleConnection(connection)
+            listener.newConnectionHandler = { connection in
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
+                    self.handleConnection(connection)
                 }
             }
             
@@ -116,11 +117,12 @@ final class LoopbackServer {
     }
     
     private func handleConnection(_ connection: NWConnection) {
-        connection.stateUpdateHandler = { [weak self] state in
-            Task { @MainActor in
+        connection.stateUpdateHandler = { state in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
                 switch state {
                 case .ready:
-                    self?.receiveData(from: connection)
+                    self.receiveData(from: connection)
                 case .failed, .cancelled:
                     connection.cancel()
                 default:
@@ -132,7 +134,7 @@ final class LoopbackServer {
     }
     
     private func receiveData(from connection: NWConnection) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, isComplete, error in
             Task { @MainActor [weak self] in
                 guard let self = self, let data = data, error == nil else {
                     connection.cancel()
