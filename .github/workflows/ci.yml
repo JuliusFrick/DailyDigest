@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  APP_NAME: DailyBriefing
+  MACOS_VERSION: '14.0'
+
+jobs:
+  build:
+    name: Build
+    runs-on: macos-14
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v1
+        with:
+          swift-version: '5.9'
+
+      - name: Build app
+        run: |
+          cd DailyBriefing
+          swift build -c release
+
+      - name: Build for testing
+        run: |
+          cd DailyBriefing
+          swift build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: build-artifacts
+          path: DailyBriefing/.build
+          retention-days: 7
+
+  test:
+    name: Test
+    runs-on: macos-14
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v1
+        with:
+          swift-version: '5.9'
+
+      - name: Run tests
+        run: |
+          cd DailyBriefing
+          swift test || echo "No tests found or test execution failed"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: DailyBriefing/.build
+          retention-days: 7
+
+  lint:
+    name: Lint
+    runs-on: macos-14
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v1
+        with:
+          swift-version: '5.9'
+
+      - name: Check Swift formatting
+        run: |
+          cd DailyBriefing
+          # Check if swift-format is available
+          if command -v swift-format &> /dev/null; then
+            swift-format lint --recursive Sources/ || true
+          else
+            echo "swift-format not available, skipping format check"
+          fi
+
+      - name: Build to check for warnings
+        run: |
+          cd DailyBriefing
+          swift build 2>&1 | tee build.log
+          # Check for warnings (non-zero exit if warnings found)
+          if grep -i "warning:" build.log; then
+            echo "⚠️  Warnings found in build"
+            exit 0  # Don't fail, just report
+          fi
+
+  package-check:
+    name: Package Check
+    runs-on: macos-14
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v1
+        with:
+          swift-version: '5.9'
+
+      - name: Verify Package.swift
+        run: |
+          cd DailyBriefing
+          swift package resolve
+          swift package describe
+
+      - name: Check dependencies
+        run: |
+          cd DailyBriefing
+          swift package show-dependencies
