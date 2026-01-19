@@ -85,16 +85,29 @@ The repository includes a GitHub Actions workflow that automatically:
 
 #### Creating a Release
 
-**Option 1: Push a tag**
+**Option 1: Push a tag (recommended)**
 ```bash
+# Make sure you're on main branch with latest changes
+git checkout main
+git pull origin main
+
+# Create and push a tag
 git tag v1.0.0
 git push origin v1.0.0
 ```
+
+The workflow will automatically:
+- Build the app
+- Create DMG and ZIP files
+- Create a GitHub Release
+- Update the appcast.xml on GitHub Pages
 
 **Option 2: Manual trigger**
 1. Go to Actions → Release → Run workflow
 2. Enter version (e.g., `1.0.0`) and build number (e.g., `1`)
 3. Click "Run workflow"
+
+**Note:** Tags can be created from any branch, but it's recommended to create releases from the `main` branch to ensure you're releasing stable code.
 
 #### GitHub Pages Setup
 
