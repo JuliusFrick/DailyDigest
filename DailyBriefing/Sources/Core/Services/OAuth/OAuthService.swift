@@ -22,6 +22,8 @@ final class OAuthService: NSObject, ObservableObject {
         let additionalAuthorizationQueryItems: [URLQueryItem]
         /// Enables PKCE (recommended/required for some native-app providers like Google).
         let usePKCE: Bool
+        /// When true, open the auth page in the default browser and wait for the redirect.
+        let useExternalBrowser: Bool
         /// Callback URL scheme used by `ASWebAuthenticationSession` to capture redirects.
         /// For custom schemes use e.g. "dailybriefing"; for loopback redirects use "http".
         let callbackURLScheme: String
@@ -40,6 +42,7 @@ final class OAuthService: NSObject, ObservableObject {
             scopeSeparator: String = " ",
             additionalAuthorizationQueryItems: [URLQueryItem] = [],
             usePKCE: Bool = false,
+            useExternalBrowser: Bool = false,
             callbackURLScheme: String = "dailybriefing"
         ) {
             self.clientId = clientId
@@ -51,6 +54,7 @@ final class OAuthService: NSObject, ObservableObject {
             self.scopeSeparator = scopeSeparator
             self.additionalAuthorizationQueryItems = additionalAuthorizationQueryItems
             self.usePKCE = usePKCE
+            self.useExternalBrowser = useExternalBrowser
             self.callbackURLScheme = callbackURLScheme
         }
     }
@@ -119,29 +123,11 @@ final class OAuthService: NSObject, ObservableObject {
         // Ensure the app is foregrounded so macOS can show the auth UI.
         NSApplication.shared.activate(ignoringOtherApps: true)
 
-        // Start authentication session
-        let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
-            let session = ASWebAuthenticationSession(
-                url: authURL,
-                callbackURLScheme: configuration.callbackURLScheme
-            ) { url, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let url = url {
-                    continuation.resume(returning: url)
-                } else {
-                    continuation.resume(throwing: OAuthError.noCallbackReceived)
-                }
-            }
-
-            session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = false
-
-            self.authSession = session
-
-            if !session.start() {
-                continuation.resume(throwing: OAuthError.sessionStartFailed)
-            }
+        let callbackURL: URL
+        if configuration.useExternalBrowser {
+            callbackURL = try await openAuthPageInBrowser(authURL, state: state)
+        } else {
+            callbackURL = try await startAuthSession(authURL)
         }
 
         // Extract authorization code
@@ -315,6 +301,7 @@ enum OAuthError: LocalizedError {
     case tokenRefreshFailed
     case notAuthenticated
     case stateMismatch
+    case browserOpenFailed
 
     var errorDescription: String? {
         switch self {
@@ -336,6 +323,8 @@ enum OAuthError: LocalizedError {
             return "Nicht authentifiziert"
         case .stateMismatch:
             return "Ungültige Authentifizierungs-Antwort (state stimmt nicht überein)"
+        case .browserOpenFailed:
+            return "Login-Seite konnte nicht geöffnet werden"
         }
     }
 }
@@ -343,6 +332,39 @@ enum OAuthError: LocalizedError {
 // MARK: - Helpers (PKCE / Redirect URI)
 
 private extension OAuthService {
+    func openAuthPageInBrowser(_ authURL: URL, state: String) async throws -> URL {
+        guard NSWorkspace.shared.open(authURL) else {
+            throw OAuthError.browserOpenFailed
+        }
+        return try await OAuthCallbackRouter.shared.waitForCallback(state: state)
+    }
+
+    func startAuthSession(_ authURL: URL) async throws -> URL {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
+            let session = ASWebAuthenticationSession(
+                url: authURL,
+                callbackURLScheme: configuration.callbackURLScheme
+            ) { url, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else if let url = url {
+                    continuation.resume(returning: url)
+                } else {
+                    continuation.resume(throwing: OAuthError.noCallbackReceived)
+                }
+            }
+
+            session.presentationContextProvider = self
+            session.prefersEphemeralWebBrowserSession = false
+
+            self.authSession = session
+
+            if !session.start() {
+                continuation.resume(throwing: OAuthError.sessionStartFailed)
+            }
+        }
+    }
+
     struct PKCEPair {
         let codeVerifier: String
         let codeChallenge: String
