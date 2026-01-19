@@ -28,9 +28,9 @@ struct GenerateBriefingIntent: AppIntent {
         // Return the briefing summary as string value, plus dialog and snippet view
         return .result(
             value: briefing.summary,
-            dialog: "Here is your briefing for today.",
-            view: BriefingSnippetView(briefing: briefing)
+            dialog: "Here is your briefing for today."
         )
+        .snippet(BriefingSnippetView(briefing: briefing))
     }
 
     static var parameterSummary: some ParameterSummary {

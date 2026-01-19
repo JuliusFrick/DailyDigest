@@ -22,11 +22,25 @@ final class AudioRecordingService: NSObject, ObservableObject {
     // MARK: - Permission
     
     func checkPermission() {
+        #if os(macOS)
+        // On macOS, check microphone permission using AVCaptureDevice
+        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        hasPermission = status == .authorized
+        #else
+        // iOS/tvOS - AVAudioSession is available
         let status = AVAudioSession.sharedInstance().recordPermission
         hasPermission = status == .granted
+        #endif
     }
     
     func requestPermission() async -> Bool {
+        #if os(macOS)
+        // On macOS, request microphone permission using AVCaptureDevice
+        let status = await AVCaptureDevice.requestAccess(for: .audio)
+        hasPermission = status
+        return status
+        #else
+        // iOS/tvOS - AVAudioSession is available
         return await withCheckedContinuation { continuation in
             AVAudioSession.sharedInstance().requestRecordPermission { granted in
                 Task { @MainActor in
@@ -35,6 +49,7 @@ final class AudioRecordingService: NSObject, ObservableObject {
                 }
             }
         }
+        #endif
     }
     
     // MARK: - Recording
@@ -52,10 +67,12 @@ final class AudioRecordingService: NSObject, ObservableObject {
             }
         }
         
-        // Configure audio session
+        #if !os(macOS)
+        // Configure audio session (iOS/tvOS only)
         let audioSession = AVAudioSession.sharedInstance()
         try audioSession.setCategory(.record, mode: .default)
         try audioSession.setActive(true)
+        #endif
         
         // Create recording URL
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -103,8 +120,10 @@ final class AudioRecordingService: NSObject, ObservableObject {
         
         isRecording = false
         
-        // Deactivate audio session
+        #if !os(macOS)
+        // Deactivate audio session (iOS/tvOS only)
         try? AVAudioSession.sharedInstance().setActive(false)
+        #endif
         
         let url = recordingURL
         recordingURL = nil
@@ -130,8 +149,10 @@ final class AudioRecordingService: NSObject, ObservableObject {
         }
         recordingURL = nil
         
-        // Deactivate audio session
+        #if !os(macOS)
+        // Deactivate audio session (iOS/tvOS only)
         try? AVAudioSession.sharedInstance().setActive(false)
+        #endif
     }
     
     // MARK: - Formatting

@@ -26,8 +26,9 @@ final class AppIconService {
 
         // Schedule periodic updates (every hour)
         timer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
             Task { @MainActor in
-                self?.updateDockIcon()
+                self.updateDockIcon()
             }
         }
     }
