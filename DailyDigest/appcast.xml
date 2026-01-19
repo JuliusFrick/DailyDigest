@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0"
+     xmlns:sparkle="https://sparkle-project.org/xml-namespaces/sparkle"
+     xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>DailyBriefing Updates</title>
+    <link>https://juliusfrick.github.io/DailyDigest/appcast.xml</link>
+    <description>Latest versions of DailyBriefing</description>
+    <language>de</language>
+  </channel>
+</rss>
