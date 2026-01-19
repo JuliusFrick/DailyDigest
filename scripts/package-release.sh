@@ -25,7 +25,7 @@ SOURCE_ICON_VERTICAL_PNG="${SOURCE_ICON_VERTICAL_PNG:-/Users/julius.frick/Downlo
 VERSION="${VERSION:-}"
 BUILD_NUMBER="${BUILD_NUMBER:-}"
 
-SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://juliusfrick.github.io/DailyDigest/appcast.xml}"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://juliusfrick.github.io/DailyBriefing/appcast.xml}"
 SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-}"
 
 SPARKLE_PLIST_KEYS=""

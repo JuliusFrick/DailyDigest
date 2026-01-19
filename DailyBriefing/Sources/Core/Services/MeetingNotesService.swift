@@ -1,6 +1,28 @@
 import Foundation
 import Combine
 
+/// Represents an ad-hoc meeting recording (not from calendar)
+struct AdHocMeeting: Codable, Identifiable {
+    let id: String
+    var title: String
+    let createdAt: Date
+    var notes: String
+    
+    init(title: String = "", notes: String = "") {
+        self.id = UUID().uuidString
+        self.title = title.isEmpty ? Self.defaultTitle(for: Date()) : title
+        self.createdAt = Date()
+        self.notes = notes
+    }
+    
+    static func defaultTitle(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.dateFormat = "d. MMM, HH:mm"
+        return "Aufnahme \(formatter.string(from: date))"
+    }
+}
+
 /// Service for storing and retrieving meeting notes
 @MainActor
 final class MeetingNotesService: ObservableObject {
@@ -8,8 +30,15 @@ final class MeetingNotesService: ObservableObject {
     
     private let userDefaults = UserDefaults.standard
     private let notesKeyPrefix = "meeting_notes_"
+    private let adHocMeetingsKey = "adhoc_meetings"
     
-    private init() {}
+    @Published private(set) var adHocMeetings: [AdHocMeeting] = []
+    
+    private init() {
+        loadAdHocMeetings()
+    }
+    
+    // MARK: - Calendar Meeting Notes
     
     /// Save meeting notes for a specific meeting
     /// - Parameters:
@@ -64,5 +93,54 @@ final class MeetingNotesService: ObservableObject {
         let timestamp = item.timestamp?.timeIntervalSince1970 ?? 0
         let titleHash = item.title.hash
         return "\(timestamp)_\(titleHash)"
+    }
+    
+    // MARK: - Ad-Hoc Meetings
+    
+    /// Create a new ad-hoc meeting with transcribed notes
+    @discardableResult
+    func createAdHocMeeting(title: String = "", notes: String) -> AdHocMeeting {
+        let meeting = AdHocMeeting(title: title, notes: notes)
+        adHocMeetings.insert(meeting, at: 0)
+        saveAdHocMeetings()
+        return meeting
+    }
+    
+    /// Update an existing ad-hoc meeting
+    func updateAdHocMeeting(id: String, title: String? = nil, notes: String? = nil) {
+        guard let index = adHocMeetings.firstIndex(where: { $0.id == id }) else { return }
+        
+        if let title = title {
+            adHocMeetings[index].title = title
+        }
+        if let notes = notes {
+            adHocMeetings[index].notes = notes
+        }
+        saveAdHocMeetings()
+    }
+    
+    /// Delete an ad-hoc meeting
+    func deleteAdHocMeeting(id: String) {
+        adHocMeetings.removeAll { $0.id == id }
+        saveAdHocMeetings()
+    }
+    
+    /// Get an ad-hoc meeting by ID
+    func getAdHocMeeting(id: String) -> AdHocMeeting? {
+        adHocMeetings.first { $0.id == id }
+    }
+    
+    private func loadAdHocMeetings() {
+        guard let data = userDefaults.data(forKey: adHocMeetingsKey),
+              let meetings = try? JSONDecoder().decode([AdHocMeeting].self, from: data) else {
+            adHocMeetings = []
+            return
+        }
+        adHocMeetings = meetings
+    }
+    
+    private func saveAdHocMeetings() {
+        guard let data = try? JSONEncoder().encode(adHocMeetings) else { return }
+        userDefaults.set(data, forKey: adHocMeetingsKey)
     }
 }

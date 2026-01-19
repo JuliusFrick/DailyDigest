@@ -124,7 +124,7 @@ For automatic updates to work, you need to enable GitHub Pages:
 5. Save
 
 The appcast.xml will be available at:
-`https://juliusfrick.github.io/DailyDigest/appcast.xml`
+`https://juliusfrick.github.io/DailyBriefing/appcast.xml`
 
 Make sure this URL matches the `SPARKLE_FEED_URL` in your build scripts.
 

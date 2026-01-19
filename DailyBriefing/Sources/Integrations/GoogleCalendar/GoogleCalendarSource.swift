@@ -461,7 +461,7 @@ private extension GoogleCalendarSource {
             authorizationURL: URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!,
             tokenURL: URL(string: "https://oauth2.googleapis.com/token")!,
             // Google native/desktop OAuth requires a loopback redirect (custom schemes like dailybriefing://... are rejected).
-            // ":0" is a placeholder that gets replaced per-session with a random high port.
+            // The port ":0" is a placeholder - LoopbackServer will assign an actual available port.
             redirectURI: "http://127.0.0.1:0/oauth/google",
             scopes: [
                 "https://www.googleapis.com/auth/calendar.readonly",
@@ -473,6 +473,7 @@ private extension GoogleCalendarSource {
                 URLQueryItem(name: "prompt", value: "consent")
             ],
             usePKCE: true,
+            useExternalBrowser: true,
             callbackURLScheme: "http"
         )
         return OAuthService(configuration: config, sourceId: Self.sourceId)

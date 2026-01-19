@@ -70,6 +70,7 @@ final class OAuthService: NSObject, ObservableObject {
 
     private var authSession: ASWebAuthenticationSession?
     private var presentationAnchor: ASPresentationAnchor?
+    private var loopbackServer: LoopbackServer?
 
     // MARK: - Initialization
 
@@ -84,7 +85,11 @@ final class OAuthService: NSObject, ObservableObject {
     /// Start the OAuth authorization flow
     func authorize() async throws -> KeychainService.OAuthTokens {
         isAuthenticating = true
-        defer { isAuthenticating = false }
+        defer {
+            isAuthenticating = false
+            loopbackServer?.stop()
+            loopbackServer = nil
+        }
 
         guard !configuration.clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw OAuthError.missingClientId
@@ -96,37 +101,36 @@ final class OAuthService: NSObject, ObservableObject {
         // Optional PKCE (RFC 7636)
         let pkce: PKCEPair? = configuration.usePKCE ? Self.generatePKCE() : nil
 
-        // For loopback redirects, allow a placeholder port ":0" which we replace per-session.
-        let redirectURIUsed = Self.resolveRedirectURI(configuration.redirectURI)
-
-        // Build authorization URL
-        var components = URLComponents(url: configuration.authorizationURL, resolvingAgainstBaseURL: false)!
-        components.queryItems = [
-            URLQueryItem(name: "client_id", value: configuration.clientId),
-            URLQueryItem(name: "redirect_uri", value: redirectURIUsed),
-            URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "scope", value: configuration.scopeString)
-        ]
-        if !configuration.additionalAuthorizationQueryItems.isEmpty {
-            components.queryItems?.append(contentsOf: configuration.additionalAuthorizationQueryItems)
+        // Determine redirect URI - for loopback with external browser, we need to start the server first
+        let redirectURIUsed: String
+        let isLoopbackRedirect = Self.isLoopbackRedirectURI(configuration.redirectURI)
+        
+        if configuration.useExternalBrowser && isLoopbackRedirect {
+            // Start loopback server and get the actual port
+            let path = Self.extractPath(from: configuration.redirectURI)
+            loopbackServer = LoopbackServer(expectedPath: path)
+            // We'll get the port after starting the server in the callback flow
+            redirectURIUsed = configuration.redirectURI // Will be resolved with actual port below
+        } else {
+            // For ASWebAuthenticationSession or custom scheme redirects
+            redirectURIUsed = Self.resolveRedirectURI(configuration.redirectURI)
         }
-        components.queryItems?.append(URLQueryItem(name: "state", value: state))
-        if let pkce {
-            components.queryItems?.append(URLQueryItem(name: "code_challenge", value: pkce.codeChallenge))
-            components.queryItems?.append(URLQueryItem(name: "code_challenge_method", value: "S256"))
-        }
-
-        guard let authURL = components.url else {
-            throw OAuthError.invalidConfiguration
-        }
-
-        // Ensure the app is foregrounded so macOS can show the auth UI.
-        NSApplication.shared.activate(ignoringOtherApps: true)
 
         let callbackURL: URL
         if configuration.useExternalBrowser {
-            callbackURL = try await openAuthPageInBrowser(authURL, state: state)
+            if isLoopbackRedirect {
+                // Use loopback server for HTTP redirects
+                callbackURL = try await openAuthPageInBrowserWithLoopback(state: state, pkce: pkce)
+            } else {
+                // Use custom URL scheme with OAuthCallbackRouter
+                let authURL = try buildAuthorizationURL(redirectURI: redirectURIUsed, state: state, pkce: pkce)
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                callbackURL = try await openAuthPageInBrowser(authURL, state: state)
+            }
         } else {
+            // Use ASWebAuthenticationSession
+            let authURL = try buildAuthorizationURL(redirectURI: redirectURIUsed, state: state, pkce: pkce)
+            NSApplication.shared.activate(ignoringOtherApps: true)
             callbackURL = try await startAuthSession(authURL)
         }
 
@@ -142,13 +146,46 @@ final class OAuthService: NSObject, ObservableObject {
             throw OAuthError.stateMismatch
         }
 
+        // Get the redirect URI that was actually used (with the real port for loopback)
+        let finalRedirectURI: String
+        if let server = loopbackServer {
+            let path = Self.extractPath(from: configuration.redirectURI)
+            finalRedirectURI = "http://127.0.0.1:\(server.port)\(path)"
+        } else {
+            finalRedirectURI = redirectURIUsed
+        }
+
         // Exchange code for tokens
-        let tokens = try await exchangeCodeForTokens(code, redirectURIUsed: redirectURIUsed, codeVerifier: pkce?.codeVerifier)
+        let tokens = try await exchangeCodeForTokens(code, redirectURIUsed: finalRedirectURI, codeVerifier: pkce?.codeVerifier)
 
         // Save tokens
         try keychain.saveTokens(tokens, for: sourceId)
 
         return tokens
+    }
+    
+    /// Build the authorization URL with all required parameters
+    private func buildAuthorizationURL(redirectURI: String, state: String, pkce: PKCEPair?) throws -> URL {
+        var components = URLComponents(url: configuration.authorizationURL, resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            URLQueryItem(name: "client_id", value: configuration.clientId),
+            URLQueryItem(name: "redirect_uri", value: redirectURI),
+            URLQueryItem(name: "response_type", value: "code"),
+            URLQueryItem(name: "scope", value: configuration.scopeString)
+        ]
+        if !configuration.additionalAuthorizationQueryItems.isEmpty {
+            components.queryItems?.append(contentsOf: configuration.additionalAuthorizationQueryItems)
+        }
+        components.queryItems?.append(URLQueryItem(name: "state", value: state))
+        if let pkce {
+            components.queryItems?.append(URLQueryItem(name: "code_challenge", value: pkce.codeChallenge))
+            components.queryItems?.append(URLQueryItem(name: "code_challenge_method", value: "S256"))
+        }
+
+        guard let authURL = components.url else {
+            throw OAuthError.invalidConfiguration
+        }
+        return authURL
     }
 
     /// Get current valid tokens, refreshing if necessary
@@ -332,11 +369,42 @@ enum OAuthError: LocalizedError {
 // MARK: - Helpers (PKCE / Redirect URI)
 
 private extension OAuthService {
+    /// Open auth page in external browser using custom URL scheme callback (for Jira, Slack, etc.)
     func openAuthPageInBrowser(_ authURL: URL, state: String) async throws -> URL {
         guard NSWorkspace.shared.open(authURL) else {
             throw OAuthError.browserOpenFailed
         }
         return try await OAuthCallbackRouter.shared.waitForCallback(state: state)
+    }
+    
+    /// Open auth page in external browser using loopback HTTP callback (for Google)
+    func openAuthPageInBrowserWithLoopback(state: String, pkce: PKCEPair?) async throws -> URL {
+        guard let server = loopbackServer else {
+            throw OAuthError.invalidConfiguration
+        }
+        
+        // Start the server and wait for it to be ready (this gives us the actual port)
+        async let callbackTask = server.waitForCallback()
+        
+        // Small delay to ensure server is listening before opening browser
+        try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        
+        // Build auth URL with the actual server port
+        let path = Self.extractPath(from: configuration.redirectURI)
+        let redirectURI = "http://127.0.0.1:\(server.port)\(path)"
+        let authURL = try buildAuthorizationURL(redirectURI: redirectURI, state: state, pkce: pkce)
+        
+        // Ensure app is foregrounded
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        
+        // Open the browser
+        guard NSWorkspace.shared.open(authURL) else {
+            server.stop()
+            throw OAuthError.browserOpenFailed
+        }
+        
+        // Wait for the callback
+        return try await callbackTask
     }
 
     func startAuthSession(_ authURL: URL) async throws -> URL {
@@ -368,6 +436,26 @@ private extension OAuthService {
     struct PKCEPair {
         let codeVerifier: String
         let codeChallenge: String
+    }
+    
+    /// Check if the redirect URI is a loopback redirect (http://127.0.0.1 or http://localhost)
+    static func isLoopbackRedirectURI(_ redirectURI: String) -> Bool {
+        guard let url = URL(string: redirectURI),
+              let host = url.host,
+              (host == "localhost" || host == "127.0.0.1" || host == "::1"),
+              url.scheme == "http" || url.scheme == "https"
+        else {
+            return false
+        }
+        return true
+    }
+    
+    /// Extract the path component from a redirect URI
+    static func extractPath(from redirectURI: String) -> String {
+        guard let url = URL(string: redirectURI) else {
+            return "/oauth/callback"
+        }
+        return url.path.isEmpty ? "/" : url.path
     }
 
     static func resolveRedirectURI(_ redirectURI: String) -> String {

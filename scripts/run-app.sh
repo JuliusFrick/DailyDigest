@@ -19,7 +19,7 @@ ICON_ICNS="${ROOT_DIR}/assets/AppIcon.icns"
 SOURCE_ICON_PNG="${SOURCE_ICON_PNG:-/Users/julius.frick/Downloads/Gemini_Generated_Image_qvpmarqvpmarqvpm.png}"
 SOURCE_ICON_VERTICAL_PNG="${SOURCE_ICON_VERTICAL_PNG:-/Users/julius.frick/Downloads/VERT_Gemini_Generated_Image_z36h4wz36h4wz36h.png}"
 
-SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://juliusfrick.github.io/DailyDigest/appcast.xml}"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://juliusfrick.github.io/DailyBriefing/appcast.xml}"
 SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-}"
 
 SPARKLE_PLIST_KEYS=""
