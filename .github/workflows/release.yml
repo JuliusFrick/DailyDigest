@@ -203,7 +203,7 @@ jobs:
           fi
 
       - name: Upload appcast.xml artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: appcast.xml
           path: dist/appcast.xml
