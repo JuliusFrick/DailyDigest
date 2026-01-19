@@ -66,6 +66,7 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}" \
           BUILD_NUMBER="${{ steps.version.outputs.build_number }}" \
+          SPARKLE_PUBLIC_ED_KEY="${{ secrets.SPARKLE_PUBLIC_ED_KEY }}" \
           ./scripts/package-release.sh
 
       - name: Create DMG
@@ -73,6 +74,86 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}" \
           BUILD_NUMBER="${{ steps.version.outputs.build_number }}" \
           ./scripts/package-dmg.sh
+
+      - name: Sign DMG with Sparkle
+        id: sign_dmg
+        run: |
+          DMG_PATH="dist/${APP_NAME}-${{ steps.version.outputs.version }}.dmg"
+          
+          if [[ -z "${{ secrets.SPARKLE_PRIVATE_ED_KEY }}" ]]; then
+            echo "Warning: SPARKLE_PRIVATE_ED_KEY secret not set. DMG will not be signed."
+            echo "signature=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Find or download Sparkle sign_update tool
+          SIGN_TOOL=""
+          SIGN_TOOL_DIR=""
+          
+          # Check if sign_update exists in Sparkle artifacts
+          if [[ -f "DailyBriefing/.build/artifacts/sparkle/Sparkle/bin/sign_update" ]]; then
+            SIGN_TOOL_DIR="DailyBriefing/.build/artifacts/sparkle/Sparkle/bin"
+            SIGN_TOOL="${SIGN_TOOL_DIR}/sign_update"
+          elif command -v sign_update &> /dev/null; then
+            SIGN_TOOL="sign_update"
+          else
+            # Download Sparkle release to get sign_update tool
+            echo "Downloading Sparkle tools..."
+            SPARKLE_VERSION="2.8.1"
+            SPARKLE_URL="https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+            SIGN_TOOL_DIR="$(mktemp -d)"
+            
+            curl -L -o "${SIGN_TOOL_DIR}/sparkle.tar.xz" "${SPARKLE_URL}"
+            tar -xf "${SIGN_TOOL_DIR}/sparkle.tar.xz" -C "${SIGN_TOOL_DIR}" --strip-components=1
+            
+            if [[ -f "${SIGN_TOOL_DIR}/bin/sign_update" ]]; then
+              SIGN_TOOL="${SIGN_TOOL_DIR}/bin/sign_update"
+              chmod +x "${SIGN_TOOL}"
+            else
+              echo "Error: Could not find sign_update tool after download" >&2
+              exit 1
+            fi
+          fi
+          
+          if [[ ! -f "${SIGN_TOOL}" ]] && ! command -v "${SIGN_TOOL}" &> /dev/null; then
+            echo "Error: sign_update tool not found at ${SIGN_TOOL}" >&2
+            exit 1
+          fi
+          
+          # Create temporary key file
+          KEY_FILE=$(mktemp)
+          echo "${{ secrets.SPARKLE_PRIVATE_ED_KEY }}" > "$KEY_FILE"
+          
+          # Sign the DMG - sign_update outputs: sparkle:edSignature="..." length="..."
+          SIGN_OUTPUT=$("${SIGN_TOOL}" "$DMG_PATH" --ed-key-file "$KEY_FILE" 2>&1)
+          SIGN_EXIT_CODE=$?
+          
+          # Clean up key file immediately
+          rm -f "$KEY_FILE"
+          
+          if [[ $SIGN_EXIT_CODE -ne 0 ]]; then
+            echo "Error: sign_update failed with exit code $SIGN_EXIT_CODE" >&2
+            echo "Output: $SIGN_OUTPUT" >&2
+            exit 1
+          fi
+          
+          # Extract signature from output (format: sparkle:edSignature="..." length="...")
+          # sign_update may output on one line or multiple lines
+          SIGNATURE=$(echo "$SIGN_OUTPUT" | grep -o 'sparkle:edSignature="[^"]*"' | sed 's/sparkle:edSignature="\([^"]*\)"/\1/' | head -n 1)
+          
+          if [[ -z "$SIGNATURE" ]]; then
+            echo "Error: Failed to extract signature from sign_update output" >&2
+            echo "Output: $SIGN_OUTPUT" >&2
+            exit 1
+          fi
+          
+          echo "signature=${SIGNATURE}" >> $GITHUB_OUTPUT
+          echo "✓ DMG signed successfully"
+          
+          # Clean up downloaded Sparkle tools if we downloaded them
+          if [[ -n "${SIGN_TOOL_DIR}" && "${SIGN_TOOL_DIR}" == /tmp/* ]]; then
+            rm -rf "${SIGN_TOOL_DIR}"
+          fi
 
       - name: Generate appcast.xml
         id: appcast
@@ -94,6 +175,19 @@ jobs:
           DMG_URL="${RELEASE_URL}/${APP_NAME}-${VERSION}.dmg"
           ZIP_URL="${RELEASE_URL}/${APP_NAME}-${VERSION}.zip"
           
+          # Get signature from previous step (or empty if not signed)
+          SIGNATURE="${{ steps.sign_dmg.outputs.signature }}"
+          
+          # Build enclosure tag with optional signature
+          ENCLOSURE_TAG="<enclosure"
+          ENCLOSURE_TAG="${ENCLOSURE_TAG} url=\"${DMG_URL}\""
+          ENCLOSURE_TAG="${ENCLOSURE_TAG} length=\"${DMG_SIZE}\""
+          ENCLOSURE_TAG="${ENCLOSURE_TAG} type=\"application/octet-stream\""
+          if [[ -n "${SIGNATURE}" ]]; then
+            ENCLOSURE_TAG="${ENCLOSURE_TAG} sparkle:edSignature=\"${SIGNATURE}\""
+          fi
+          ENCLOSURE_TAG="${ENCLOSURE_TAG} />"
+          
           # Create new item XML
           NEW_ITEM=$(cat <<ITEM
             <item>
@@ -107,10 +201,7 @@ jobs:
                 <h2>Version ${VERSION}</h2>
                 <p>Neue Version von ${APP_NAME}</p>
               ]]></description>
-              <enclosure
-                url="${DMG_URL}"
-                length="${DMG_SIZE}"
-                type="application/octet-stream" />
+              ${ENCLOSURE_TAG}
             </item>
           ITEM
           )
