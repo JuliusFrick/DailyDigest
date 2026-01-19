@@ -264,10 +264,15 @@ struct TUIDashboardView: View {
 
             // Sections list
             if let briefing = appState.currentBriefing {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(briefing.sections.sorted { $0.priority > $1.priority }.enumerated()), id: \.element.id) { index, section in
-                            TUISectionRow(section: section, index: index)
+                if briefing.sections.isEmpty {
+                    // Show empty state when briefing exists but has no sections
+                    emptySectionsState
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(briefing.sections.sorted { $0.priority > $1.priority }.enumerated()), id: \.element.id) { index, section in
+                                TUISectionRow(section: section, index: index)
+                            }
                         }
                     }
                 }
@@ -288,6 +293,24 @@ struct TUIDashboardView: View {
                 .foregroundStyle(.tertiary)
 
             Text("connect sources and generate a briefing")
+                .font(.tuiMonoTiny)
+                .foregroundStyle(.quaternary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var emptySectionsState: some View {
+        VStack(spacing: Spacing.md) {
+            Text("─────────────────")
+                .font(.tuiMonoSmall)
+                .foregroundStyle(.quaternary)
+
+            Text("no sections")
+                .font(.tuiMonoSmall)
+                .foregroundStyle(.tertiary)
+
+            Text("briefing generated but no sections available")
                 .font(.tuiMonoTiny)
                 .foregroundStyle(.quaternary)
                 .multilineTextAlignment(.center)
