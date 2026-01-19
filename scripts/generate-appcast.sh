@@ -44,7 +44,7 @@ cat > "${APPCAST_PATH}" <<EOF
      xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
     <title>${APP_NAME} Updates</title>
-    <link>https://juliusfrick.github.io/DailyBriefing/appcast.xml</link>
+    <link>https://juliusfrick.github.io/DailyDigest/appcast.xml</link>
     <description>Latest versions of ${APP_NAME}</description>
     <language>de</language>
     

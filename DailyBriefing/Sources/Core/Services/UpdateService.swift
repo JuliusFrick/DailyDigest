@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import Sparkle
 
 /// Service for handling app updates via Sparkle
@@ -12,11 +13,17 @@ final class UpdateService: NSObject, ObservableObject {
     // MARK: - Constants
 
     /// Default appcast URL used when Info.plist doesn't provide one
-    private static let defaultFeedURL = "https://juliusfrick.github.io/DailyBriefing/appcast.xml"
+    private static let defaultFeedURL = "https://juliusfrick.github.io/DailyDigest/DailyDigest/appcast.xml"
+    private static let legacyFeedURLMappings: [String: String] = [
+        "https://juliusfrick.github.io/DailyBriefing/appcast.xml": defaultFeedURL,
+        "https://juliusfrick.github.io/DailyDigest/appcast.xml": defaultFeedURL
+    ]
 
     // MARK: - Published Properties
 
     @Published private(set) var canCheckForUpdates = false
+    @Published private(set) var lastUpdateError: String?
+    @Published private(set) var lastUpdateErrorDetails: String?
 
     // MARK: - Private Properties
 
@@ -25,12 +32,18 @@ final class UpdateService: NSObject, ObservableObject {
     /// The resolved feed URL (from Info.plist or fallback)
     private let feedURL: URL?
 
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "DailyBriefing",
+        category: "UpdateService"
+    )
+
     // MARK: - Initialization
 
     private override init() {
         // Resolve feed URL: prefer Info.plist, fall back to default
         if let plistURL = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String,
-           let url = URL(string: plistURL) {
+           let normalized = Self.legacyFeedURLMappings[plistURL] ?? plistURL,
+           let url = URL(string: normalized) {
             self.feedURL = url
         } else if let url = URL(string: Self.defaultFeedURL) {
             self.feedURL = url
@@ -70,6 +83,8 @@ final class UpdateService: NSObject, ObservableObject {
     /// Check for updates manually
     func checkForUpdates() {
         guard canCheckForUpdates else { return }
+        lastUpdateError = nil
+        lastUpdateErrorDetails = nil
         updaterController?.checkForUpdates(nil)
     }
 
@@ -83,6 +98,27 @@ final class UpdateService: NSObject, ObservableObject {
     func setAutomaticChecksEnabled(_ enabled: Bool) {
         updaterController?.updater.automaticallyChecksForUpdates = enabled
     }
+
+    var resolvedFeedURLString: String? {
+        feedURL?.absoluteString
+    }
+
+    private func formatErrorDetails(_ error: Error) -> String {
+        let nsError = error as NSError
+        var details = "\(nsError.domain) (\(nsError.code))"
+
+        if let url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL {
+            details += " · \(url.absoluteString)"
+        } else if let urlString = nsError.userInfo[NSURLErrorFailingURLStringErrorKey] as? String {
+            details += " · \(urlString)"
+        }
+
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
+            details += " · underlying: \(underlying.domain) (\(underlying.code))"
+        }
+
+        return details
+    }
 }
 
 // MARK: - SPUUpdaterDelegate
@@ -95,5 +131,13 @@ extension UpdateService: SPUUpdaterDelegate {
         MainActor.assumeIsolated {
             feedURL?.absoluteString
         }
+    }
+
+    func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
+        let message = error.localizedDescription
+        let details = formatErrorDetails(error)
+        logger.error("Update check failed: \(message, privacy: .public) (\(details, privacy: .public))")
+        lastUpdateError = message
+        lastUpdateErrorDetails = details
     }
 }

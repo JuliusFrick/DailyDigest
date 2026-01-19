@@ -424,6 +424,24 @@ struct SettingsView: View {
                     set: { updateService.setAutomaticChecksEnabled($0) }
                 )
             )
+
+            if let error = updateService.lastUpdateError {
+                Text("Letzter Update-Fehler: \(error)")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            if let details = updateService.lastUpdateErrorDetails {
+                Text(details)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let feedURL = updateService.resolvedFeedURLString {
+                Text("Appcast: \(feedURL)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         } header: {
             Text("Updates")
         } footer: {

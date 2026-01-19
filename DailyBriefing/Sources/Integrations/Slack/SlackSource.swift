@@ -146,11 +146,10 @@ final class SlackSource: BriefingSource, ObservableObject {
             if oauthService.isAuthenticated {
                 do {
                     _ = try await oauthService.getValidTokens()
-                    isAuthenticated = true
-                    connectionStatus = .connected
-
                     try await fetchWorkspaceInfo()
                     availableChannels = try await fetchChannels()
+                    isAuthenticated = true
+                    connectionStatus = .connected
                     return
                 } catch OAuthError.notAuthenticated {
                     // Fall through to interactive login
