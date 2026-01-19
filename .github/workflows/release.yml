@@ -47,9 +47,16 @@ jobs:
             # Extract version from tag (e.g., v1.0.0 -> 1.0.0)
             TAG_NAME="${GITHUB_REF#refs/tags/}"
             VERSION="${TAG_NAME#v}"
-            # Use tag as build number or extract from tag
-            BUILD_NUMBER="${TAG_NAME##*.}"
-            if [[ ! "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
+            # Calculate build number from version to ensure it always increases
+            # Convert version like "0.3.0" to build number like 300 (0*10000 + 3*100 + 0)
+            # This ensures 0.3.0 (300) > 0.2.6 (206) > 0.2.5 (205)
+            IFS='.' read -ra VERSION_PARTS <<< "$VERSION"
+            MAJOR="${VERSION_PARTS[0]:-0}"
+            MINOR="${VERSION_PARTS[1]:-0}"
+            PATCH="${VERSION_PARTS[2]:-0}"
+            # Calculate: major*10000 + minor*100 + patch
+            BUILD_NUMBER=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+            if [[ ! "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || [[ "$BUILD_NUMBER" -lt 1 ]]; then
               BUILD_NUMBER="1"
             fi
           fi
