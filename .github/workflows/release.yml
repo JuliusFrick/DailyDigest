@@ -116,10 +116,16 @@ jobs:
           )
           
           # Try to fetch existing appcast.xml from gh-pages
+          # First try new location, then fall back to old location for migration
           EXISTING_ITEMS=""
-          if git fetch origin gh-pages:gh-pages 2>/dev/null && git show gh-pages:DailyDigest/appcast.xml > dist/existing-appcast.xml 2>/dev/null; then
-            # Extract existing items (between <channel> and </channel>, excluding channel tags)
-            EXISTING_ITEMS=$(sed -n '/<channel>/,/<\/channel>/p' dist/existing-appcast.xml | sed '1d;$d' | grep -v '^[[:space:]]*</channel>' || true)
+          if git fetch origin gh-pages:gh-pages 2>/dev/null; then
+            if git show gh-pages:DailyBriefing/appcast.xml > dist/existing-appcast.xml 2>/dev/null; then
+              # Extract existing items from new location
+              EXISTING_ITEMS=$(sed -n '/<channel>/,/<\/channel>/p' dist/existing-appcast.xml | sed '1d;$d' | grep -v '^[[:space:]]*</channel>' || true)
+            elif git show gh-pages:DailyDigest/appcast.xml > dist/existing-appcast.xml 2>/dev/null; then
+              # Migrate from old location
+              EXISTING_ITEMS=$(sed -n '/<channel>/,/<\/channel>/p' dist/existing-appcast.xml | sed '1d;$d' | grep -v '^[[:space:]]*</channel>' || true)
+            fi
           fi
           
           # Create appcast.xml with new item first, then existing items
@@ -131,7 +137,7 @@ jobs:
                xmlns:dc="http://purl.org/dc/elements/1.1/">
             <channel>
               <title>${APP_NAME} Updates</title>
-              <link>https://juliusfrick.github.io/DailyDigest/appcast.xml</link>
+              <link>https://juliusfrick.github.io/DailyBriefing/appcast.xml</link>
               <description>Latest versions of ${APP_NAME}</description>
               <language>de</language>
               
@@ -187,18 +193,27 @@ jobs:
             git rm -rf . || true
           fi
           
-          # Create DailyDigest directory if it doesn't exist
-          mkdir -p DailyDigest
+          # Create DailyBriefing directory if it doesn't exist
+          mkdir -p DailyBriefing
           
           # Copy the new appcast.xml (generated in previous step)
-          cp dist/appcast.xml DailyDigest/appcast.xml
+          cp dist/appcast.xml DailyBriefing/appcast.xml
+          
+          # Remove old appcast.xml location if it exists (migration)
+          if [[ -f DailyDigest/appcast.xml ]]; then
+            rm -rf DailyDigest
+            echo "Removed old DailyDigest directory (migration complete)"
+          fi
           
           # Commit and push
-          git add DailyDigest/appcast.xml
-          if git diff --staged --quiet; then
+          git add DailyBriefing/appcast.xml
+          if [[ -d DailyDigest ]]; then
+            git rm -rf DailyDigest || true
+          fi
+          if git diff --staged --quiet && git diff --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Update appcast.xml for version ${{ steps.version.outputs.version }}"
+            git commit -m "Update appcast.xml for version ${{ steps.version.outputs.version }} (migrated from DailyDigest)" || git commit -m "Update appcast.xml for version ${{ steps.version.outputs.version }}"
             git push origin gh-pages
           fi
 

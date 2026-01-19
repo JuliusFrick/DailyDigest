@@ -15,7 +15,7 @@ RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 PLIST_PATH="${CONTENTS_DIR}/Info.plist"
 ICON_ICNS="${ROOT_DIR}/assets/AppIcon.icns"
 
-SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://juliusfrick.github.io/DailyDigest/appcast.xml}"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://juliusfrick.github.io/DailyBriefing/appcast.xml}"
 SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-}"
 
 SPARKLE_PLIST_KEYS=""
