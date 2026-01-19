@@ -159,7 +159,7 @@ struct MeetingRow: View {
                                 .font(.tuiMonoTiny)
                         }
                         
-                        if item.metadata["meetingNotes"]?.isEmpty == false {
+                        if meetingNotes?.isEmpty == false || item.metadata["meetingNotes"]?.isEmpty == false {
                             Text("📝")
                                 .font(.tuiMonoTiny)
                         }
