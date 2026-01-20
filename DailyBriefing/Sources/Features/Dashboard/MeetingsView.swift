@@ -472,6 +472,7 @@ struct AdHocRecordingSection: View {
     @StateObject private var notesService = MeetingNotesService.shared
     @State private var isRecording = false
     @State private var isTranscribing = false
+    @State private var didRequestPermission = false
     @State private var showError = false
     @State private var errorMessage = ""
     
@@ -533,7 +534,6 @@ struct AdHocRecordingSection: View {
                         HStack(spacing: Spacing.xs) {
                             Text("🔴")
                             Text("Aufnahme starten")
-                                .font(.tuiMonoTiny)
                         }
                     }
                     .buttonStyle(.tuiPrimary)
@@ -550,6 +550,11 @@ struct AdHocRecordingSection: View {
         .padding(Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.tuiHover.opacity(0.3))
+        .task {
+            guard !didRequestPermission, recordingService.isPermissionUndetermined() else { return }
+            didRequestPermission = true
+            _ = await recordingService.requestPermission()
+        }
         .alert("Fehler", isPresented: $showError) {
             Button("OK", role: .cancel) {}
         } message: {

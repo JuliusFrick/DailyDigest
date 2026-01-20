@@ -31,7 +31,7 @@ enum OAuthClientConfigStore {
             }
         }
 
-        let bundles: [Bundle] = [Bundle.main, Bundle.module]
+        let bundles = resourceBundles()
         for bundle in bundles {
             if let url = bundle.url(forResource: "oauth_clients", withExtension: "json"),
                let data = try? Data(contentsOf: url),
@@ -45,5 +45,31 @@ enum OAuthClientConfigStore {
 
     static func normalized(_ value: String?) -> String {
         value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    private static func resourceBundles() -> [Bundle] {
+        var bundles: [Bundle] = [Bundle.main]
+
+        if let resourceBundle = bundledResourcesBundle() {
+            bundles.append(resourceBundle)
+        }
+
+        return bundles
+    }
+
+    private static func bundledResourcesBundle() -> Bundle? {
+        let bundleName = "DailyBriefing_DailyBriefing"
+
+        if let url = Bundle.main.url(forResource: bundleName, withExtension: "bundle"),
+           let bundle = Bundle(url: url) {
+            return bundle
+        }
+
+        if let url = Bundle.main.resourceURL?.appendingPathComponent("\(bundleName).bundle"),
+           let bundle = Bundle(url: url) {
+            return bundle
+        }
+
+        return nil
     }
 }
