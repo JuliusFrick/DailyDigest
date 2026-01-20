@@ -2,14 +2,16 @@ import Foundation
 
 /// OpenAI API service implementation
 final class OpenAIService: LLMService {
-    let provider: LLMProvider = .openai
+    let provider: LLMProvider
     private let apiKey: String
     private let modelId: String
-    private let baseURL = "https://api.openai.com/v1"
+    private let baseURL: String
 
-    init(apiKey: String, modelId: String) {
+    init(apiKey: String, modelId: String, baseURL: String = "https://api.openai.com/v1", provider: LLMProvider = .openai) {
         self.apiKey = apiKey
         self.modelId = modelId
+        self.baseURL = baseURL
+        self.provider = provider
     }
 
     func testConnection() async throws -> LLMConnectionTestResult {

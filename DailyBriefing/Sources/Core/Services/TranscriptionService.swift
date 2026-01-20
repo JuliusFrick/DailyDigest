@@ -1,16 +1,51 @@
 import Foundation
+import Combine
 
-/// Service for transcribing audio using OpenAI Whisper API
+/// Service for transcribing audio using OpenAI or Groq Whisper API
 @MainActor
 final class TranscriptionService: ObservableObject {
     static let shared = TranscriptionService()
     
     @Published private(set) var isTranscribing = false
+    @Published var transcriptionProvider: LLMProvider = .openai
     
     private let keychain = KeychainService.shared
-    private let baseURL = "https://api.openai.com/v1/audio/transcriptions"
     
-    private init() {}
+    private var baseURL: String {
+        switch transcriptionProvider {
+        case .openai:
+            return "https://api.openai.com/v1/audio/transcriptions"
+        case .groq:
+            return "https://api.groq.com/openai/v1/audio/transcriptions"
+        default:
+            return "https://api.openai.com/v1/audio/transcriptions"
+        }
+    }
+    
+    private var modelName: String {
+        switch transcriptionProvider {
+        case .openai:
+            return "whisper-1"
+        case .groq:
+            return "whisper-large-v3"
+        default:
+            return "whisper-1"
+        }
+    }
+    
+    private init() {
+        // Load saved provider
+        if let savedProvider = UserDefaults.standard.string(forKey: "transcriptionProvider"),
+           let provider = LLMProvider(rawValue: savedProvider) {
+            self.transcriptionProvider = provider
+        }
+    }
+    
+    func setProvider(_ provider: LLMProvider) {
+        guard provider.supportsTranscription else { return }
+        transcriptionProvider = provider
+        UserDefaults.standard.set(provider.rawValue, forKey: "transcriptionProvider")
+    }
     
     // MARK: - Transcription
     
@@ -18,9 +53,9 @@ final class TranscriptionService: ObservableObject {
     /// - Parameter audioURL: URL to the audio file
     /// - Returns: Transcribed text
     func transcribe(audioURL: URL) async throws -> String {
-        guard let apiKey = keychain.loadLLMAPIKey(for: "openai"),
+        guard let apiKey = keychain.loadLLMAPIKey(for: transcriptionProvider.rawValue),
               !apiKey.isEmpty else {
-            throw TranscriptionError.apiKeyMissing
+            throw TranscriptionError.apiKeyMissing(provider: transcriptionProvider.displayName)
         }
         
         isTranscribing = true
@@ -49,7 +84,7 @@ final class TranscriptionService: ObservableObject {
         // Add model
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
-        body.append("whisper-1".data(using: .utf8)!)
+        body.append(modelName.data(using: .utf8)!)
         body.append("\r\n".data(using: .utf8)!)
         
         // Add language (optional, helps with accuracy)
@@ -97,7 +132,7 @@ final class TranscriptionService: ObservableObject {
 // MARK: - Errors
 
 enum TranscriptionError: LocalizedError {
-    case apiKeyMissing
+    case apiKeyMissing(provider: String)
     case apiKeyInvalid
     case invalidResponse
     case serverError(Int)
@@ -105,10 +140,10 @@ enum TranscriptionError: LocalizedError {
     
     var errorDescription: String? {
         switch self {
-        case .apiKeyMissing:
-            return "OpenAI API Key fehlt. Bitte in den Einstellungen konfigurieren."
+        case .apiKeyMissing(let provider):
+            return "\(provider) API Key fehlt. Bitte in den Einstellungen konfigurieren."
         case .apiKeyInvalid:
-            return "OpenAI API Key ist ungültig."
+            return "API Key ist ungültig."
         case .invalidResponse:
             return "Ungültige Antwort vom Server."
         case .serverError(let code):

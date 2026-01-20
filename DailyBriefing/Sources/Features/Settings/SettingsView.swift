@@ -26,6 +26,7 @@ struct SettingsView: View {
             briefingSection
             integrationsSection
             llmNavigationSection
+            transcriptionSection
             audioSection
             scheduleSection
             notificationSection
@@ -133,6 +134,28 @@ struct SettingsView: View {
             return provider.displayName
         }
         return "OpenAI"
+    }
+    
+    // MARK: - Transcription Section
+    
+    private var transcriptionSection: some View {
+        Section {
+            NavigationLink {
+                TranscriptionSettingsView()
+                    .navigationTitle("Transkription")
+            } label: {
+                HStack {
+                    Label("Transkription", systemImage: "waveform.badge.mic")
+                    Spacer()
+                    Text(TranscriptionService.shared.transcriptionProvider.displayName)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("Meeting-Transkription")
+        } footer: {
+            Text("Wähle den Dienst für die Umwandlung von Sprache in Text.")
+        }
     }
 
     // MARK: - Audio Section

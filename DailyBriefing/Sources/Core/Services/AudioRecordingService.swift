@@ -1,5 +1,10 @@
 import AVFoundation
 import Foundation
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 /// Service for recording audio from microphone
 @MainActor
@@ -48,6 +53,18 @@ final class AudioRecordingService: NSObject, ObservableObject {
                     continuation.resume(returning: granted)
                 }
             }
+        }
+        #endif
+    }
+    
+    func openMicrophoneSettings() {
+        #if os(macOS)
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+            NSWorkspace.shared.open(url)
+        }
+        #else
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
         }
         #endif
     }

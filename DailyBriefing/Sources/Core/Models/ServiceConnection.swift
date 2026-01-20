@@ -80,6 +80,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Codable {
     case jira = "jira"
     case appleMail = "apple_mail"
     case appleReminders = "apple_reminders"
+    case appleCalendar = "apple_calendar"
 
     var id: String { rawValue }
 
@@ -91,6 +92,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Codable {
         case .jira: return "Jira"
         case .appleMail: return "Apple Mail"
         case .appleReminders: return "Apple Reminders"
+        case .appleCalendar: return "Apple Calendar"
         }
     }
 
@@ -102,6 +104,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Codable {
         case .jira: return "checkmark.square.fill"
         case .appleMail: return "envelope.fill"
         case .appleReminders: return "checklist"
+        case .appleCalendar: return "calendar.badge.clock"
         }
     }
 
@@ -113,6 +116,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Codable {
         case .jira: return Color(red: 0.03, green: 0.47, blue: 0.95)
         case .appleMail: return Color(red: 0.0, green: 0.48, blue: 1.0)
         case .appleReminders: return Color(red: 1.0, green: 0.58, blue: 0.0)
+        case .appleCalendar: return Color(red: 0.9, green: 0.2, blue: 0.2)
         }
     }
 
@@ -124,6 +128,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Codable {
         case .jira: return "Issues, Kommentare und Updates"
         case .appleMail: return "E-Mails von deinem Mac"
         case .appleReminders: return "Erinnerungen und Aufgaben"
+        case .appleCalendar: return "Lokale Kalender Events"
         }
     }
 
@@ -131,14 +136,14 @@ enum ServiceType: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .googleCalendar, .gmail, .slack, .jira:
             return true
-        case .appleMail, .appleReminders:
+        case .appleMail, .appleReminders, .appleCalendar:
             return false
         }
     }
 
     var category: ServiceCategory {
         switch self {
-        case .googleCalendar, .gmail, .appleMail:
+        case .googleCalendar, .gmail, .appleMail, .appleCalendar:
             return .communication
         case .slack:
             return .messaging

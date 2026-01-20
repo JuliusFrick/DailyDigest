@@ -5,15 +5,18 @@ struct JiraConfigView: View {
     @ObservedObject var source: JiraSource
     @AppStorage("jira_client_id") private var jiraClientId: String = ""
     @AppStorage("jira_client_secret") private var jiraClientSecret: String = ""
-    @AppStorage("jira_auth_method") private var jiraAuthMethodRaw: String = JiraAuthMethod.oauth3LO.rawValue
+    @AppStorage("jira_auth_method") private var jiraAuthMethodRaw: String = JiraAuthMethod.apiToken.rawValue // Changed default to apiToken
     @AppStorage("jira_site_url") private var jiraSiteURL: String = ""
     @AppStorage("jira_email") private var jiraEmail: String = ""
-
+    
     @State private var jiraApiToken: String = ""
     @State private var didLoadApiToken = false
     
+    // Help link for API token
+    private let apiTokenHelpURL = URL(string: "https://id.atlassian.com/manage-profile/security/api-tokens")!
+    
     private var canConnect: Bool {
-        switch JiraAuthMethod(rawValue: jiraAuthMethodRaw) ?? .oauth3LO {
+        switch authMethod {
         case .oauth3LO:
             return !jiraClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .apiToken:
@@ -24,7 +27,7 @@ struct JiraConfigView: View {
     }
 
     private var authMethod: JiraAuthMethod {
-        JiraAuthMethod(rawValue: jiraAuthMethodRaw) ?? .oauth3LO
+        JiraAuthMethod(rawValue: jiraAuthMethodRaw) ?? .apiToken
     }
 
     var body: some View {
@@ -54,7 +57,7 @@ struct JiraConfigView: View {
                     try KeychainService.shared.save(trimmed, for: "jira_api_token")
                 }
             } catch {
-                // Ignore UI persistence errors; connection attempt will surface problems.
+                // Ignore UI persistence errors
             }
         }
     }
@@ -63,15 +66,17 @@ struct JiraConfigView: View {
 
     private var authMethodSection: some View {
         Section {
-            Picker("Anmeldung", selection: $jiraAuthMethodRaw) {
-                Text(JiraAuthMethod.oauth3LO.displayName).tag(JiraAuthMethod.oauth3LO.rawValue)
-                Text(JiraAuthMethod.apiToken.displayName).tag(JiraAuthMethod.apiToken.rawValue)
+            Picker("Anmelde-Methode", selection: $jiraAuthMethodRaw) {
+                Text("API Token (Empfohlen)").tag(JiraAuthMethod.apiToken.rawValue)
+                Text("OAuth (Komplex)").tag(JiraAuthMethod.oauth3LO.rawValue)
             }
             .pickerStyle(.segmented)
         } header: {
-            Text("Login")
+            Text("Login-Methode")
         } footer: {
-            Text("Für „API Token“ braucht jeder nur seine Jira Site URL, E-Mail und einen persönlichen Atlassian API Token (wie MCP-Config).")
+            if authMethod == .apiToken {
+                Text("API Token ist die einfachste Methode für persönliche Nutzung.")
+            }
         }
     }
 
@@ -87,34 +92,43 @@ struct JiraConfigView: View {
                 SecureField("Client Secret", text: $jiraClientSecret)
                     .textFieldStyle(.roundedBorder)
 
-                if jiraClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    HStack {
-                        Image(systemName: "info.circle")
-                            .foregroundStyle(.secondary)
-                        Text("Ohne Client ID kann Atlassian die App nicht identifizieren (Login schlägt dann sofort fehl).")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                Text("Redirect URI muss sein: `dailybriefing://oauth/jira`")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
 
             case .apiToken:
-                TextField("Jira Site URL (z.B. https://firma.atlassian.net)", text: $jiraSiteURL)
-                    .textFieldStyle(.roundedBorder)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Dein Jira Link")
+                        .font(.caption)
+                    TextField("https://deine-firma.atlassian.net", text: $jiraSiteURL)
+                        .textFieldStyle(.roundedBorder)
+                }
 
-                TextField("Atlassian E‑Mail", text: $jiraEmail)
-                    .textFieldStyle(.roundedBorder)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("E-Mail Adresse")
+                        .font(.caption)
+                    TextField("name@firma.com", text: $jiraEmail)
+                        .textFieldStyle(.roundedBorder)
+                }
 
-                SecureField("Atlassian API Token", text: $jiraApiToken)
-                    .textFieldStyle(.roundedBorder)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("API Token")
+                            .font(.caption)
+                        Spacer()
+                        Button("Token erstellen") {
+                            NSWorkspace.shared.open(apiTokenHelpURL)
+                        }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                    }
+                    SecureField("Einfügen...", text: $jiraApiToken)
+                        .textFieldStyle(.roundedBorder)
+                }
             }
         } header: {
-            Text(authMethod == .oauth3LO ? "Atlassian OAuth" : "API Token")
-        } footer: {
-            if authMethod == .oauth3LO {
-                Text("Trage hier die OAuth Client ID und das Client Secret deiner Atlassian (3LO) App ein. Redirect URI muss exakt `dailybriefing://oauth/jira` sein.")
-            } else {
-                Text("Den API Token kannst du in deinem Atlassian Account erstellen. Er wird lokal im Keychain gespeichert.")
-            }
+            Text("Zugangsdaten")
         }
     }
 
@@ -124,28 +138,30 @@ struct JiraConfigView: View {
         Section {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Atlassian Konto")
+                    Text(source.isAuthenticated ? "Verbunden" : "Nicht verbunden")
                         .font(.headline)
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(source.connectionStatus.color)
-                            .frame(width: 8, height: 8)
-                        Text(source.connectionStatus.displayName)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    
+                    if source.isAuthenticated {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 8, height: 8)
+                            Text("Jira ist bereit")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
                 Spacer()
 
                 if source.isAuthenticated {
-                    Button("Trennen") {
+                    Button("Logout") {
                         Task {
                             await source.disconnect()
                         }
                     }
                     .buttonStyle(.bordered)
-                    .tint(.red)
                 } else {
                     Button("Verbinden") {
                         Task {
@@ -166,10 +182,6 @@ struct JiraConfigView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-        } header: {
-            Text("Verbindung")
-        } footer: {
-            Text("Verbinde dein Atlassian-Konto um Jira-Issues in deinem Briefing zu sehen.")
         }
     }
 
@@ -181,7 +193,7 @@ struct JiraConfigView: View {
                 HStack {
                     ProgressView()
                         .scaleEffect(0.8)
-                    Text("Jira-Instanzen werden geladen...")
+                    Text("Lade Instanzen...")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -202,11 +214,7 @@ struct JiraConfigView: View {
                 }
             }
         } header: {
-            Text("Jira Cloud")
-        } footer: {
-            if source.availableClouds.count > 1 {
-                Text("Wähle die Jira-Instanz aus, von der du Issues abrufen möchtest.")
-            }
+            Text("Instanz")
         }
     }
 
@@ -214,13 +222,11 @@ struct JiraConfigView: View {
 
     private var filterSection: some View {
         Section {
-            Toggle("Mir zugewiesene Issues", isOn: $source.includeAssignedToMe)
-            Toggle("Beobachtete Issues", isOn: $source.includeWatching)
-            Toggle("Issues mit Erwähnungen", isOn: $source.includeMentions)
+            Toggle("Mir zugewiesen", isOn: $source.includeAssignedToMe)
+            Toggle("Ich beobachte", isOn: $source.includeWatching)
+            Toggle("Erwähnungen", isOn: $source.includeMentions)
         } header: {
             Text("Filter")
-        } footer: {
-            Text("Konfiguriere, welche Issues in deinem Briefing erscheinen sollen.")
         }
     }
 }

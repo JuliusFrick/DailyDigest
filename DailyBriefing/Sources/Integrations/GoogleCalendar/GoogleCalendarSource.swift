@@ -78,6 +78,15 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
     }
 
     func fetchItems(since: Date) async throws -> [BriefingItem] {
+        // For briefing, we want today and tomorrow
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let endOfTomorrow = calendar.date(byAdding: .day, value: 2, to: startOfToday)!
+        
+        return try await fetchEvents(from: startOfToday, to: endOfTomorrow)
+    }
+    
+    func fetchEvents(from startDate: Date, to endDate: Date) async throws -> [BriefingItem] {
         isLoading = true
         defer { isLoading = false }
 
@@ -87,11 +96,6 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
 
         let tokens = try await oauthService.getValidTokens()
 
-        // Get events for today and tomorrow
-        let calendar = Calendar.current
-        let startOfToday = calendar.startOfDay(for: Date())
-        let endOfTomorrow = calendar.date(byAdding: .day, value: 2, to: startOfToday)!
-
         var allEvents: [GoogleCalendarEvent] = []
 
         // Fetch from selected calendars (or primary if none selected)
@@ -100,8 +104,8 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
         for calendarId in calendarsToFetch {
             let events = try await fetchEvents(
                 calendarId: calendarId,
-                timeMin: startOfToday,
-                timeMax: endOfTomorrow,
+                timeMin: startDate,
+                timeMax: endDate,
                 accessToken: tokens.accessToken
             )
             allEvents.append(contentsOf: events)
@@ -441,15 +445,18 @@ struct EventAttendee: Codable {
 // MARK: - Configuration
 
 enum GoogleCalendarConfig {
-    // These should be loaded from environment or config file
     static var clientId: String {
-        // TODO: Load from secure configuration
-        UserDefaults.standard.string(forKey: "google_client_id") ?? ""
+        if !Secrets.googleClientId.isEmpty {
+            return Secrets.googleClientId
+        }
+        return UserDefaults.standard.string(forKey: "google_client_id") ?? ""
     }
 
     static var clientSecret: String? {
-        // For desktop apps, client secret is optional with PKCE
-        UserDefaults.standard.string(forKey: "google_client_secret")
+        if !Secrets.googleClientId.isEmpty {
+            return Secrets.googleClientSecret.isEmpty ? nil : Secrets.googleClientSecret
+        }
+        return UserDefaults.standard.string(forKey: "google_client_secret")
     }
 }
 

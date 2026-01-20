@@ -64,6 +64,7 @@ final class AppState: ObservableObject {
     private let ttsService = TTSService.shared
     private let networkMonitor = NetworkMonitor.shared
     private let cacheService = BriefingCacheService.shared
+    private let recordingService = AudioRecordingService.shared
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Initialization
@@ -75,6 +76,7 @@ final class AppState: ObservableObject {
         setupShortcutCallbacks()
         setupTTSBindings()
         setupNetworkBindings()
+        setupRecordingHUDCallbacks()
     }
 
     private func checkOnboardingStatus() {
@@ -272,5 +274,53 @@ final class AppState: ObservableObject {
     var currentShortcut: KeyboardShortcut {
         get { shortcutService.currentShortcut }
         set { shortcutService.updateShortcut(newValue) }
+    }
+
+    // MARK: - Recording HUD Support
+
+    private func setupRecordingHUDCallbacks() {
+        NotificationCenter.default.addObserver(
+            forName: .stopRecordingFromHUD,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                await self?.stopRecordingAndProcess()
+            }
+        }
+    }
+
+    private func stopRecordingAndProcess() async {
+        guard let url = recordingService.stopRecording() else { return }
+        
+        // Show the app and navigate to meetings so user sees transcription
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        selectedTab = .dashboard
+        // We can't easily trigger the local state of MeetingsView from here
+        // without a more centralized recording state manager.
+        // For now, let's just make sure it's processed.
+        
+        // Since MeetingsView has its own state for transcription, 
+        // it's better to move this logic to a service.
+        // I will implement a basic version here and later refactor if needed.
+        
+        do {
+            let transcription = try await TranscriptionService.shared.transcribe(audioURL: url)
+            MeetingNotesService.shared.createAdHocMeeting(notes: transcription)
+            try? FileManager.default.removeItem(at: url)
+        } catch {
+            print("Failed to transcribe HUD recording: \(error)")
+        }
+    }
+    
+    // MARK: - Quick Action Support
+    
+    /// Save a quick note from the menu bar as an ad-hoc meeting
+    func addQuickNote(_ text: String) {
+        let title = "Notiz \(Date().formatted(date: .omitted, time: .shortened))"
+        MeetingNotesService.shared.createAdHocMeeting(title: title, notes: text)
+        
+        // Optionally notify user or provide feedback
+        // For now, we assume the UI will handle the "sent" state
     }
 }

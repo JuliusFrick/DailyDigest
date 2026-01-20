@@ -276,11 +276,17 @@ struct GmailHeader: Codable {
 
 enum GoogleConfig {
     static var clientId: String {
-        UserDefaults.standard.string(forKey: "google_client_id") ?? ""
+        if !Secrets.googleClientId.isEmpty {
+            return Secrets.googleClientId
+        }
+        return UserDefaults.standard.string(forKey: "google_client_id") ?? ""
     }
 
     static var clientSecret: String? {
-        UserDefaults.standard.string(forKey: "google_client_secret")
+        if !Secrets.googleClientId.isEmpty {
+            return Secrets.googleClientSecret.isEmpty ? nil : Secrets.googleClientSecret
+        }
+        return UserDefaults.standard.string(forKey: "google_client_secret")
     }
 }
 

@@ -10,6 +10,14 @@ struct TUIDashboardView: View {
     @State private var showChat: Bool = false
     @State private var upcomingMeetings: [BriefingItem] = []
     @State private var isLoadingMeetings: Bool = false
+    @State private var selectedTab: DashboardTab = .briefing
+
+    enum DashboardTab: String, CaseIterable, Identifiable {
+        case briefing = "Briefing"
+        case calendar = "Kalender"
+        
+        var id: String { rawValue }
+    }
 
     var body: some View {
         mainContent
@@ -17,7 +25,8 @@ struct TUIDashboardView: View {
             .modifier(KeyboardHandlersModifier(
                 appState: appState,
                 selectedDetailLevel: $selectedDetailLevel,
-                selectedSection: $selectedSection
+                selectedSection: $selectedSection,
+                selectedTab: $selectedTab
             ))
             .onKeyPress("c", modifiers: .command) {
                 withAnimation(.tuiSnappy) {
@@ -376,22 +385,39 @@ struct TUIDashboardView: View {
 
     private var rightPanel: some View {
         VStack(spacing: 0) {
-            // Section header
-            HStack {
-                Text("SECTIONS")
-                    .font(.tuiMonoTiny)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.tertiary)
-
+            // Tab Bar
+            HStack(spacing: 0) {
+                ForEach(DashboardTab.allCases) { tab in
+                    Button {
+                        withAnimation(.tuiSnappy) {
+                            selectedTab = tab
+                        }
+                    } label: {
+                        VStack(spacing: 0) {
+                            Text(tab.rawValue.uppercased())
+                                .font(.tuiMonoSmall)
+                                .fontWeight(selectedTab == tab ? .bold : .regular)
+                                .foregroundStyle(selectedTab == tab ? .primary : .tertiary)
+                                .padding(.vertical, Spacing.sm)
+                                .padding(.horizontal, Spacing.md)
+                            
+                            Rectangle()
+                                .fill(selectedTab == tab ? Color.primary : Color.clear)
+                                .frame(height: 2)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                
                 Spacer()
-
-                if let briefing = appState.currentBriefing {
+                
+                if selectedTab == .briefing, let briefing = appState.currentBriefing {
                     Text("\(briefing.sections.count) sources")
                         .font(.tuiMonoTiny)
                         .foregroundStyle(.quaternary)
+                        .padding(.trailing, Spacing.md)
                 }
             }
-            .padding(Spacing.md)
             .background(Color.tuiBackground)
             .overlay(alignment: .bottom) {
                 Rectangle()
@@ -399,7 +425,18 @@ struct TUIDashboardView: View {
                     .frame(height: 1)
             }
 
-            // Sections list
+            // Content
+            switch selectedTab {
+            case .briefing:
+                briefingContent
+            case .calendar:
+                MeetingsView(showHeader: false)
+            }
+        }
+    }
+    
+    private var briefingContent: some View {
+        Group {
             if let briefing = appState.currentBriefing {
                 if briefing.sections.isEmpty {
                     // Show empty state when briefing exists but has no sections
@@ -1106,13 +1143,14 @@ struct KeyboardHandlersModifier: ViewModifier {
     @ObservedObject var appState: AppState
     @Binding var selectedDetailLevel: Briefing.DetailLevel
     @Binding var selectedSection: Int
+    @Binding var selectedTab: TUIDashboardView.DashboardTab
 
     func body(content: Content) -> some View {
         content
             .modifier(RefreshKeysModifier(appState: appState, selectedDetailLevel: $selectedDetailLevel))
             .modifier(AudioKeysModifier(appState: appState))
             .modifier(DetailLevelKeysModifier(selectedDetailLevel: $selectedDetailLevel))
-            .modifier(SectionKeysModifier(appState: appState, selectedSection: $selectedSection))
+            .modifier(SectionKeysModifier(appState: appState, selectedSection: $selectedSection, selectedTab: $selectedTab))
     }
 }
 
@@ -1178,10 +1216,12 @@ struct DetailLevelKeysModifier: ViewModifier {
 struct SectionKeysModifier: ViewModifier {
     @ObservedObject var appState: AppState
     @Binding var selectedSection: Int
+    @Binding var selectedTab: TUIDashboardView.DashboardTab
 
     func body(content: Content) -> some View {
         content
             .onKeyPress("[", modifiers: .command) {
+                guard selectedTab == .briefing else { return .ignored }
                 if selectedSection > 0 {
                     withAnimation(.tuiSnappy) {
                         selectedSection -= 1
@@ -1190,6 +1230,7 @@ struct SectionKeysModifier: ViewModifier {
                 return .handled
             }
             .onKeyPress("]", modifiers: .command) {
+                guard selectedTab == .briefing else { return .ignored }
                 if let briefing = appState.currentBriefing, selectedSection < briefing.sections.count - 1 {
                     withAnimation(.tuiSnappy) {
                         selectedSection += 1

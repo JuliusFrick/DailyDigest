@@ -370,6 +370,8 @@ private struct ProviderRow: View {
         switch provider {
         case .openai:
             return "GPT-4, GPT-4o"
+        case .groq:
+            return "Llama 3, Mixtral (Sehr schnell)"
         case .anthropic:
             return "Claude Sonnet, Claude Opus"
         case .google:

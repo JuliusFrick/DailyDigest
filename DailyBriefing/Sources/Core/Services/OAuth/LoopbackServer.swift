@@ -40,9 +40,9 @@ final class LoopbackServer {
         self.timeoutSeconds = timeoutSeconds
     }
     
-    /// Starts the server on a random available port and waits for the OAuth callback.
-    /// - Returns: The full callback URL including query parameters (code, state, etc.)
-    func waitForCallback() async throws -> URL {
+    /// Starts the server on a random available port.
+    /// - Returns: The port the server is listening on
+    func start() async throws -> UInt16 {
         // Start the listener
         let listener = try NWListener(using: .tcp, on: .any)
         self.listener = listener
@@ -77,7 +77,12 @@ final class LoopbackServer {
         }
         
         self.port = port
-        
+        return port
+    }
+    
+    /// Waits for the OAuth callback.
+    /// - Returns: The full callback URL including query parameters
+    func waitForCallback() async throws -> URL {
         // Wait for the callback with timeout
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (cont: CheckedContinuation<URL, Error>) in

@@ -7,12 +7,14 @@ struct AdHocMeeting: Codable, Identifiable {
     var title: String
     let createdAt: Date
     var notes: String
+    var summary: String?
     
-    init(title: String = "", notes: String = "") {
+    init(title: String = "", notes: String = "", summary: String? = nil) {
         self.id = UUID().uuidString
         self.title = title.isEmpty ? Self.defaultTitle(for: Date()) : title
         self.createdAt = Date()
         self.notes = notes
+        self.summary = summary
     }
     
     static func defaultTitle(for date: Date) -> String {
@@ -99,15 +101,15 @@ final class MeetingNotesService: ObservableObject {
     
     /// Create a new ad-hoc meeting with transcribed notes
     @discardableResult
-    func createAdHocMeeting(title: String = "", notes: String) -> AdHocMeeting {
-        let meeting = AdHocMeeting(title: title, notes: notes)
+    func createAdHocMeeting(title: String = "", notes: String, summary: String? = nil) -> AdHocMeeting {
+        let meeting = AdHocMeeting(title: title, notes: notes, summary: summary)
         adHocMeetings.insert(meeting, at: 0)
         saveAdHocMeetings()
         return meeting
     }
     
     /// Update an existing ad-hoc meeting
-    func updateAdHocMeeting(id: String, title: String? = nil, notes: String? = nil) {
+    func updateAdHocMeeting(id: String, title: String? = nil, notes: String? = nil, summary: String? = nil) {
         guard let index = adHocMeetings.firstIndex(where: { $0.id == id }) else { return }
         
         if let title = title {
@@ -115,6 +117,9 @@ final class MeetingNotesService: ObservableObject {
         }
         if let notes = notes {
             adHocMeetings[index].notes = notes
+        }
+        if let summary = summary {
+            adHocMeetings[index].summary = summary
         }
         saveAdHocMeetings()
     }

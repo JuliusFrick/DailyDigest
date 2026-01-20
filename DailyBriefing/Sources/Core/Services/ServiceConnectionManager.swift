@@ -24,6 +24,7 @@ final class ServiceConnectionManager: ObservableObject {
     @Published var jiraSource: JiraSource?
     @Published var appleMailSource: AppleMailSource?
     @Published var appleRemindersSource: AppleRemindersSource?
+    @Published var appleCalendarSource: AppleCalendarSource?
 
     // MARK: - Private Properties
 
@@ -99,6 +100,12 @@ final class ServiceConnectionManager: ObservableObject {
                     appleRemindersSource = AppleRemindersSource()
                 }
                 try await appleRemindersSource?.authenticate()
+
+            case .appleCalendar:
+                if appleCalendarSource == nil {
+                    appleCalendarSource = AppleCalendarSource()
+                }
+                try await appleCalendarSource?.authenticate()
             }
 
             updateConnectionStatus(serviceType, status: .connected)
@@ -135,6 +142,10 @@ final class ServiceConnectionManager: ObservableObject {
         case .appleReminders:
             await appleRemindersSource?.disconnect()
             appleRemindersSource = nil
+
+        case .appleCalendar:
+            await appleCalendarSource?.disconnect()
+            appleCalendarSource = nil
         }
 
         connections.removeValue(forKey: serviceType.rawValue)
@@ -162,6 +173,8 @@ final class ServiceConnectionManager: ObservableObject {
             if appleMailSource == nil { appleMailSource = AppleMailSource() }
         case .appleReminders:
             if appleRemindersSource == nil { appleRemindersSource = AppleRemindersSource() }
+        case .appleCalendar:
+            if appleCalendarSource == nil { appleCalendarSource = AppleCalendarSource() }
         }
     }
 
@@ -174,6 +187,7 @@ final class ServiceConnectionManager: ObservableObject {
         case .jira: return jiraSource
         case .appleMail: return appleMailSource
         case .appleReminders: return appleRemindersSource
+        case .appleCalendar: return appleCalendarSource
         }
     }
 
@@ -186,6 +200,7 @@ final class ServiceConnectionManager: ObservableObject {
         if let source = jiraSource, source.isAuthenticated { sources.append(source) }
         if let source = appleMailSource, source.isAuthenticated { sources.append(source) }
         if let source = appleRemindersSource, source.isAuthenticated { sources.append(source) }
+        if let source = appleCalendarSource, source.isAuthenticated { sources.append(source) }
         return sources
     }
 
@@ -268,6 +283,8 @@ final class ServiceConnectionManager: ObservableObject {
                 appleMailSource = AppleMailSource()
             case .appleReminders:
                 appleRemindersSource = AppleRemindersSource()
+            case .appleCalendar:
+                appleCalendarSource = AppleCalendarSource()
             case .none:
                 break
             }

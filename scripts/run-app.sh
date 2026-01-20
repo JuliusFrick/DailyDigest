@@ -131,6 +131,10 @@ ${SPARKLE_PLIST_KEYS}
   <true/>
   <key>NSRemindersUsageDescription</key>
   <string>DailyBriefing benötigt Zugriff auf Erinnerungen, um deine Aufgaben im Briefing anzuzeigen.</string>
+  <key>NSCalendarsUsageDescription</key>
+  <string>DailyBriefing benötigt Zugriff auf deinen Kalender, um deine Termine in der Tagesübersicht anzuzeigen.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>DailyBriefing benötigt vollen Zugriff auf deinen Kalender, um Termine für dich anzuzeigen.</string>
   <key>NSAppleEventsUsageDescription</key>
   <string>DailyBriefing benötigt Automation-Zugriff, um Apple Mail auszulesen und E-Mails im Briefing anzuzeigen.</string>
 </dict>

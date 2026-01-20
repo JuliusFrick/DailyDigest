@@ -383,15 +383,15 @@ private extension OAuthService {
             throw OAuthError.invalidConfiguration
         }
         
-        // Start the server and wait for it to be ready (this gives us the actual port)
-        async let callbackTask = server.waitForCallback()
+        // Start the server to get the actual port
+        let port = try await server.start()
         
-        // Small delay to ensure server is listening before opening browser
-        try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        // Start waiting for the callback in the background
+        async let callbackTask = server.waitForCallback()
         
         // Build auth URL with the actual server port
         let path = Self.extractPath(from: configuration.redirectURI)
-        let redirectURI = "http://127.0.0.1:\(server.port)\(path)"
+        let redirectURI = "http://127.0.0.1:\(port)\(path)"
         let authURL = try buildAuthorizationURL(redirectURI: redirectURI, state: state, pkce: pkce)
         
         // Ensure app is foregrounded

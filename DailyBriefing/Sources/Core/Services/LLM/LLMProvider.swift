@@ -4,6 +4,7 @@ import SwiftUI
 /// Supported LLM providers
 enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     case openai = "openai"
+    case groq = "groq"
     case anthropic = "anthropic"
     case google = "google"
     case ollama = "ollama"
@@ -13,6 +14,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     var displayName: String {
         switch self {
         case .openai: return "OpenAI"
+        case .groq: return "Groq"
         case .anthropic: return "Anthropic"
         case .google: return "Google"
         case .ollama: return "Ollama (Lokal)"
@@ -22,6 +24,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     var iconName: String {
         switch self {
         case .openai: return "brain.head.profile"
+        case .groq: return "bolt.fill"
         case .anthropic: return "sparkles"
         case .google: return "g.circle.fill"
         case .ollama: return "desktopcomputer"
@@ -31,6 +34,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     var brandColor: Color {
         switch self {
         case .openai: return Color(red: 0.0, green: 0.65, blue: 0.52)
+        case .groq: return Color(red: 0.96, green: 0.33, blue: 0.23) // Groq Orange
         case .anthropic: return Color(red: 0.85, green: 0.55, blue: 0.35)
         case .google: return Color(red: 0.26, green: 0.52, blue: 0.96)
         case .ollama: return Color(red: 0.5, green: 0.5, blue: 0.5)
@@ -39,8 +43,15 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
 
     var requiresAPIKey: Bool {
         switch self {
-        case .openai, .anthropic, .google: return true
+        case .openai, .groq, .anthropic, .google: return true
         case .ollama: return false
+        }
+    }
+
+    var supportsTranscription: Bool {
+        switch self {
+        case .openai, .groq: return true
+        case .anthropic, .google, .ollama: return false
         }
     }
 
@@ -52,6 +63,13 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
                 LLMModel(id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Kompaktes Modell für einfache Aufgaben"),
                 LLMModel(id: "gpt-4-turbo", name: "GPT-4 Turbo", description: "Leistungsstarkes Modell mit großem Kontext"),
                 LLMModel(id: "gpt-4", name: "GPT-4", description: "Originales GPT-4 Modell")
+            ]
+        case .groq:
+            return [
+                LLMModel(id: "llama3-70b-8192", name: "Llama 3 70B", description: "Leistungsstarkes & schnelles Modell"),
+                LLMModel(id: "llama3-8b-8192", name: "Llama 3 8B", description: "Sehr schnelles, kompaktes Modell"),
+                LLMModel(id: "mixtral-8x7b-32768", name: "Mixtral 8x7B", description: "Starkes Allround-Modell"),
+                LLMModel(id: "gemma-7b-it", name: "Gemma 7B", description: "Google's Gemma optimiert für Groq")
             ]
         case .anthropic:
             return [
@@ -86,6 +104,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     var apiKeyPlaceholder: String {
         switch self {
         case .openai: return "sk-..."
+        case .groq: return "gsk_..."
         case .anthropic: return "sk-ant-..."
         case .google: return "AIza..."
         case .ollama: return ""
@@ -95,6 +114,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     var apiKeyHelpURL: URL? {
         switch self {
         case .openai: return URL(string: "https://platform.openai.com/api-keys")
+        case .groq: return URL(string: "https://console.groq.com/keys")
         case .anthropic: return URL(string: "https://console.anthropic.com/settings/keys")
         case .google: return URL(string: "https://aistudio.google.com/apikey")
         case .ollama: return URL(string: "https://ollama.com/download")

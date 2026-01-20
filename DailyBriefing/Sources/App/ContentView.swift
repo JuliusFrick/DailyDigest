@@ -86,7 +86,7 @@ struct MainView: View {
 
             if showMeetings {
                 ModalOverlay(isPresented: $showMeetings, title: "Meetings") {
-                    TUIMeetingsView()
+                    MeetingsView()
                 }
                 .transition(.asymmetric(
                     insertion: .opacity.combined(with: .scale(scale: 0.95)),

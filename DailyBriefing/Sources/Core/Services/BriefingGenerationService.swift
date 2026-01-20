@@ -137,6 +137,33 @@ final class BriefingGenerationService: ObservableObject {
                 }
             }
         }
+        
+        // Include Ad-Hoc Meetings (last 24 hours)
+        let adHocMeetings = await MainActor.run {
+            MeetingNotesService.shared.adHocMeetings.filter {
+                $0.createdAt >= since
+            }
+        }
+        
+        if !adHocMeetings.isEmpty {
+            let items = adHocMeetings.map { meeting in
+                BriefingItem(
+                    title: meeting.title,
+                    subtitle: "Aufnahme",
+                    body: meeting.summary ?? meeting.notes,
+                    timestamp: meeting.createdAt,
+                    priority: .high, // Giving high priority to recorded meetings
+                    metadata: ["type": "adhoc_meeting"]
+                )
+            }
+            
+            results.append(SourceFetchResult(
+                sourceId: "adhoc_meetings",
+                sourceName: "Meetings & Aufnahmen",
+                sourceIcon: "mic.fill",
+                items: items
+            ))
+        }
 
         // Check for critical errors that should be surfaced
         for fetchError in errors {

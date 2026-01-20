@@ -13,6 +13,7 @@ struct DailyBriefingApp: App {
     private let schedulingService = SchedulingService.shared
     private let shortcutService = GlobalShortcutService.shared
     private let notificationService = NotificationService.shared
+    private let recordingHUDManager = RecordingHUDManager.shared
 
     init() {
         // Window is shown by AppDelegate after NSApplication finished launching.
@@ -70,7 +71,7 @@ struct DailyBriefingApp: App {
 
         // Register menu bar extra for quick access
         MenuBarExtra {
-            MenuBarView()
+            MenuBarCommandCenter()
                 .environmentObject(appState)
                 .environmentObject(settingsStore)
         } label: {
@@ -103,168 +104,6 @@ struct DailyBriefingApp: App {
     }
 }
 
-// MARK: - Menu Bar View
-
-struct MenuBarView: View {
-    @EnvironmentObject private var appState: AppState
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header
-            HStack {
-                Text("DAILY BRIEFING")
-                    .font(.system(.caption, design: .monospaced))
-                    .fontWeight(.bold)
-
-                Spacer()
-
-                Text(appState.isOnline ? "●" : "○")
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(appState.isOnline ? .green : .orange)
-            }
-            .padding(Spacing.md)
-
-            Divider()
-
-            // Quick status
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                if let briefing = appState.currentBriefing {
-                    Text(briefing.summary)
-                        .font(.system(.caption, design: .monospaced))
-                        .lineLimit(3)
-                        .foregroundStyle(.secondary)
-
-                    Text(formatDate(briefing.generatedAt))
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                } else {
-                    Text("no briefing yet")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .padding(Spacing.md)
-
-            Divider()
-
-            // Actions
-            VStack(spacing: 2) {
-                if !appState.isOnline && appState.hasCachedBriefing && appState.currentBriefing == nil {
-                    MenuBarButton(title: "load cached", shortcut: nil) {
-                        appState.loadCachedBriefing()
-                    }
-                }
-
-                MenuBarButton(
-                    title: appState.isLoadingBriefing ? "generating..." : "generate",
-                    shortcut: "⌘R",
-                    isLoading: appState.isLoadingBriefing
-                ) {
-                    Task { await appState.refreshBriefing() }
-                }
-                .disabled(appState.isLoadingBriefing || (!appState.isOnline && !appState.isOllamaConfigured))
-
-                MenuBarButton(title: "open app", shortcut: nil) {
-                    openMainWindow()
-                    dismiss()
-                }
-            }
-            .padding(.vertical, Spacing.xs)
-
-            Divider()
-
-            // Info
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                if appState.isSchedulingEnabled, let nextTime = appState.nextScheduledBriefingTime {
-                    Text("next: \(nextTime)")
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                }
-
-                Text("shortcut: \(appState.currentShortcut.displayString)")
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.quaternary)
-            }
-            .padding(Spacing.md)
-
-            Divider()
-
-            // Bottom actions
-            VStack(spacing: 2) {
-                MenuBarButton(title: "settings", shortcut: "⌘,") {
-                    openSettings()
-                    dismiss()
-                }
-
-                MenuBarButton(title: "quit", shortcut: "⌘Q") {
-                    NSApplication.shared.terminate(nil)
-                }
-            }
-            .padding(.vertical, Spacing.xs)
-        }
-        .frame(width: 240)
-    }
-
-    private func formatDate(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "de_DE")
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
-
-    private func openMainWindow() {
-        MainWindowCoordinator.shared.openMainWindow()
-    }
-
-    private func openSettings() {
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        if #available(macOS 14.0, *) {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        } else {
-            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-        }
-    }
-}
-
-// MARK: - Menu Bar Button
-
-struct MenuBarButton: View {
-    let title: String
-    let shortcut: String?
-    var isLoading: Bool = false
-    let action: () -> Void
-
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack {
-                if isLoading {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                        .frame(width: 12, height: 12)
-                }
-
-                Text(title)
-                    .font(.system(.caption, design: .monospaced))
-
-                Spacer()
-
-                if let shortcut = shortcut {
-                    Text(shortcut)
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-            .background(isHovered ? Color.primary.opacity(0.1) : Color.clear)
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-    }
-}
 
 // MARK: - Window Registration
 

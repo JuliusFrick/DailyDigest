@@ -85,6 +85,13 @@ struct ServiceIntegrationsView: View {
             ) {
                 openService(.appleReminders)
             }
+            
+            ServiceRow(
+                serviceType: .appleCalendar,
+                connectionManager: connectionManager
+            ) {
+                openService(.appleCalendar)
+            }
         } header: {
             Text("Apple-Dienste")
         } footer: {
@@ -267,6 +274,13 @@ struct ServiceDetailView: View {
             case .appleReminders:
                 if let source = connectionManager.appleRemindersSource {
                     AppleRemindersConfigView(source: source)
+                } else {
+                    ServiceNotConnectedView(serviceType: serviceType)
+                }
+
+            case .appleCalendar:
+                if let source = connectionManager.appleCalendarSource {
+                    AppleCalendarConfigView(source: source)
                 } else {
                     ServiceNotConnectedView(serviceType: serviceType)
                 }
