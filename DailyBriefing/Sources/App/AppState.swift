@@ -284,8 +284,9 @@ final class AppState: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
+            guard let self = self else { return }
             Task { @MainActor in
-                await self?.stopRecordingAndProcess()
+                await self.stopRecordingAndProcess()
             }
         }
     }
