@@ -4,6 +4,24 @@
      xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
     <title>DailyBriefing Updates</title>
+    <link>https://juliusfrick.github.io/DailyBriefing/appcast.xml</link>
+    <description>Latest versions of DailyBriefing</description>
+    <language>de</language>
+    
+  <item>
+    <title>Version 0.3.6</title>
+    <link>https://github.com/JuliusFrick/DailyDigest</link>
+    <sparkle:version>306</sparkle:version>
+    <sparkle:shortVersionString>0.3.6</sparkle:shortVersionString>
+    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+    <pubDate>Tue, 20 Jan 2026 16:20:19 +0000</pubDate>
+    <description><![CDATA[
+      <h2>Version 0.3.6</h2>
+      <p>Neue Version von DailyBriefing</p>
+    ]]></description>
+    <enclosure url="https://github.com/JuliusFrick/DailyDigest/releases/download/v0.3.6/DailyBriefing-0.3.6.dmg" length="3248787" type="application/octet-stream" sparkle:edSignature="Tz7Ae7EQhIZfNJzUOILRrGuSgpyMONqfhWVWVKW72m+2ypOTrXUhOJgPPhgrzFu+Pfp02/vtptuS2uJ+nCcWDQ==" />
+  </item>
+    <title>DailyBriefing Updates</title>
     <link>https://juliusfrick.github.io/DailyDigest/appcast.xml</link>
     <description>Latest versions of DailyBriefing</description>
     <language>de</language>
