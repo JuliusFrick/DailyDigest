@@ -25,8 +25,9 @@ SOURCE_ICON_VERTICAL_PNG="${SOURCE_ICON_VERTICAL_PNG:-/Users/julius.frick/Downlo
 VERSION="${VERSION:-}"
 BUILD_NUMBER="${BUILD_NUMBER:-}"
 
-SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://juliusfrick.github.io/DailyDigest/appcast.xml}"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://juliusfrick.github.io/DailyBriefing/appcast.xml}"
 SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-}"
+REQUIRE_SPARKLE_PUBLIC_ED_KEY="${REQUIRE_SPARKLE_PUBLIC_ED_KEY:-}"
 
 SPARKLE_PLIST_KEYS=""
 if [[ -n "${SPARKLE_PUBLIC_ED_KEY}" ]]; then
@@ -39,6 +40,11 @@ fi
 
 if [[ -z "${VERSION}" || -z "${BUILD_NUMBER}" ]]; then
   echo "Error: VERSION and BUILD_NUMBER must be provided (e.g. VERSION=1.2.3 BUILD_NUMBER=42)" >&2
+  exit 1
+fi
+
+if [[ -n "${REQUIRE_SPARKLE_PUBLIC_ED_KEY}" && -z "${SPARKLE_PUBLIC_ED_KEY}" ]]; then
+  echo "Error: SPARKLE_PUBLIC_ED_KEY must be provided for Sparkle updates" >&2
   exit 1
 fi
 
@@ -185,6 +191,8 @@ ${SPARKLE_PLIST_KEYS}
   <string>DailyBriefing benötigt Zugriff auf Erinnerungen, um deine Aufgaben im Briefing anzuzeigen.</string>
   <key>NSAppleEventsUsageDescription</key>
   <string>DailyBriefing benötigt Automation-Zugriff, um Apple Mail auszulesen und E-Mails im Briefing anzuzeigen.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>DailyBriefing benötigt Zugriff auf das Mikrofon, um Meeting-Notizen aufzunehmen.</string>
 </dict>
 </plist>
 PLIST

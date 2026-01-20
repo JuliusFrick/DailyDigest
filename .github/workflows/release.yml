@@ -73,6 +73,7 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}" \
           BUILD_NUMBER="${{ steps.version.outputs.build_number }}" \
+          REQUIRE_SPARKLE_PUBLIC_ED_KEY="1" \
           SPARKLE_PUBLIC_ED_KEY="${{ secrets.SPARKLE_PUBLIC_ED_KEY }}" \
           ./scripts/package-release.sh
 
@@ -238,7 +239,7 @@ jobs:
                xmlns:dc="http://purl.org/dc/elements/1.1/">
             <channel>
               <title>${APP_NAME} Updates</title>
-              <link>https://juliusfrick.github.io/DailyDigest/appcast.xml</link>
+              <link>https://juliusfrick.github.io/DailyBriefing/appcast.xml</link>
               <description>Latest versions of ${APP_NAME}</description>
               <language>de</language>
               

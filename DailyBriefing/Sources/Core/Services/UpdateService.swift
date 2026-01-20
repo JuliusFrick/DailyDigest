@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import OSLog
 import Sparkle
@@ -13,9 +14,10 @@ final class UpdateService: NSObject, ObservableObject {
     // MARK: - Constants
 
     /// Default appcast URL used when Info.plist doesn't provide one
-    private static let defaultFeedURL = "https://juliusfrick.github.io/DailyDigest/appcast.xml"
+    private static let defaultFeedURL = "https://juliusfrick.github.io/DailyBriefing/appcast.xml"
     private static let legacyFeedURLMappings: [String: String] = [
         "https://juliusfrick.github.io/DailyBriefing/appcast.xml": defaultFeedURL,
+        "https://juliusfrick.github.io/DailyDigest/appcast.xml": defaultFeedURL,
         "https://juliusfrick.github.io/appcast.xml": defaultFeedURL,
         "https://juliusfrick.github.io/DailyDigest/DailyDigest/appcast.xml": defaultFeedURL
     ]
@@ -32,6 +34,8 @@ final class UpdateService: NSObject, ObservableObject {
 
     /// The resolved feed URL (from Info.plist or fallback)
     private let feedURL: URL?
+    /// Sparkle public key (needed to verify update signatures)
+    private let sparklePublicKey: String?
 
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "DailyBriefing",
@@ -57,10 +61,22 @@ final class UpdateService: NSObject, ObservableObject {
             self.feedURL = nil
         }
 
+        // Read Sparkle public key from Info.plist (required for signature verification)
+        if let publicKey = Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String,
+           !publicKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            self.sparklePublicKey = publicKey
+        } else {
+            self.sparklePublicKey = nil
+        }
+
         super.init()
 
         // Only set up Sparkle if we have a valid feed URL
-        canCheckForUpdates = feedURL != nil
+        canCheckForUpdates = feedURL != nil && sparklePublicKey != nil
+        if feedURL != nil && sparklePublicKey == nil {
+            lastUpdateError = "Updates deaktiviert"
+            lastUpdateErrorDetails = "SUPublicEDKey fehlt in der App. Die Update-Signatur kann nicht geprüft werden."
+        }
         if canCheckForUpdates {
             setupSparkle()
         }
@@ -73,7 +89,7 @@ final class UpdateService: NSObject, ObservableObject {
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: self,
-            userDriverDelegate: nil
+            userDriverDelegate: self
         )
     }
 
@@ -124,6 +140,12 @@ final class UpdateService: NSObject, ObservableObject {
                 details += " (Appcast parsing failed)"
             case 3001:
                 details += " (Signature verification failed)"
+                // Add helpful message for signature failures
+                if let feedURL = feedURL {
+                    details += " · Check that appcast.xml contains sparkle:edSignature attribute"
+                    details += " · Verify SUPublicEDKey is in Info.plist"
+                    details += " · Ensure SPARKLE_PUBLIC_ED_KEY matches SPARKLE_PRIVATE_ED_KEY used to sign DMG"
+                }
             case 3002:
                 details += " (Validation failed)"
             default:
@@ -190,5 +212,14 @@ extension UpdateService: SPUUpdaterDelegate {
             lastUpdateError = "Keine Updates verfügbar"
             lastUpdateErrorDetails = "Die aktuelle Version ist bereits die neueste verfügbare Version."
         }
+    }
+}
+
+// MARK: - SPUStandardUserDriverDelegate
+
+extension UpdateService: SPUStandardUserDriverDelegate {
+    func standardUserDriverWillShowModalAlert() {
+        // Ensure Sparkle dialogs appear in front of other apps/windows.
+        NSApp.activate(ignoringOtherApps: true)
     }
 }

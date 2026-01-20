@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import CryptoKit
 
 /// Represents an ad-hoc meeting recording (not from calendar)
 struct AdHocMeeting: Codable, Identifiable {
@@ -91,8 +92,11 @@ final class MeetingNotesService: ObservableObject {
 
     private func legacyMeetingId(for item: BriefingItem) -> String {
         let timestamp = item.timestamp?.timeIntervalSince1970 ?? 0
-        let titleHash = item.title.hash
-        return "\(timestamp)_\(titleHash)"
+        let normalizedTitle = item.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let raw = "\(timestamp)_\(normalizedTitle)"
+        let digest = SHA256.hash(data: Data(raw.utf8))
+        let stableHash = digest.map { String(format: "%02x", $0) }.joined()
+        return "\(timestamp)_\(stableHash)"
     }
     
     // MARK: - Ad-Hoc Meetings
