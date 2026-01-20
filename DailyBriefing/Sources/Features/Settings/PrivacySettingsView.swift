@@ -85,7 +85,7 @@ struct PrivacySettingsView: View {
                 Button("Cache leeren") {
                     showClearCacheConfirmation = true
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.tui)
                 .disabled(cacheService.cachedBriefingCount == 0)
             }
         } header: {
@@ -110,7 +110,7 @@ struct PrivacySettingsView: View {
                 Button("Alle löschen", role: .destructive) {
                     showDeleteCredentialsConfirmation = true
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.tui)
             }
         } header: {
             Text("Zugangsdaten")
@@ -134,7 +134,7 @@ struct PrivacySettingsView: View {
                 Button("Exportieren") {
                     showExportPanel = true
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.tui)
             }
         } header: {
             Text("Datenexport")

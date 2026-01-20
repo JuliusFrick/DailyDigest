@@ -3,6 +3,12 @@ import SwiftUI
 /// Configuration view for Gmail integration
 struct GmailConfigView: View {
     @ObservedObject var source: GmailSource
+    
+    private var isConfigured: Bool {
+        if !Secrets.googleClientId.isEmpty { return true }
+        let clientId = UserDefaults.standard.string(forKey: "google_client_id") ?? ""
+        return !clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         Form {
@@ -41,7 +47,7 @@ struct GmailConfigView: View {
                             await source.disconnect()
                         }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.tui)
                     .tint(.red)
                 } else {
                     Button("Verbinden") {
@@ -49,8 +55,8 @@ struct GmailConfigView: View {
                             try? await source.authenticate()
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(source.isLoading)
+                    .buttonStyle(.tuiPrimary)
+                    .disabled(source.isLoading || !isConfigured)
                 }
             }
 
@@ -66,7 +72,12 @@ struct GmailConfigView: View {
         } header: {
             Text("Verbindung")
         } footer: {
-            Text("Verbinde dein Gmail-Konto um ungelesene E-Mails in deinem Briefing zu sehen.")
+            if !isConfigured {
+                Text("Bitte richte zuerst die Google-Konfiguration ein (siehe oben).")
+                    .foregroundStyle(.orange)
+            } else {
+                Text("Verbinde dein Gmail-Konto um ungelesene E-Mails in deinem Briefing zu sehen.")
+            }
         }
     }
 

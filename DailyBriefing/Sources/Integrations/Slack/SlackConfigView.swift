@@ -62,7 +62,7 @@ struct SlackConfigView: View {
                             await source.disconnect()
                         }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.tui)
                     .tint(.red)
                 } else {
                     Button("Verbinden") {
@@ -70,7 +70,7 @@ struct SlackConfigView: View {
                             try? await source.authenticate()
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.tuiPrimary)
                     .disabled(source.isLoading || slackClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
@@ -198,7 +198,7 @@ struct SlackConfigView: View {
                         source.selectAllChannels()
                     }
                     .font(.caption)
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.tuiGhost)
 
                     Spacer()
 
@@ -206,7 +206,7 @@ struct SlackConfigView: View {
                         source.deselectAllChannels()
                     }
                     .font(.caption)
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.tuiGhost)
                 }
             }
 

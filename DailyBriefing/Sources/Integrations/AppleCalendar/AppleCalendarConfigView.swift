@@ -41,7 +41,7 @@ struct AppleCalendarConfigView: View {
                             await source.disconnect()
                         }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.tui)
                     .tint(.red)
                 } else {
                     Button("Verbinden") {
@@ -49,7 +49,7 @@ struct AppleCalendarConfigView: View {
                             try? await source.authenticate()
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.tuiPrimary)
                     .disabled(source.isLoading)
                 }
             }
@@ -135,7 +135,7 @@ struct AppleCalendarConfigView: View {
             Button("Systemeinstellungen öffnen") {
                 NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.tui)
         } header: {
             Text("Berechtigungen")
         }

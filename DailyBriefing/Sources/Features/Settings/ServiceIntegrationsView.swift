@@ -184,7 +184,7 @@ struct ServiceRow: View {
                         Text("Verbinden")
                     }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.tui)
                 .disabled(isConnecting)
             }
         }
@@ -325,7 +325,7 @@ struct ServiceNotConnectedView: View {
                     Text("Verbinden")
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.tuiPrimary)
             .disabled(isConnecting)
         }
         .padding(40)

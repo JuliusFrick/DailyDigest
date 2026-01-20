@@ -200,6 +200,7 @@ struct NavButton: View {
 
 struct StatusBar: View {
     @EnvironmentObject private var appState: AppState
+    @StateObject private var connectionManager = ServiceConnectionManager.shared
 
     var body: some View {
         HStack(spacing: Spacing.md) {
@@ -209,6 +210,16 @@ struct StatusBar: View {
                     .fill(appState.isOnline ? Color.green : Color.orange)
                     .frame(width: 6, height: 6)
                 Text(appState.isOnline ? "online" : "offline")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+            
+            // Connected sources indicator
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(connectionManager.connectedSources.isEmpty ? Color.secondary : Color.blue)
+                    .frame(width: 6, height: 6)
+                Text("\(connectionManager.connectedSources.count) src")
                     .font(.system(.caption2, design: .monospaced))
                     .foregroundStyle(.tertiary)
             }

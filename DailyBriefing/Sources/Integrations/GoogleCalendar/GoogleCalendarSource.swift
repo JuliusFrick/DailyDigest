@@ -13,6 +13,7 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
     @Published var isAuthenticated = false
     @Published var isLoading = false
     @Published var lastError: Error?
+    @Published var connectionStatus: ConnectionStatus = .disconnected
 
     // MARK: - Private Properties
     private var oauthService: OAuthService
@@ -30,6 +31,7 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
     init() {
         oauthService = Self.makeOAuthService()
         isAuthenticated = oauthService.isAuthenticated
+        connectionStatus = isAuthenticated ? .connected : .disconnected
     }
 
     // MARK: - BriefingSource Protocol
@@ -46,6 +48,7 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
                 do {
                     _ = try await oauthService.getValidTokens()
                     isAuthenticated = true
+                    connectionStatus = .connected
                     try await fetchCalendarList()
                     return
                 } catch OAuthError.notAuthenticated {
@@ -59,9 +62,11 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
 
             _ = try await oauthService.authorize()
             isAuthenticated = true
+            connectionStatus = .connected
             try await fetchCalendarList()
         } catch {
             lastError = error
+            connectionStatus = .error
             throw error
         }
     }
@@ -73,6 +78,7 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
             print("Logout error: \(error)")
         }
         isAuthenticated = false
+        connectionStatus = .disconnected
         selectedCalendars = []
         availableCalendars = []
     }

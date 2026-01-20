@@ -405,8 +405,10 @@ struct TUIDashboardView: View {
                                 .fill(selectedTab == tab ? Color.primary : Color.clear)
                                 .frame(height: 2)
                         }
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .contentShape(Rectangle())
                 }
                 
                 Spacer()
@@ -1151,6 +1153,7 @@ struct KeyboardHandlersModifier: ViewModifier {
             .modifier(AudioKeysModifier(appState: appState))
             .modifier(DetailLevelKeysModifier(selectedDetailLevel: $selectedDetailLevel))
             .modifier(SectionKeysModifier(appState: appState, selectedSection: $selectedSection, selectedTab: $selectedTab))
+            .modifier(TabSwitchKeysModifier(selectedTab: $selectedTab))
     }
 }
 

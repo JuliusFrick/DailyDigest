@@ -4,6 +4,12 @@ import SwiftUI
 struct GoogleCalendarConfigView: View {
     @ObservedObject var source: GoogleCalendarSource
     @State private var isLoadingCalendars = false
+    
+    private var isConfigured: Bool {
+        if !Secrets.googleClientId.isEmpty { return true }
+        let clientId = UserDefaults.standard.string(forKey: "google_client_id") ?? ""
+        return !clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         Form {
@@ -42,7 +48,7 @@ struct GoogleCalendarConfigView: View {
                             await source.disconnect()
                         }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.tui)
                     .tint(.red)
                 } else {
                     Button("Verbinden") {
@@ -50,8 +56,8 @@ struct GoogleCalendarConfigView: View {
                             try? await source.authenticate()
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(source.isLoading)
+                    .buttonStyle(.tuiPrimary)
+                    .disabled(source.isLoading || !isConfigured)
                 }
             }
 
@@ -67,7 +73,12 @@ struct GoogleCalendarConfigView: View {
         } header: {
             Text("Verbindung")
         } footer: {
-            Text("Verbinde dein Google-Konto um Kalendertermine in deinem Briefing zu sehen.")
+            if !isConfigured {
+                Text("Bitte richte zuerst die Google-Konfiguration ein (siehe oben).")
+                    .foregroundStyle(.orange)
+            } else {
+                Text("Verbinde dein Google-Konto um Kalendertermine in deinem Briefing zu sehen.")
+            }
         }
     }
 

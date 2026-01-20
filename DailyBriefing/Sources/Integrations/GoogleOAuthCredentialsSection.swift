@@ -180,9 +180,18 @@ private struct GoogleSetupWizard: View {
                 .font(.system(.headline, design: .monospaced))
                 .bold()
             
-            Text("1. Öffne die **Google Cloud Console**\n2. Erstelle ein neues Projekt\n3. Gehe zu **APIs & Dienste > Zugangsdaten**\n4. Klicke auf **Anmeldedaten erstellen** > **OAuth-Client-ID**\n5. Wähle **Webanwendung**")
-                .font(.system(.body, design: .monospaced))
-                .multilineTextAlignment(.leading)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("1. Öffne die **Google Cloud Console**")
+                Text("2. Erstelle ein neues Projekt")
+                Text("3. **Aktiviere Gmail API & Calendar API**")
+                    .bold()
+                Text("4. Gehe zu **APIs & Dienste > Zugangsdaten**")
+                Text("5. Klicke auf **Anmeldedaten erstellen** > **OAuth-Client-ID**")
+                Text("6. Wähle **Desktop-App** (nicht Webanwendung!)")
+                    .bold()
+            }
+            .font(.system(.body, design: .monospaced))
+            .frame(maxWidth: .infinity, alignment: .leading)
             
             Button {
                 NSWorkspace.shared.open(URL(string: "https://console.cloud.google.com/apis/credentials")!)
@@ -203,7 +212,7 @@ private struct GoogleSetupWizard: View {
                 .multilineTextAlignment(.center)
             
             HStack {
-                Text("http://127.0.0.1:0/oauth/google")
+                Text("http://127.0.0.1")
                     .font(.system(.body, design: .monospaced))
                     .padding(8)
                     .background(Color.tuiBackground)
@@ -211,17 +220,23 @@ private struct GoogleSetupWizard: View {
                 
                 Button {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString("http://127.0.0.1:0/oauth/google", forType: .string)
+                    NSPasteboard.general.setString("http://127.0.0.1", forType: .string)
                 } label: {
                     Image(systemName: "doc.on.doc")
                 }
                 .buttonStyle(.plain)
             }
             
-            Text("Wichtig: Der Port :0 ist ein Platzhalter, aber Google akzeptiert ihn für Loopback-Tests.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            VStack(spacing: 4) {
+                Text("⚠️ Wichtig: Nur die Adresse ohne Port!")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .bold()
+                Text("Google akzeptiert dynamische Ports für Desktop-Apps.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .multilineTextAlignment(.center)
         }
     }
     

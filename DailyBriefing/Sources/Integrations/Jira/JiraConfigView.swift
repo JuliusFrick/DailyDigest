@@ -156,19 +156,20 @@ struct JiraConfigView: View {
                 Spacer()
 
                 if source.isAuthenticated {
-                    Button("Logout") {
+                    Button("Trennen") {
                         Task {
                             await source.disconnect()
                         }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.tui)
+                    .tint(.red)
                 } else {
                     Button("Verbinden") {
                         Task {
                             try? await source.authenticate()
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.tuiPrimary)
                     .disabled(source.isLoading || !canConnect)
                 }
             }

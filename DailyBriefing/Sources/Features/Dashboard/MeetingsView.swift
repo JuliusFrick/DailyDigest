@@ -18,41 +18,46 @@ struct MeetingsView: View {
     
     var showHeader: Bool = true
     
+    @State private var showConnectPopup: Bool = true
+    
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            if showHeader {
-                HStack {
-                    Text("KALENDER")
-                        .font(.tuiMonoTiny)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.tertiary)
-                    
-                    Spacer()
-                    
-                    if hasCalendarConnected {
-                        if isLoading {
-                            ProgressView()
-                                .scaleEffect(0.5)
+        ZStack {
+            VStack(spacing: 0) {
+                // Header
+                if showHeader {
+                    HStack {
+                        Text("KALENDER")
+                            .font(.tuiMonoTiny)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.tertiary)
+                        
+                        Spacer()
+                        
+                        if hasCalendarConnected {
+                            if isLoading {
+                                ProgressView()
+                                    .scaleEffect(0.5)
+                            } else {
+                                Text("\(fetchedMeetings.count) events this week")
+                                    .font(.tuiMonoTiny)
+                                    .foregroundStyle(.quaternary)
+                            }
                         } else {
-                            Text("\(fetchedMeetings.count) events this week")
+                            Text("nicht verbunden")
                                 .font(.tuiMonoTiny)
-                                .foregroundStyle(.quaternary)
+                                .foregroundStyle(.orange)
                         }
                     }
+                    .padding(Spacing.md)
+                    .background(Color.tuiBackground)
+                    .overlay(alignment: .bottom) {
+                        Rectangle()
+                            .fill(Color.tuiBorder)
+                            .frame(height: 1)
+                    }
                 }
-                .padding(Spacing.md)
-                .background(Color.tuiBackground)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(Color.tuiBorder)
-                        .frame(height: 1)
-                }
-            }
-            
-            if !hasCalendarConnected {
-                CalendarConfigBanner()
-            } else {
+                
+                // Always show calendar grid
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         // Week Calendar Grid
@@ -78,7 +83,7 @@ struct MeetingsView: View {
                             }
                         } else if !isLoading {
                             VStack(spacing: Spacing.sm) {
-                                Text("No meetings found for this week")
+                                Text(hasCalendarConnected ? "Keine Termine diese Woche" : "Keine Termine")
                                     .font(.tuiMonoSmall)
                                     .foregroundStyle(.tertiary)
                             }
@@ -87,11 +92,17 @@ struct MeetingsView: View {
                     }
                 }
             }
+            .background(Color.tuiBackground)
+            
+            // Floating popup when not connected
+            if !hasCalendarConnected && showConnectPopup {
+                CalendarConnectPopup(showPopup: $showConnectPopup)
+            }
         }
-        .background(Color.tuiBackground)
         .task(id: hasCalendarConnected) {
             if hasCalendarConnected {
                 await loadMeetings()
+                showConnectPopup = false
             }
         }
         .task(id: selectedDate) {
@@ -184,6 +195,87 @@ struct CalendarConfigBanner: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(Spacing.xl)
+    }
+}
+
+// MARK: - Calendar Connect Popup
+
+struct CalendarConnectPopup: View {
+    @StateObject private var connectionManager = ServiceConnectionManager.shared
+    @Binding var showPopup: Bool
+    @State private var isHovered = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            VStack(spacing: Spacing.md) {
+                // Header with close button
+                HStack {
+                    Text("KALENDER VERBINDEN")
+                        .font(.tuiMonoTiny)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.primary)
+                    
+                    Spacer()
+                    
+                    Button {
+                        withAnimation(.tuiSnappy) {
+                            showPopup = false
+                        }
+                    } label: {
+                        Text("✕")
+                            .font(.tuiMonoSmall)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Text("Verbinde deinen Kalender, um Termine zu sehen und Meeting-Zusammenfassungen zu erstellen.")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.secondary)
+                    .lineSpacing(2)
+                
+                HStack(spacing: Spacing.sm) {
+                    Button {
+                        Task {
+                            try? await connectionManager.connect(.googleCalendar)
+                        }
+                    } label: {
+                        HStack(spacing: Spacing.xs) {
+                            Text("+")
+                            Text("Verbinden")
+                                .font(.tuiMonoSmall)
+                        }
+                    }
+                    .buttonStyle(.tuiPrimary)
+                    
+                    Button {
+                        withAnimation(.tuiSnappy) {
+                            showPopup = false
+                        }
+                    } label: {
+                        Text("Später")
+                            .font(.tuiMonoSmall)
+                    }
+                    .buttonStyle(.tui)
+                }
+            }
+            .padding(Spacing.md)
+            .background(Color.tuiBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.tuiBorder, lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
+            .padding(Spacing.lg)
+        }
+        .frame(maxWidth: 320)
+        .transition(.asymmetric(
+            insertion: .opacity.combined(with: .move(edge: .bottom)),
+            removal: .opacity.combined(with: .scale(scale: 0.95))
+        ))
     }
 }
 

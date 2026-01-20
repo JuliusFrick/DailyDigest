@@ -122,7 +122,7 @@ struct TUIConnectedSourceRow: View {
         HStack(spacing: Spacing.sm) {
             Text(source.isAuthenticated ? "●" : "○")
                 .font(.tuiMonoTiny)
-                .foregroundStyle(source.isAuthenticated ? .green : .orange)
+                .foregroundStyle(source.isAuthenticated ? .green : .secondary)
 
             Text(type(of: source).displayName.lowercased())
                 .font(.tuiMonoSmall)
@@ -135,7 +135,7 @@ struct TUIConnectedSourceRow: View {
                         await connectionManager.disconnect(serviceType)
                     }
                 } label: {
-                    Text("disconnect")
+                    Text("trennen")
                         .font(.tuiMonoTiny)
                 }
                 .buttonStyle(.tuiGhost)
@@ -192,7 +192,7 @@ struct TUIAvailableSourceRow: View {
                         .scaleEffect(0.5)
                         .frame(width: 50)
                 } else {
-                    Text("connect")
+                    Text("verbinden")
                         .font(.tuiMonoTiny)
                 }
             }
