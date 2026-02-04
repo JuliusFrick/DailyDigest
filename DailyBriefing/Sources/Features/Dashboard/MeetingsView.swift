@@ -617,6 +617,365 @@ struct EventBlock: View {
     }
 }
 
+// MARK: - Ad-Hoc Recording Section
+
+struct AdHocRecordingSection: View {
+    @StateObject private var recordingService = AudioRecordingService.shared
+    @StateObject private var transcriptionService = TranscriptionService.shared
+    @StateObject private var notesService = MeetingNotesService.shared
+    @State private var isRecording = false
+    @State private var isTranscribing = false
+    @State private var didRequestPermission = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(spacing: Spacing.xs) {
+                Text("🎤")
+                    .font(.tuiMonoSmall)
+                Text("Neue Aufnahme")
+                    .font(.tuiMonoSmall)
+                    .fontWeight(.medium)
+            }
+            
+            if isRecording {
+                // Recording in progress
+                HStack(spacing: Spacing.sm) {
+                    // Recording indicator
+                    HStack(spacing: Spacing.xs) {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                            .opacity(recordingService.isRecording ? 1 : 0.5)
+                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: recordingService.isRecording)
+                        
+                        Text(recordingService.formattedDuration())
+                            .font(.tuiMonoSmall)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    // Stop button
+                    Button {
+                        stopRecording()
+                    } label: {
+                        HStack(spacing: Spacing.xs) {
+                            Text("⏹")
+                            Text("Aufnahme beenden")
+                                .font(.tuiMonoTiny)
+                        }
+                    }
+                    .buttonStyle(.tuiPrimary)
+                }
+            } else if isTranscribing {
+                // Transcribing
+                HStack(spacing: Spacing.xs) {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                    Text("Transkribiere...")
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                // Start recording button
+                HStack {
+                    Button {
+                        startRecording()
+                    } label: {
+                        HStack(spacing: Spacing.xs) {
+                            Text("🔴")
+                            Text("Aufnahme starten")
+                        }
+                    }
+                    .buttonStyle(.tuiPrimary)
+                    .disabled(!recordingService.hasPermission)
+                    
+                    if !recordingService.hasPermission {
+                        Text("Mikrofon-Berechtigung erforderlich")
+                            .font(.tuiMonoTiny)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+        }
+        .padding(Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tuiHover.opacity(0.3))
+        .task {
+            guard !didRequestPermission, recordingService.isPermissionUndetermined() else { return }
+            didRequestPermission = true
+            _ = await recordingService.requestPermission()
+        }
+        .alert("Fehler", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage)
+        }
+    }
+    
+    private func startRecording() {
+        Task {
+            do {
+                _ = try await recordingService.startRecording()
+                isRecording = true
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+    
+    private func stopRecording() {
+        guard let audioURL = recordingService.stopRecording() else {
+            return
+        }
+        
+        isRecording = false
+        isTranscribing = true
+        
+        Task {
+            do {
+                let transcription = try await transcriptionService.transcribe(audioURL: audioURL)
+                
+                // Create ad-hoc meeting with the transcription
+                notesService.createAdHocMeeting(notes: transcription)
+                
+                // Clean up audio file
+                try? FileManager.default.removeItem(at: audioURL)
+                
+                isTranscribing = false
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+                isTranscribing = false
+                
+                // Clean up audio file on error
+                try? FileManager.default.removeItem(at: audioURL)
+            }
+        }
+    }
+}
+
+// MARK: - Ad-Hoc Meetings Section
+
+struct AdHocMeetingsSection: View {
+    @StateObject private var notesService = MeetingNotesService.shared
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("AUFNAHMEN")
+                    .font(.tuiMonoTiny)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.quaternary)
+                
+                Spacer()
+                
+                Text("\(notesService.adHocMeetings.count)")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.quaternary)
+            }
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
+            .background(Color.tuiHover.opacity(0.3))
+            
+            // Meetings list
+            ForEach(notesService.adHocMeetings) { meeting in
+                AdHocMeetingRow(meeting: meeting)
+                
+                Rectangle()
+                    .fill(Color.tuiBorder.opacity(0.5))
+                    .frame(height: 1)
+            }
+        }
+    }
+}
+
+// MARK: - Ad-Hoc Meeting Row
+
+struct AdHocMeetingRow: View {
+    let meeting: AdHocMeeting
+    @State private var isExpanded = false
+    @State private var isHovered = false
+    @State private var isEditing = false
+    @State private var editedTitle: String = ""
+    @StateObject private var notesService = MeetingNotesService.shared
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Main row
+            Button {
+                withAnimation(.tuiSnappy) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: Spacing.sm) {
+                    // Time indicator
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(timeString(from: meeting.createdAt))
+                            .font(.tuiMonoTiny)
+                            .foregroundStyle(.secondary)
+                        
+                        Text(dateString(from: meeting.createdAt))
+                            .font(.tuiMonoTiny)
+                            .foregroundStyle(.quaternary)
+                    }
+                    .frame(width: 60)
+                    
+                    // Content
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(meeting.title)
+                            .font(.tuiMonoSmall)
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                        
+                        Text(String(meeting.notes.prefix(50)) + "...")
+                            .font(.tuiMonoTiny)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                    
+                    Spacer()
+                    
+                    // Indicators
+                    HStack(spacing: Spacing.xs) {
+                        Text("📝")
+                            .font(.tuiMonoTiny)
+                        
+                        Text(isExpanded ? "▼" : "▶")
+                            .font(.tuiMonoTiny)
+                            .foregroundStyle(.quaternary)
+                    }
+                }
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
+                .background(isHovered ? Color.tuiHover : Color.clear)
+            }
+            .buttonStyle(.plain)
+            .onHover { isHovered = $0 }
+            
+            // Expanded details
+            if isExpanded {
+                expandedDetails
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity
+                    ))
+            }
+        }
+    }
+    
+    private var expandedDetails: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            // Title editing
+            if isEditing {
+                HStack {
+                    TextField("Titel", text: $editedTitle)
+                        .textFieldStyle(.plain)
+                        .font(.tuiMonoSmall)
+                        .padding(Spacing.xs)
+                        .background(Color.tuiBackground)
+                        .cornerRadius(4)
+                    
+                    Button("Speichern") {
+                        notesService.updateAdHocMeeting(id: meeting.id, title: editedTitle)
+                        isEditing = false
+                    }
+                    .buttonStyle(.tui)
+                    
+                    Button("Abbrechen") {
+                        isEditing = false
+                    }
+                    .buttonStyle(.tui)
+                }
+            }
+            
+            // Notes
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                HStack(spacing: Spacing.xs) {
+                    Text("📝")
+                        .font(.tuiMonoTiny)
+                    Text("Notizen")
+                        .font(.tuiMonoTiny)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Text(meeting.notes)
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.tertiary)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+            
+            Divider()
+                .padding(.vertical, Spacing.xs)
+            
+            // Action buttons
+            HStack(spacing: Spacing.sm) {
+                Button {
+                    editedTitle = meeting.title
+                    isEditing = true
+                } label: {
+                    HStack(spacing: Spacing.xs) {
+                        Text("✏️")
+                        Text("Umbenennen")
+                            .font(.tuiMonoTiny)
+                    }
+                }
+                .buttonStyle(.tui)
+                
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(meeting.notes, forType: .string)
+                } label: {
+                    HStack(spacing: Spacing.xs) {
+                        Text("📋")
+                        Text("Kopieren")
+                            .font(.tuiMonoTiny)
+                    }
+                }
+                .buttonStyle(.tui)
+                
+                Spacer()
+                
+                Button {
+                    notesService.deleteAdHocMeeting(id: meeting.id)
+                } label: {
+                    HStack(spacing: Spacing.xs) {
+                        Text("🗑")
+                        Text("Löschen")
+                            .font(.tuiMonoTiny)
+                    }
+                }
+                .buttonStyle(.tui)
+            }
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tuiHover.opacity(0.5))
+    }
+    
+    private func timeString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    private func dateString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.dateFormat = "d. MMM"
+        return formatter.string(from: date)
+    }
+}
+
 // MARK: - Meeting Row
 
 struct MeetingRow: View {

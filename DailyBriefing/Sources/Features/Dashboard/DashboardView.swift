@@ -445,10 +445,15 @@ struct TUIDashboardView: View {
                     emptySectionsState
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(Array(briefing.sections.sorted { $0.priority > $1.priority }.enumerated()), id: \.element.id) { index, section in
-                                TUISectionRow(section: section, index: index)
+                        HStack {
+                            Spacer()
+                            LazyVStack(spacing: 0) {
+                                ForEach(Array(briefing.sections.sorted { $0.priority > $1.priority }.enumerated()), id: \.element.id) { index, section in
+                                    TUISectionRow(section: section, index: index)
+                                }
                             }
+                            .frame(maxWidth: 800)
+                            Spacer()
                         }
                     }
                 }

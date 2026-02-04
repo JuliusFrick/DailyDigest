@@ -11,6 +11,10 @@ struct GoogleCalendarConfigView: View {
         return !clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var canConnect: Bool {
+        !GoogleCalendarConfig.clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         Form {
             GoogleOAuthCredentialsSection()

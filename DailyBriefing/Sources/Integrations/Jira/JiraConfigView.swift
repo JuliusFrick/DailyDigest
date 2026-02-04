@@ -5,7 +5,7 @@ struct JiraConfigView: View {
     @ObservedObject var source: JiraSource
     @AppStorage("jira_client_id") private var jiraClientId: String = ""
     @AppStorage("jira_client_secret") private var jiraClientSecret: String = ""
-    @AppStorage("jira_auth_method") private var jiraAuthMethodRaw: String = JiraAuthMethod.apiToken.rawValue // Changed default to apiToken
+    @AppStorage("jira_auth_method") private var jiraAuthMethodRaw: String = JiraAuthMethod.apiToken.rawValue
     @AppStorage("jira_site_url") private var jiraSiteURL: String = ""
     @AppStorage("jira_email") private var jiraEmail: String = ""
     
@@ -18,7 +18,7 @@ struct JiraConfigView: View {
     private var canConnect: Bool {
         switch authMethod {
         case .oauth3LO:
-            return !jiraClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return !JiraConfig.clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .apiToken:
             return !jiraSiteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && !jiraEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

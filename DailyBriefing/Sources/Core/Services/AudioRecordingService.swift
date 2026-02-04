@@ -37,6 +37,14 @@ final class AudioRecordingService: NSObject, ObservableObject {
         hasPermission = status == .granted
         #endif
     }
+
+    func isPermissionUndetermined() -> Bool {
+        #if os(macOS)
+        return AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined
+        #else
+        return AVAudioSession.sharedInstance().recordPermission == .undetermined
+        #endif
+    }
     
     func requestPermission() async -> Bool {
         #if os(macOS)
