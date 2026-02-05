@@ -752,15 +752,11 @@ struct NextMeetingCard: View {
 struct UpcomingMeetingRow: View {
     let meeting: BriefingItem
     @State private var isHovered = false
-    
+    @State private var showMeetingPopup = false
+
     var body: some View {
         Button {
-            if let meetingLink = meeting.metadata["meetingLink"],
-               let url = URL(string: meetingLink) {
-                NSWorkspace.shared.open(url)
-            } else if let deepLink = meeting.deepLink {
-                NSWorkspace.shared.open(deepLink)
-            }
+            showMeetingPopup = true
         } label: {
             HStack(spacing: Spacing.sm) {
                 // Time
@@ -768,33 +764,33 @@ struct UpcomingMeetingRow: View {
                     .font(.tuiMonoTiny)
                     .foregroundStyle(.tertiary)
                     .frame(width: 50, alignment: .leading)
-                
+
                 // Title
                 Text(meeting.title)
                     .font(.tuiMonoSmall)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                
+
                 Spacer()
-                
+
                 // Duration
                 if let duration = meeting.metadata["duration"] {
                     Text("[\(duration)]")
                         .font(.tuiMonoTiny)
                         .foregroundStyle(.quaternary)
                 }
-                
+
                 // Meeting link indicator
                 if meeting.metadata["meetingLink"] != nil {
                     Text("📹")
                         .font(.tuiMonoTiny)
                 }
-                
-                // Arrow
+
+                // Arrow — immer leicht sichtbar
                 Text("→")
                     .font(.tuiMonoTiny)
                     .foregroundStyle(.quaternary)
-                    .opacity(isHovered ? 1 : 0)
+                    .opacity(isHovered ? 1 : 0.4)
             }
             .padding(.horizontal, Spacing.md)
             .padding(.vertical, Spacing.sm)
@@ -802,8 +798,11 @@ struct UpcomingMeetingRow: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+        .sheet(isPresented: $showMeetingPopup) {
+            MeetingDetailPopup(meeting: meeting, isPresented: $showMeetingPopup)
+        }
     }
-    
+
     private var timeString: String {
         guard let timestamp = meeting.timestamp else { return "" }
         let formatter = DateFormatter()
@@ -918,14 +917,22 @@ struct TUIItemRow: View {
     let item: BriefingItem
     @State private var isHovered = false
     @State private var isExpanded = false
+    @State private var showMeetingPopup = false
     @StateObject private var notesService = MeetingNotesService.shared
     @State private var meetingNotes: String?
+
+    /// Kalender-Events öffnen das Popup; andere Items bleiben wie vorher
+    private var isMeetingEvent: Bool {
+        item.timestamp != nil || item.metadata["meetingLink"] != nil
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             // Main row (clickable)
             Button {
-                if hasDetails {
+                if isMeetingEvent {
+                    showMeetingPopup = true
+                } else if hasDetails {
                     withAnimation(.tuiSnappy) {
                         isExpanded.toggle()
                     }
@@ -978,8 +985,13 @@ struct TUIItemRow: View {
                             .font(.tuiMonoTiny)
                     }
 
-                    // Expand/Link indicator
-                    if hasDetails {
+                    // Indikator: Meeting → Pfeil, sonst Expand/Link wie vorher
+                    if isMeetingEvent {
+                        Text("→")
+                            .font(.tuiMonoTiny)
+                            .foregroundStyle(.quaternary)
+                            .opacity(isHovered ? 1 : 0.4)
+                    } else if hasDetails {
                         Text(isExpanded ? "▼" : "▶")
                             .font(.tuiMonoTiny)
                             .foregroundStyle(.quaternary)
@@ -1004,9 +1016,12 @@ struct TUIItemRow: View {
             .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
                 loadMeetingNotes()
             }
+            .sheet(isPresented: $showMeetingPopup) {
+                MeetingDetailPopup(meeting: item, isPresented: $showMeetingPopup)
+            }
 
-            // Expanded details
-            if isExpanded {
+            // Inline-Details nur für Nicht-Meeting-Items
+            if isExpanded && !isMeetingEvent {
                 expandedDetails
                     .transition(.asymmetric(
                         insertion: .opacity.combined(with: .move(edge: .top)),
