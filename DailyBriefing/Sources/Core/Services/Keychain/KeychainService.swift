@@ -190,6 +190,16 @@ extension KeychainService {
     func getDeepgramKey() -> String? {
         loadLLMAPIKey(for: "deepgram")
     }
+    
+    /// Get Mistral API key
+    func getMistralKey() -> String? {
+        loadLLMAPIKey(for: "mistral")
+    }
+    
+    /// Set Mistral API key
+    func setMistralKey(_ key: String) throws {
+        try saveLLMAPIKey(key, for: "mistral")
+    }
 }
 
 // MARK: - Delete All Credentials

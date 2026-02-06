@@ -41,6 +41,7 @@ enum ModelProvider: Codable, Equatable, Hashable {
     case ollama(model: String)      // on-device
     case openai(model: String)
     case anthropic(model: String)
+    case mistral(model: String)     // Mistral AI cloud
     case deepgram                    // transcription only
     case voxtral                     // transcription only
     
@@ -49,6 +50,7 @@ enum ModelProvider: Codable, Equatable, Hashable {
         case .ollama(let model): return "🏠 Ollama (\(model))"
         case .openai(let model): return "☁️ OpenAI (\(model))"
         case .anthropic(let model): return "☁️ Anthropic (\(model))"
+        case .mistral(let model): return "☁️ Mistral (\(model))"
         case .deepgram: return "☁️ Deepgram"
         case .voxtral: return "🏠 Voxtral"
         }
@@ -59,6 +61,7 @@ enum ModelProvider: Codable, Equatable, Hashable {
         case .ollama(let model): return model
         case .openai(let model): return model
         case .anthropic(let model): return model
+        case .mistral(let model): return model
         case .deepgram: return "Deepgram"
         case .voxtral: return "Voxtral"
         }
@@ -69,6 +72,7 @@ enum ModelProvider: Codable, Equatable, Hashable {
         case .ollama: return "Ollama"
         case .openai: return "OpenAI"
         case .anthropic: return "Anthropic"
+        case .mistral: return "Mistral"
         case .deepgram: return "Deepgram"
         case .voxtral: return "Voxtral"
         }
@@ -77,7 +81,7 @@ enum ModelProvider: Codable, Equatable, Hashable {
     var isOnDevice: Bool {
         switch self {
         case .ollama, .voxtral: return true
-        case .openai, .anthropic, .deepgram: return false
+        case .openai, .anthropic, .mistral, .deepgram: return false
         }
     }
     
@@ -90,6 +94,7 @@ enum ModelProvider: Codable, Equatable, Hashable {
         case .ollama: return .gray
         case .openai: return Color(red: 0.0, green: 0.65, blue: 0.52)
         case .anthropic: return Color(red: 0.85, green: 0.55, blue: 0.35)
+        case .mistral: return Color(red: 1.0, green: 0.45, blue: 0.0)  // Mistral orange
         case .deepgram: return Color(red: 0.2, green: 0.6, blue: 0.86)
         case .voxtral: return .purple
         }
@@ -227,6 +232,8 @@ final class ModelSelectionService: ObservableObject {
             return "openai:\(model)"
         case .anthropic(let model):
             return "anthropic:\(model)"
+        case .mistral(let model):
+            return "mistral:\(model)"
         case .deepgram:
             return "deepgram"
         case .voxtral:
@@ -253,6 +260,7 @@ final class ModelSelectionService: ObservableObject {
             case "ollama": return .ollama(model: model)
             case "openai": return .openai(model: model)
             case "anthropic": return .anthropic(model: model)
+            case "mistral": return .mistral(model: model)
             default: return nil
             }
         }
@@ -400,6 +408,25 @@ struct ModelInfo {
                     description: "Lokales Ollama Modell - kostenlos und privat"
                 )
             }
+            
+        // Mistral
+        case .mistral(let model):
+            switch model {
+            case "mistral-large-latest":
+                return ModelInfo(
+                    provider: provider,
+                    contextWindow: 128_000,
+                    costPer1MTokens: 2.00,
+                    description: "Mistral's leistungsstärkstes Modell"
+                )
+            default:
+                return ModelInfo(
+                    provider: provider,
+                    contextWindow: 128_000,
+                    costPer1MTokens: nil,
+                    description: "Mistral AI Cloud Modell"
+                )
+            }
         }
     }
 }
@@ -457,6 +484,9 @@ extension ModelSelectionService {
         case .deepgram:
             return KeychainService.shared.getDeepgramKey() != nil
             
+        case .mistral:
+            return KeychainService.shared.getMistralKey() != nil
+            
         case .voxtral:
             // Always available if installed (local transcription)
             return true
@@ -477,6 +507,7 @@ extension ModelSelectionService {
             return [
                 .ollama(model: "mistral"),
                 .ollama(model: "llama3.2"),
+                .mistral(model: "mistral-large-latest"),
                 .openai(model: "gpt-4o-mini"),
                 .anthropic(model: "claude-3-5-haiku-20241022")
             ]
