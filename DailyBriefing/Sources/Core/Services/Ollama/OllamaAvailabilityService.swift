@@ -1,8 +1,8 @@
 import Foundation
 
 /// Service for checking Ollama availability and models
-final class OllamaService {
-    static let shared = OllamaService()
+final class OllamaAvailabilityService {
+    static let shared = OllamaAvailabilityService()
     
     private let baseURL = "http://localhost:11434"
     

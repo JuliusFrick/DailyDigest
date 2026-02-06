@@ -445,7 +445,7 @@ extension ModelSelectionService {
         switch provider {
         case .ollama(let model):
             // Check if Ollama is running and model exists
-            return await OllamaService.shared.isModelAvailable(model)
+            return await OllamaAvailabilityService.shared.isModelAvailable(model)
             
         case .openai:
             // Check if API key exists
