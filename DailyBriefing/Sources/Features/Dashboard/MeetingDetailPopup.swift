@@ -11,12 +11,16 @@ struct MeetingDetailPopup: View {
     @StateObject private var recorder = AudioRecordingService.shared
     @StateObject private var transcriber = TranscriptionService.shared
     @StateObject private var notesService = MeetingNotesService.shared
+    @StateObject private var actionItemStore = ActionItemStore.shared
+    @StateObject private var actionItemExtractor = ActionItemExtractionService.shared
 
     @State private var notes: String
     @State private var isEditingNotes = false
     @State private var recordingURL: URL?
     @State private var transcriptionResult: String?
     @State private var showTranscription = false
+    @State private var showActionItems = false
+    @State private var extractionError: String?
 
     init(meeting: BriefingItem, isPresented: Binding<Bool>) {
         self.meeting = meeting

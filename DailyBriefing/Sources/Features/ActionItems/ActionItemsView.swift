@@ -255,8 +255,10 @@ private struct StatBadge: View {
 
 // MARK: - Preview
 
-#Preview {
-    NavigationStack {
-        ActionItemsView()
+struct ActionItemsView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationStack {
+            ActionItemsView()
+        }
     }
 }
