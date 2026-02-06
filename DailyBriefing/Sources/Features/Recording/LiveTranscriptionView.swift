@@ -220,18 +220,6 @@ struct LiveTranscriptionView: View {
             // Recording controls
             HStack(spacing: Spacing.sm) {
                 Button {
-                    if recorder.isRecording {
-                        recorder.pauseRecording()
-                    } else {
-                        recorder.resumeRecording()
-                    }
-                } label: {
-                    Image(systemName: recorder.isRecording ? "pause.fill" : "play.fill")
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(.tui)
-                
-                Button {
                     viewModel.stopSession()
                     isPresented = false
                 } label: {
