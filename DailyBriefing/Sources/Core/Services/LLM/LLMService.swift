@@ -86,6 +86,8 @@ enum LLMServiceFactory {
             return OpenAIService(apiKey: apiKey ?? "", modelId: modelId, provider: .openai)
         case .groq:
             return OpenAIService(apiKey: apiKey ?? "", modelId: modelId, baseURL: "https://api.groq.com/openai/v1", provider: .groq)
+        case .mistral:
+            return OpenAIService(apiKey: apiKey ?? "", modelId: modelId, baseURL: "https://api.mistral.ai/v1", provider: .mistral)
         case .anthropic:
             return AnthropicService(apiKey: apiKey ?? "", modelId: modelId)
         case .google:

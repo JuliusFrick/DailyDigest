@@ -39,6 +39,7 @@ final class BriefingChatService: ObservableObject {
     // MARK: - Private Properties
 
     private let keychain = KeychainService.shared
+    private let modelService = ModelSelectionService.shared
     private var currentBriefing: Briefing?
 
     // MARK: - Initialization
@@ -97,26 +98,45 @@ final class BriefingChatService: ObservableObject {
     // MARK: - Private Methods
 
     private func generateResponse(for userMessage: String) async throws -> String {
-        guard let config = loadLLMConfiguration() else {
+        // Use ModelSelectionService to get the selected model for chat with fallback
+        let selectedModel = await modelService.getModelWithFallback(for: .chat)
+        
+        // Convert ModelProvider to LLMProvider and get model ID
+        let (llmProvider, modelId) = convertToLLMProvider(selectedModel)
+        
+        // Get API key if needed
+        let apiKey = keychain.loadLLMAPIKey(for: llmProvider.rawValue)
+        if llmProvider.requiresAPIKey && (apiKey == nil || apiKey?.isEmpty == true) {
             throw ChatError.llmNotConfigured
         }
 
-        let apiKey = keychain.loadLLMAPIKey(for: config.provider.rawValue)
-        if config.provider.requiresAPIKey && (apiKey == nil || apiKey?.isEmpty == true) {
-            throw ChatError.llmNotConfigured
-        }
-
+        // Create LLM service
         let llmService = LLMServiceFactory.create(
-            provider: config.provider,
+            provider: llmProvider,
             apiKey: apiKey,
-            modelId: config.modelId,
-            ollamaBaseURL: config.ollamaBaseURL
+            modelId: modelId,
+            ollamaBaseURL: "http://localhost:11434"
         )
 
         let systemPrompt = buildSystemPrompt()
         let prompt = buildPrompt(userMessage: userMessage)
 
         return try await llmService.complete(prompt: prompt, systemPrompt: systemPrompt)
+    }
+    
+    /// Convert ModelProvider to LLMProvider format
+    private func convertToLLMProvider(_ modelProvider: ModelProvider) -> (LLMProvider, String) {
+        switch modelProvider {
+        case .ollama(let model):
+            return (.ollama, model)
+        case .openai(let model):
+            return (.openai, model)
+        case .anthropic(let model):
+            return (.anthropic, model)
+        default:
+            // Fallback to a sensible default
+            return (.openai, "gpt-4o-mini")
+        }
     }
 
     private func buildSystemPrompt() -> String {

@@ -376,6 +376,8 @@ private struct ProviderRow: View {
             return "Claude Sonnet, Claude Opus"
         case .google:
             return "Gemini Pro, Gemini Flash"
+        case .mistral:
+            return "Mistral Large, Codestral"
         case .ollama:
             return "Lokal, Datenschutz-freundlich"
         }
