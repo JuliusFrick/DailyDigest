@@ -78,6 +78,9 @@ struct TUIDashboardView: View {
                         )
                     )
                     .frame(width: 1)
+            } else {
+                // Collapsed left panel - just show toggle button
+                collapsedLeftPanel
             }
 
             // Center panel - Sections
@@ -158,6 +161,36 @@ struct TUIDashboardView: View {
                     .frame(maxHeight: .infinity)
             }
         }
+    }
+    
+    // MARK: - Collapsed Left Panel
+    
+    private var collapsedLeftPanel: some View {
+        VStack {
+            Button {
+                withAnimation(.tuiSnappy) {
+                    showLeftPanel = true
+                }
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "sidebar.left")
+                        .font(.system(size: 14))
+                    Text("⌘S")
+                        .font(.system(size: 8, design: .monospaced))
+                }
+                .foregroundStyle(.secondary)
+                .frame(width: 32, height: 50)
+                .background(Color.tuiHover.opacity(0.3))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+            .buttonStyle(.plain)
+            .help("Panel einblenden (⌘S)")
+            
+            Spacer()
+        }
+        .padding(.vertical, Spacing.md)
+        .padding(.horizontal, 4)
+        .background(Color.tuiPanel.opacity(0.2))
     }
 
     private var dateHeader: some View {
