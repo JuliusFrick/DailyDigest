@@ -13,7 +13,9 @@ struct TabSwitchKeysModifier: ViewModifier {
                     switch selectedTab {
                     case .briefing:
                         selectedTab = .calendar
-                    case .calendar, .history:
+                    case .calendar:
+                        selectedTab = .recordings
+                    case .recordings, .history:
                         selectedTab = .briefing
                     }
                 }
@@ -30,6 +32,13 @@ struct TabSwitchKeysModifier: ViewModifier {
                 withAnimation(.tuiSnappy) {
                     // Switch to calendar tab
                     selectedTab = .calendar
+                }
+                return .handled
+            }
+            .onKeyPress("r", modifiers: .command) {
+                withAnimation(.tuiSnappy) {
+                    // Switch to recordings tab
+                    selectedTab = .recordings
                 }
                 return .handled
             }
