@@ -119,7 +119,7 @@ struct BriefingChatView: View {
             ScrollView {
                 LazyVStack(spacing: Spacing.sm) {
                     ForEach(chatService.messages) { message in
-                        ChatMessageRow(message: message)
+                        BriefingChatMessageRow(message: message)
                             .id(message.id)
                     }
 
@@ -200,7 +200,7 @@ struct BriefingChatView: View {
 
 // MARK: - Chat Message Row
 
-struct ChatMessageRow: View {
+struct BriefingChatMessageRow: View {
     let message: ChatMessage
 
     var body: some View {
