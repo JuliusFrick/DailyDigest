@@ -79,15 +79,8 @@ struct ActionItemsView: View {
                     Button {
                         Task { await exportToReminders() }
                     } label: {
-                        Label("Export to Reminders", systemImage: "arrow.down.doc")
+                        Label("Export to Reminders", systemImage: "square.and.arrow.up")
                     }
-                    
-                    Button {
-                        showError = "Jira export not yet implemented"
-                    } label: {
-                        Label("Export to Jira", systemImage: "arrow.down.doc")
-                    }
-                    .disabled(true)
                     
                     Divider()
                     

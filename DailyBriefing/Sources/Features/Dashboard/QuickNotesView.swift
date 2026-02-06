@@ -175,15 +175,6 @@ struct QuickNotesView: View {
     
     private var footer: some View {
         HStack {
-            // Dictate button (future feature)
-            Button {
-                // TODO: Implement voice dictation
-            } label: {
-                Label("Diktieren", systemImage: "mic")
-            }
-            .buttonStyle(.borderless)
-            .disabled(true) // Not yet implemented
-            
             Spacer()
             
             // Extract action items
