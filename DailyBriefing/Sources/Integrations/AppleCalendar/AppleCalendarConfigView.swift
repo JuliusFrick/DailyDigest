@@ -3,6 +3,7 @@ import SwiftUI
 /// Configuration view for Apple Calendar integration
 struct AppleCalendarConfigView: View {
     @ObservedObject var source: AppleCalendarSource
+    @StateObject private var connectionManager = ServiceConnectionManager.shared
     
     var body: some View {
         Form {
@@ -38,7 +39,7 @@ struct AppleCalendarConfigView: View {
                 if source.isAuthenticated {
                     Button("Trennen") {
                         Task {
-                            await source.disconnect()
+                            await connectionManager.disconnect(.appleCalendar)
                         }
                     }
                     .buttonStyle(.tui)
@@ -46,7 +47,7 @@ struct AppleCalendarConfigView: View {
                 } else {
                     Button("Verbinden") {
                         Task {
-                            try? await source.authenticate()
+                            try? await connectionManager.connect(.appleCalendar)
                         }
                     }
                     .buttonStyle(.tuiPrimary)

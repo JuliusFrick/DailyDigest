@@ -3,6 +3,7 @@ import SwiftUI
 /// Configuration view for Apple Reminders integration
 struct AppleRemindersConfigView: View {
     @ObservedObject var source: AppleRemindersSource
+    @StateObject private var connectionManager = ServiceConnectionManager.shared
 
     var body: some View {
         Form {
@@ -39,7 +40,7 @@ struct AppleRemindersConfigView: View {
                 if source.isAuthenticated {
                     Button("Trennen") {
                         Task {
-                            await source.disconnect()
+                            await connectionManager.disconnect(.appleReminders)
                         }
                     }
                     .buttonStyle(.tui)
@@ -47,7 +48,7 @@ struct AppleRemindersConfigView: View {
                 } else {
                     Button("Verbinden") {
                         Task {
-                            try? await source.authenticate()
+                            try? await connectionManager.connect(.appleReminders)
                         }
                     }
                     .buttonStyle(.tuiPrimary)
