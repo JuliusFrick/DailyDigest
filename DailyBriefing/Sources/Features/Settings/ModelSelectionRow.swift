@@ -18,29 +18,45 @@ struct ModelSelectionRow: View {
     }
     
     var body: some View {
-        HStack {
-            Label(title, systemImage: icon)
-            
-            Spacer()
-            
-            Button {
-                showingPicker.toggle()
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: currentModel.iconName)
-                        .foregroundStyle(currentModel.isOnDevice ? .green : .blue)
-                        .font(.caption)
-                    
-                    Text(currentModel.shortName)
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                    
-                    Image(systemName: "chevron.down")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Label(title, systemImage: icon)
+                
+                Spacer()
+                
+                Button {
+                    showingPicker.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: currentModel.iconName)
+                            .foregroundStyle(currentModel.isOnDevice ? .green : .blue)
+                            .font(.caption)
+                        
+                        Text(currentModel.shortName)
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                        
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            
+            // Show fallback status if active
+            if let fallback = modelService.lastFallback, fallback.feature == feature {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.caption2)
+                    
+                    Text("Using fallback: \(fallback.to.displayName)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.leading, 20) // Align with label text
+            }
         }
         .sheet(isPresented: $showingPicker) {
             ModelPickerView(

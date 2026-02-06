@@ -173,6 +173,33 @@ extension KeychainService {
     func hasLLMAPIKey(for provider: String) -> Bool {
         exists(for: llmKeyIdentifier(for: provider))
     }
+    
+    // MARK: - Convenience Methods
+    
+    /// Get OpenAI API key
+    func getOpenAIKey() -> String? {
+        loadLLMAPIKey(for: "openai")
+    }
+    
+    /// Get Anthropic API key
+    func getAnthropicKey() -> String? {
+        loadLLMAPIKey(for: "anthropic")
+    }
+    
+    /// Get Deepgram API key
+    func getDeepgramKey() -> String? {
+        loadLLMAPIKey(for: "deepgram")
+    }
+    
+    /// Get Mistral API key
+    func getMistralKey() -> String? {
+        loadLLMAPIKey(for: "mistral")
+    }
+    
+    /// Set Mistral API key
+    func setMistralKey(_ key: String) throws {
+        try saveLLMAPIKey(key, for: "mistral")
+    }
 }
 
 // MARK: - Delete All Credentials

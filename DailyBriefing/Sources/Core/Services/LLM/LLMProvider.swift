@@ -7,6 +7,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     case groq = "groq"
     case anthropic = "anthropic"
     case google = "google"
+    case mistral = "mistral"
     case ollama = "ollama"
 
     var id: String { rawValue }
@@ -17,6 +18,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         case .groq: return "Groq"
         case .anthropic: return "Anthropic"
         case .google: return "Google"
+        case .mistral: return "Mistral"
         case .ollama: return "Ollama (Lokal)"
         }
     }
@@ -27,6 +29,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         case .groq: return "bolt.fill"
         case .anthropic: return "sparkles"
         case .google: return "g.circle.fill"
+        case .mistral: return "wind"
         case .ollama: return "desktopcomputer"
         }
     }
@@ -37,13 +40,14 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         case .groq: return Color(red: 0.96, green: 0.33, blue: 0.23) // Groq Orange
         case .anthropic: return Color(red: 0.85, green: 0.55, blue: 0.35)
         case .google: return Color(red: 0.26, green: 0.52, blue: 0.96)
+        case .mistral: return Color(red: 1.0, green: 0.45, blue: 0.0) // Mistral Orange
         case .ollama: return Color(red: 0.5, green: 0.5, blue: 0.5)
         }
     }
 
     var requiresAPIKey: Bool {
         switch self {
-        case .openai, .groq, .anthropic, .google: return true
+        case .openai, .groq, .anthropic, .google, .mistral: return true
         case .ollama: return false
         }
     }
@@ -51,7 +55,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     var supportsTranscription: Bool {
         switch self {
         case .openai, .groq: return true
-        case .anthropic, .google, .ollama: return false
+        case .anthropic, .google, .mistral, .ollama: return false
         }
     }
 
@@ -84,6 +88,14 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
                 LLMModel(id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", description: "Leistungsstarkes Modell mit 1M Token Kontext"),
                 LLMModel(id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", description: "Schnelles Modell für einfache Aufgaben")
             ]
+        case .mistral:
+            return [
+                LLMModel(id: "mistral-large-latest", name: "Mistral Large", description: "Flaggschiff-Modell für komplexe Aufgaben"),
+                LLMModel(id: "mistral-medium-latest", name: "Mistral Medium", description: "Ausgewogenes Modell für die meisten Aufgaben"),
+                LLMModel(id: "mistral-small-latest", name: "Mistral Small", description: "Schnelles und kosteneffizientes Modell"),
+                LLMModel(id: "open-mistral-nemo", name: "Mistral Nemo", description: "Open-Source 12B Modell"),
+                LLMModel(id: "codestral-latest", name: "Codestral", description: "Spezialisiert auf Code-Generierung")
+            ]
         case .ollama:
             return [
                 LLMModel(id: "llama3.2", name: "Llama 3.2", description: "Metas neuestes Open-Source Modell"),
@@ -107,6 +119,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         case .groq: return "gsk_..."
         case .anthropic: return "sk-ant-..."
         case .google: return "AIza..."
+        case .mistral: return ""
         case .ollama: return ""
         }
     }
@@ -117,6 +130,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         case .groq: return URL(string: "https://console.groq.com/keys")
         case .anthropic: return URL(string: "https://console.anthropic.com/settings/keys")
         case .google: return URL(string: "https://aistudio.google.com/apikey")
+        case .mistral: return URL(string: "https://console.mistral.ai/api-keys")
         case .ollama: return URL(string: "https://ollama.com/download")
         }
     }

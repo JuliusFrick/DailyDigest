@@ -9,13 +9,13 @@ struct MeetingDetailPopup: View {
     @Binding var isPresented: Bool
 
     @StateObject private var recorder = AudioRecordingService.shared
-    @StateObject private var transcriber = VoxtralTranscriptionService.shared
+    @StateObject private var transcriber = TranscriptionService.shared
     @StateObject private var notesService = MeetingNotesService.shared
 
     @State private var notes: String
     @State private var isEditingNotes = false
     @State private var recordingURL: URL?
-    @State private var transcriptionResult: VoxtralTranscriptionResponse?
+    @State private var transcriptionResult: String?
     @State private var showTranscription = false
 
     init(meeting: BriefingItem, isPresented: Binding<Bool>) {
@@ -49,7 +49,8 @@ struct MeetingDetailPopup: View {
                     .padding(Spacing.md)
                 }
             }
-            .frame(width: 480, maxHeight: 560)
+            .frame(width: 480)
+            .frame(maxHeight: 560)
             .background(Color.tuiBackground)
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
@@ -83,7 +84,7 @@ struct MeetingDetailPopup: View {
                         .fill(.red)
                         .frame(width: 8, height: 8)
                         .scaleEffect(recorder.isRecording ? 1.0 : 0.6)
-                        .animation(.easeInOut(b: 1.2).repeatForever(autoreverses: true), value: recorder.isRecording)
+                        .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: recorder.isRecording)
                     Text(recorder.formattedDuration())
                         .font(.tuiMonoTiny)
                         .foregroundStyle(.red)
@@ -192,19 +193,35 @@ struct MeetingDetailPopup: View {
         }
     }
 
+    @ViewBuilder
     private var recordButton: some View {
-        Button {
-            Task { await handleRecordToggle() }
-        } label: {
-            HStack(spacing: 4) {
-                Text(recorder.isRecording ? "⏹" : "●")
-                    .font(.tuiMonoTiny)
-                    .foregroundStyle(recorder.isRecording ? .red : .primary)
-                Text(recorder.isRecording ? "stoppen" : "aufnehmen")
-                    .font(.tuiMonoTiny)
+        if recorder.isRecording {
+            Button {
+                Task { await handleRecordToggle() }
+            } label: {
+                HStack(spacing: 4) {
+                    Text("⏹")
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.red)
+                    Text("stoppen")
+                        .font(.tuiMonoTiny)
+                }
             }
+            .buttonStyle(.tuiPrimary)
+        } else {
+            Button {
+                Task { await handleRecordToggle() }
+            } label: {
+                HStack(spacing: 4) {
+                    Text("●")
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.primary)
+                    Text("aufnehmen")
+                        .font(.tuiMonoTiny)
+                }
+            }
+            .buttonStyle(.tui)
         }
-        .buttonStyle(recorder.isRecording ? .tuiPrimary : .tui)
     }
 
     private var transcribeButton: some View {
@@ -264,7 +281,7 @@ struct MeetingDetailPopup: View {
                     .frame(minHeight: 60, maxHeight: 140)
                     .disabled(!isEditingNotes && !notes.isEmpty)
                     .onChange(of: notes) {
-                        notesService.saveNotes(notes, for: meeting)
+                        notesService.saveNotes(meetingId: notesService.meetingId(for: meeting), notes: notes)
                     }
             }
         }
@@ -284,9 +301,8 @@ struct MeetingDetailPopup: View {
 
                 if let result = transcriptionResult {
                     Button {
-                        let text = result.formattedWithSpeakers
-                        notes += (notes.isEmpty ? "" : "\n\n") + text
-                        notesService.saveNotes(notes, for: meeting)
+                        notes += (notes.isEmpty ? "" : "\n\n") + result
+                        notesService.saveNotes(meetingId: notesService.meetingId(for: meeting), notes: notes)
                     } label: {
                         Text("→ in Notizen")
                             .font(.tuiMonoTiny)
@@ -297,7 +313,7 @@ struct MeetingDetailPopup: View {
             }
 
             if let result = transcriptionResult {
-                Text(result.formattedWithSpeakers)
+                Text(result)
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .lineSpacing(2)
@@ -338,11 +354,7 @@ struct MeetingDetailPopup: View {
     private func handleTranscribe() async {
         guard let url = recordingURL else { return }
         do {
-            let result = try await transcriber.transcribe(
-                audioURL: url,
-                language: "de",
-                enableDiarization: true
-            )
+            let result = try await transcriber.transcribe(audioURL: url)
             transcriptionResult = result
             showTranscription = true
         } catch {

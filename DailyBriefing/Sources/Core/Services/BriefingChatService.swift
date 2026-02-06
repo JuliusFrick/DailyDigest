@@ -98,8 +98,8 @@ final class BriefingChatService: ObservableObject {
     // MARK: - Private Methods
 
     private func generateResponse(for userMessage: String) async throws -> String {
-        // Use ModelSelectionService to get the selected model for chat
-        let selectedModel = modelService.getModel(for: .chat)
+        // Use ModelSelectionService to get the selected model for chat with fallback
+        let selectedModel = await modelService.getModelWithFallback(for: .chat)
         
         // Convert ModelProvider to LLMProvider and get model ID
         let (llmProvider, modelId) = convertToLLMProvider(selectedModel)
