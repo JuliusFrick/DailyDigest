@@ -11,6 +11,24 @@
   <item>
     <title>Version 0.4.1</title>
     <link>https://github.com/JuliusFrick/DailyDigest</link>
+    <sparkle:version>1</sparkle:version>
+    <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
+    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+    <pubDate>Fri, 06 Feb 2026 18:45:39 +0000</pubDate>
+    <description><![CDATA[
+      <h2>Version 0.4.1</h2>
+      <p>Neue Version von DailyBriefing</p>
+    ]]></description>
+    <enclosure url="https://github.com/JuliusFrick/DailyDigest/releases/download/v0.4.1/DailyBriefing-0.4.1.dmg" length="3739203" type="application/octet-stream" sparkle:edSignature="CArRlC9YG11DjsXaYuS2HzygQRJUZ46060ohRg7ImqoHmeh95hCMYGRBdmIsK1j2IbQE2FB1KAq0Gtwn95vvBg==" />
+  </item>
+    <title>DailyBriefing Updates</title>
+    <link>https://juliusfrick.github.io/DailyBriefing/appcast.xml</link>
+    <description>Latest versions of DailyBriefing</description>
+    <language>de</language>
+    
+  <item>
+    <title>Version 0.4.1</title>
+    <link>https://github.com/JuliusFrick/DailyDigest</link>
     <sparkle:version>401</sparkle:version>
     <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
     <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
