@@ -125,8 +125,8 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
             // Extract meeting link (Google Meet, Zoom, etc.)
             let meetingLink = extractMeetingLink(from: event)
 
-            // Format attendees list
-            let attendeesList = formatAttendees(event.attendees)
+            // Parse attendees into proper Attendee objects
+            let attendees = parseAttendees(from: event)
 
             // Calculate duration
             let duration = calculateDuration(event)
@@ -138,10 +138,6 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
                 "organizer": event.organizer?.displayName ?? event.organizer?.email ?? ""
             ]
 
-            if !attendeesList.isEmpty {
-                metadata["attendees"] = attendeesList
-            }
-
             if let link = meetingLink {
                 metadata["meetingLink"] = link
             }
@@ -149,15 +145,22 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
             if let dur = duration {
                 metadata["duration"] = dur
             }
+            
+            // Build subtitle with attendee count
+            var subtitle = formatEventTime(event)
+            if !attendees.others.isEmpty {
+                subtitle += " · 👥 \(attendees.others.count)"
+            }
 
             return BriefingItem(
                 title: event.summary ?? "Unbenannter Termin",
-                subtitle: formatEventTime(event),
+                subtitle: subtitle,
                 body: event.description,
                 timestamp: event.start.dateTime ?? event.start.date,
                 deepLink: meetingLink.flatMap { URL(string: $0) } ?? event.htmlLink.flatMap { URL(string: $0) },
-                priority: determinePriority(for: event),
-                metadata: metadata
+                priority: determinePriority(for: event, attendees: attendees),
+                metadata: metadata,
+                attendees: attendees
             )
         }
     }
@@ -193,23 +196,30 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
         return nil
     }
 
-    /// Format attendees into a readable string
-    private func formatAttendees(_ attendees: [EventAttendee]?) -> String {
-        guard let attendees = attendees, !attendees.isEmpty else { return "" }
-
-        let names = attendees.prefix(5).compactMap { attendee -> String? in
-            if let name = attendee.displayName, !name.isEmpty {
-                return name
-            }
-            return attendee.email?.components(separatedBy: "@").first
+    /// Parse Google Calendar attendees into Attendee objects
+    private func parseAttendees(from event: GoogleCalendarEvent) -> [Attendee] {
+        guard let eventAttendees = event.attendees else { return [] }
+        
+        return eventAttendees.map { ea in
+            Attendee(
+                email: ea.email,
+                name: ea.displayName,
+                status: mapResponseStatus(ea.responseStatus),
+                isOrganizer: ea.email == event.organizer?.email,
+                isCurrentUser: ea.`self` ?? false
+            )
         }
-
-        var result = names.joined(separator: ", ")
-        if attendees.count > 5 {
-            result += " +\(attendees.count - 5) weitere"
+    }
+    
+    /// Map Google Calendar response status to our Attendee.ResponseStatus
+    private func mapResponseStatus(_ status: String?) -> Attendee.ResponseStatus {
+        switch status {
+        case "accepted": return .accepted
+        case "declined": return .declined
+        case "tentative": return .tentative
+        case "needsAction": return .pending
+        default: return .unknown
         }
-
-        return result
     }
 
     /// Calculate meeting duration
@@ -319,13 +329,20 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
         return ""
     }
 
-    private func determinePriority(for event: GoogleCalendarEvent) -> BriefingSection.Priority {
+    private func determinePriority(for event: GoogleCalendarEvent, attendees: [Attendee] = []) -> BriefingSection.Priority {
+        var priority: BriefingSection.Priority = .medium
+        
         // High priority if it starts within the next 2 hours
         if let startTime = event.start.dateTime {
             let hoursUntilStart = startTime.timeIntervalSinceNow / 3600
             if hoursUntilStart <= 2 && hoursUntilStart > 0 {
-                return .high
+                priority = .high
             }
+        }
+        
+        // Meetings with other attendees get higher priority
+        if !attendees.others.isEmpty {
+            priority = max(priority, .high)
         }
 
         // Check for keywords that suggest importance
@@ -338,7 +355,7 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
             return .high
         }
 
-        return .medium
+        return priority
     }
 }
 
@@ -446,6 +463,7 @@ struct EventAttendee: Codable {
     let email: String?
     let displayName: String?
     let responseStatus: String?
+    let `self`: Bool?
 }
 
 // MARK: - Configuration

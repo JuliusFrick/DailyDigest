@@ -88,6 +88,22 @@ struct BriefingItem: Identifiable, Codable {
     let deepLink: URL?
     let priority: BriefingSection.Priority
     let metadata: [String: String]
+    let attendees: [Attendee]
+    
+    /// Location for calendar events
+    var location: String? {
+        metadata["location"]
+    }
+    
+    /// Check if this is a meeting (has other attendees)
+    var isMeeting: Bool {
+        !attendees.others.isEmpty
+    }
+    
+    /// Number of attendees excluding current user
+    var attendeeCount: Int {
+        attendees.others.count
+    }
 
     init(
         id: UUID = UUID(),
@@ -97,7 +113,8 @@ struct BriefingItem: Identifiable, Codable {
         timestamp: Date? = nil,
         deepLink: URL? = nil,
         priority: BriefingSection.Priority = .medium,
-        metadata: [String: String] = [:]
+        metadata: [String: String] = [:],
+        attendees: [Attendee] = []
     ) {
         self.id = id
         self.title = title
@@ -107,5 +124,6 @@ struct BriefingItem: Identifiable, Codable {
         self.deepLink = deepLink
         self.priority = priority
         self.metadata = metadata
+        self.attendees = attendees
     }
 }
