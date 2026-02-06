@@ -1,10 +1,11 @@
 import Foundation
 import UserNotifications
+import Combine
 
 // MARK: - Action Item Notification Service
 
 /// Service for scheduling notifications for action item deadlines
-final class ActionItemNotificationService {
+final class ActionItemNotificationService: ObservableObject {
     static let shared = ActionItemNotificationService()
     
     private let notificationCenter = UNUserNotificationCenter.current()

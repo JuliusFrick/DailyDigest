@@ -113,7 +113,7 @@ final class ActionItemExtractionService: ObservableObject {
     // MARK: - LLM API Calls
     
     private func callOpenAI(model: String, prompt: String) async throws -> String {
-        guard let apiKey = KeychainService.shared.get(key: .openAIKey) else {
+        guard let apiKey = KeychainService.shared.getOpenAIKey() else {
             throw ExtractionError.missingAPIKey
         }
         
@@ -153,7 +153,7 @@ final class ActionItemExtractionService: ObservableObject {
     }
     
     private func callAnthropic(model: String, prompt: String) async throws -> String {
-        guard let apiKey = KeychainService.shared.get(key: .anthropicKey) else {
+        guard let apiKey = KeychainService.shared.getAnthropicKey() else {
             throw ExtractionError.missingAPIKey
         }
         
