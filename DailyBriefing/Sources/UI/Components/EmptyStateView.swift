@@ -23,7 +23,7 @@ struct EmptyStateView: View {
             // Text content
             VStack(spacing: Spacing.xs) {
                 Text(title)
-                    .font(style == .compact ? .tuiMonoSmall : .tuiMonoMedium)
+                    .font(style == .compact ? .tuiMonoSmall : .tuiMono)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
                 
