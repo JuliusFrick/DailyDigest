@@ -2,82 +2,138 @@ import SwiftUI
 
 struct RecordingHUDView: View {
     @ObservedObject var recordingService = AudioRecordingService.shared
+    @ObservedObject var hudManager = RecordingHUDManager.shared
     @State private var isHovered = false
     
     var body: some View {
-        HStack(spacing: Spacing.md) {
-            // Drag handle / Icon
-            Text("🎤")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-            
-            // Recording Indicator
-            HStack(spacing: Spacing.xs) {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 8, height: 8)
-                    .shadow(color: .red.opacity(recordingService.isRecording ? 0.5 : 0), radius: 4)
-                    .opacity(recordingService.isRecording ? 1 : 0.5)
-                    .scaleEffect(recordingService.isRecording ? 1.1 : 1.0)
-                    .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: recordingService.isRecording)
-                
-                Text(recordingService.isRecording ? "REC" : "READY")
-                    .font(.tuiMonoTiny)
-                    .fontWeight(.bold)
-                    .foregroundStyle(recordingService.isRecording ? .red : .primary)
-            }
-            
-            Divider()
-                .frame(height: 12)
-                .background(Color.tuiBorder)
-            
-            // Duration
-            Text(recordingService.formattedDuration())
-                .font(.tuiMonoSmall)
-                .foregroundStyle(.primary)
-                .frame(width: 50, alignment: .leading)
-            
-            Spacer(minLength: 0)
-            
-            // Stop Button
-            Button {
-                NotificationCenter.default.post(name: .stopRecordingFromHUD, object: nil)
-            } label: {
-                Text("⏹")
-                    .font(.system(size: 10))
-                    .padding(4)
-                    .background(Color.red.opacity(isHovered ? 0.2 : 0.1))
-                    .foregroundStyle(.red)
-                    .cornerRadius(4)
-            }
-            .buttonStyle(.plain)
-            .onHover { isHovered = $0 }
-            .help("Aufnahme beenden")
-        }
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.sm)
-        .background(
+        VStack(spacing: Spacing.sm) {
+                // Dithering Orb - The main visual element
             ZStack {
-                VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                Color.tuiBackground.opacity(0.4)
+                // Dithering shader orb with audio reactivity
+                DitheringOrbView(
+                    shape: recordingService.isRecording ? .swirl : .ripple,
+                    ditherType: .bayer4x4,
+                    colorBack: recordingService.isRecording
+                        ? Color.tuiBackground
+                        : Color(red: 0.03, green: 0.02, blue: 0.06),
+                    colorFront: recordingService.isRecording ? Color.recordingActive : Color.recordingIdle,
+                    pixelSize: 2.5,
+                    speed: recordingService.isRecording ? 2.5 : 0.6,
+                    audioLevel: CGFloat(recordingService.audioLevel),
+                    size: 50
+                )
                 
+                // Recording indicator overlay
                 if recordingService.isRecording {
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.red.opacity(0.2), lineWidth: 2)
-                        .blur(radius: 2)
+                    // Show STOP on hover, otherwise Time
+                    if isHovered {
+                        VStack(spacing: 0) {
+                            Image(systemName: "square.fill")
+                                .font(.system(size: 12))
+                            Text("Stop")
+                                .font(.system(size: 8, weight: .bold))
+                                .offset(y: 1)
+                        }
+                        .foregroundStyle(.white)
+                    } else {
+                        VStack(spacing: 1) {
+                            Text("REC")
+                                .font(.system(size: 7, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.white)
+                            
+                            Text(recordingService.formattedDuration())
+                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.white)
+                        }
+                        .shadow(color: .black.opacity(0.5), radius: 2)
+                    }
+                } else if hudManager.isReviewing {
+                    // Review state indicator
+                    Image(systemName: "waveform")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.white)
+                } else {
+                    // Idle state
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.white.opacity(isHovered ? 1.0 : 0.7))
+                        .scaleEffect(isHovered ? 1.1 : 1.0)
                 }
             }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.tuiBorder, lineWidth: 1)
-        )
-        .frame(width: 220, height: 40)
+            .frame(width: 50, height: 50)
+            .contentShape(Circle())
+            .onTapGesture {
+                if recordingService.isRecording {
+                    stopAndReview()
+                } else if !hudManager.isReviewing {
+                    startRecording()
+                }
+            }
+            
+            // Review Controls
+            if hudManager.isReviewing {
+                HStack(spacing: 16) {
+                    // Discard
+                    Button {
+                        withAnimation {
+                            hudManager.discardReview()
+                        }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .frame(width: 32, height: 32)
+                            .background(Circle().fill(Color.black.opacity(0.5)))
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Verwerfen")
+                    
+                    // Confirm
+                    Button {
+                        withAnimation {
+                            hudManager.confirmReview()
+                        }
+                    } label: {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .frame(width: 32, height: 32)
+                            .background(Circle().fill(Color.recordingActive))
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Speichern")
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(8)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: recordingService.isRecording)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hudManager.isReviewing)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
+    }
+    
+    private func startRecording() {
+        Task {
+            do {
+                _ = try await recordingService.startRecording()
+            } catch {
+                print("Failed to start recording: \(error)")
+            }
+        }
+    }
+    
+    private func stopAndReview() {
+        if let url = recordingService.stopRecording() {
+            hudManager.startReview(url: url)
+        }
     }
 }
 
-// Visual Effect View for that nice macOS blur
+// Visual Effect View for macOS blur
 struct VisualEffectView: NSViewRepresentable {
     let material: NSVisualEffectView.Material
     let blendingMode: NSVisualEffectView.BlendingMode
@@ -96,7 +152,8 @@ struct VisualEffectView: NSViewRepresentable {
     }
 }
 
-#Preview {
-    RecordingHUDView()
-        .padding()
-}
+// #Preview {
+//     RecordingHUDView()
+//         .padding()
+//         .background(Color.black.opacity(0.5))
+// }

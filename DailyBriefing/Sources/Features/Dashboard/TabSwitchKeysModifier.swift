@@ -7,17 +7,15 @@ struct TabSwitchKeysModifier: ViewModifier {
     
     func body(content: Content) -> some View {
         content
-            .onKeyPress(.tab) {
-                withAnimation(.tuiSnappy) {
-                    // Toggle between tabs using Tab key
-                    selectedTab = selectedTab == .briefing ? .calendar : .briefing
-                }
-                return .handled
-            }
             .onKeyPress("t", modifiers: .command) {
                 withAnimation(.tuiSnappy) {
                     // Toggle between tabs using Cmd+T
-                    selectedTab = selectedTab == .briefing ? .calendar : .briefing
+                    switch selectedTab {
+                    case .briefing:
+                        selectedTab = .calendar
+                    case .calendar, .history:
+                        selectedTab = .briefing
+                    }
                 }
                 return .handled
             }

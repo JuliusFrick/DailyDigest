@@ -5,20 +5,26 @@ import SwiftUI
 struct MeetingsView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var connectionManager = ServiceConnectionManager.shared
-    
+
     // State for calendar navigation and data
     @State private var selectedDate: Date = Date()
     @State private var fetchedMeetings: [BriefingItem] = []
     @State private var isLoading: Bool = false
-    
+
+    private let calendar = Calendar.current
+
     private var hasCalendarConnected: Bool {
         connectionManager.isConnected(.googleCalendar) ||
-        connectionManager.googleCalendarSource?.isAuthenticated == true
+        connectionManager.isConnected(.appleCalendar)
     }
     
     var showHeader: Bool = true
     
     @State private var showConnectPopup: Bool = true
+    @State private var showMeetingRecordingPopup: Bool = false
+    @State private var selectedMeetingForRecording: BriefingItem? = nil
+    @State private var showMeetingDetailPopup: Bool = false
+    @State private var selectedMeetingForDetail: BriefingItem? = nil
     
     var body: some View {
         ZStack {
@@ -63,7 +69,11 @@ struct MeetingsView: View {
                         // Week Calendar Grid
                         WeekCalendarView(
                             meetings: fetchedMeetings,
-                            selectedDate: $selectedDate
+                            selectedDate: $selectedDate,
+                            onRecordMeeting: { meeting in
+                                selectedMeetingForRecording = meeting
+                                showMeetingRecordingPopup = true
+                            }
                         )
                         
                         Rectangle()
@@ -73,10 +83,13 @@ struct MeetingsView: View {
                         // Detailed List for the week
                         if !fetchedMeetings.isEmpty {
                             calendarMeetingsHeader
-                            
+
                             ForEach(fetchedMeetings) { item in
-                                MeetingRow(item: item)
-                                
+                                MeetingRow(item: item) { meeting in
+                                    selectedMeetingForDetail = meeting
+                                    showMeetingDetailPopup = true
+                                }
+
                                 Rectangle()
                                     .fill(Color.tuiBorder)
                                     .frame(height: 1)
@@ -89,6 +102,16 @@ struct MeetingsView: View {
                             }
                             .padding(Spacing.xl)
                         }
+
+                        // Recording section
+                        Rectangle()
+                            .fill(Color.tuiBorder)
+                            .frame(height: 1)
+
+                        AdHocRecordingSection()
+
+                        // Ad-hoc recordings list
+                        AdHocMeetingsSection()
                     }
                 }
             }
@@ -97,6 +120,23 @@ struct MeetingsView: View {
             // Floating popup when not connected
             if !hasCalendarConnected && showConnectPopup {
                 CalendarConnectPopup(showPopup: $showConnectPopup)
+            }
+            
+            // Keyboard shortcut hint
+            if hasCalendarConnected && !fetchedMeetings.isEmpty {
+                VStack {
+                    Spacer()
+                    HStack {
+                        KeyBadge(key: "⇧⌘R")
+                        Text("Meeting aufnehmen")
+                            .font(.tuiMonoTiny)
+                            .foregroundStyle(.quaternary)
+                    }
+                    .padding(Spacing.sm)
+                    .background(Color.tuiHover)
+                    .cornerRadius(4)
+                    .padding(Spacing.md)
+                }
             }
         }
         .task(id: hasCalendarConnected) {
@@ -110,6 +150,47 @@ struct MeetingsView: View {
                 await loadMeetings()
             }
         }
+        .onKeyPress("r", modifiers: [.command, .shift]) {
+            // Open recording popup for first meeting of the day
+            if let firstMeeting = fetchedMeetings.first(where: { 
+                calendar.isDate($0.timestamp ?? Date(), inSameDayAs: Date())
+            }) {
+                selectedMeetingForRecording = firstMeeting
+                showMeetingRecordingPopup = true
+                return .handled
+            }
+            return .ignored
+        }
+        .overlay {
+            if showMeetingRecordingPopup, let meeting = selectedMeetingForRecording {
+                MeetingRecordingPopup(
+                    isPresented: $showMeetingRecordingPopup,
+                    meeting: meeting
+                )
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                    removal: .opacity.combined(with: .scale(scale: 0.98))
+                ))
+            }
+        }
+        .overlay {
+            if showMeetingDetailPopup, let meeting = selectedMeetingForDetail {
+                MeetingDetailPopup(
+                    isPresented: $showMeetingDetailPopup,
+                    meeting: meeting,
+                    onStartRecording: {
+                        showMeetingDetailPopup = false
+                        selectedMeetingForRecording = meeting
+                        showMeetingRecordingPopup = true
+                    }
+                )
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                    removal: .opacity.combined(with: .scale(scale: 0.98))
+                ))
+            }
+        }
+        .animation(.tuiSnappy, value: showMeetingDetailPopup)
     }
     
     private var calendarMeetingsHeader: some View {
@@ -127,11 +208,6 @@ struct MeetingsView: View {
     }
     
     private func loadMeetings() async {
-        guard let calendarSource = connectionManager.googleCalendarSource,
-              calendarSource.isAuthenticated else {
-            return
-        }
-        
         isLoading = true
         defer { isLoading = false }
         
@@ -140,8 +216,23 @@ struct MeetingsView: View {
         let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate
         let endOfWeek = calendar.date(byAdding: .day, value: 7, to: startOfWeek)!
         
+        var allMeetings: [BriefingItem] = []
+        
         do {
-            fetchedMeetings = try await calendarSource.fetchEvents(from: startOfWeek, to: endOfWeek)
+            // Fetch from Google Calendar
+            if let googleSource = connectionManager.googleCalendarSource, googleSource.isAuthenticated {
+                let googleEvents = try await googleSource.fetchEvents(from: startOfWeek, to: endOfWeek)
+                allMeetings.append(contentsOf: googleEvents)
+            }
+            
+            // Fetch from Apple Calendar
+            if let appleSource = connectionManager.appleCalendarSource, appleSource.isAuthenticated {
+                let appleEvents = try await appleSource.fetchEvents(from: startOfWeek, to: endOfWeek)
+                allMeetings.append(contentsOf: appleEvents)
+            }
+            
+            // Sort by date
+            fetchedMeetings = allMeetings.sorted { ($0.timestamp ?? Date.distantPast) < ($1.timestamp ?? Date.distantPast) }
         } catch {
             print("Failed to load meetings: \(error)")
         }
@@ -284,7 +375,8 @@ struct CalendarConnectPopup: View {
 struct WeekCalendarView: View {
     let meetings: [BriefingItem]
     @Binding var selectedDate: Date
-    
+    var onRecordMeeting: ((BriefingItem) -> Void)? = nil
+
     private let calendar = Calendar.current
     private let hourHeight: CGFloat = 40
     private let startHour = 7  // 07:00
@@ -405,7 +497,8 @@ struct WeekCalendarView: View {
                                 meetings: meetingsForDay(day),
                                 hourHeight: hourHeight,
                                 startHour: startHour,
-                                endHour: endHour
+                                endHour: endHour,
+                                onRecordMeeting: onRecordMeeting
                             )
                         }
                     }
@@ -472,8 +565,10 @@ struct DayEventsColumn: View {
     let hourHeight: CGFloat
     let startHour: Int
     let endHour: Int
-    
+    var onRecordMeeting: ((BriefingItem) -> Void)? = nil
+
     private let calendar = Calendar.current
+    private let maxWidth: CGFloat = 120 // Max width for event blocks
     
     var body: some View {
         ZStack(alignment: .top) {
@@ -488,15 +583,28 @@ struct DayEventsColumn: View {
                 CurrentTimeIndicator(hourHeight: hourHeight, startHour: startHour)
             }
             
-            // Events
-            ForEach(meetings) { meeting in
-                if let timestamp = meeting.timestamp {
-                    EventBlock(
-                        meeting: meeting,
-                        hourHeight: hourHeight,
-                        startHour: startHour,
-                        topOffset: offsetForTime(timestamp)
-                    )
+            // Events with overlap resolution
+            let resolvedEvents = resolveEventOverlaps(meetings)
+            
+            // Group events by column
+            let columns = groupEventsByColumn(resolvedEvents)
+            
+            HStack(spacing: 4) {
+                ForEach(0..<columns.count, id: \.self) { columnIndex in
+                    VStack(spacing: 0) {
+                        ForEach(columns[columnIndex]) { eventLayout in
+                            if let timestamp = eventLayout.meeting.timestamp {
+                                EventBlock(
+                                    meeting: eventLayout.meeting,
+                                    hourHeight: hourHeight,
+                                    startHour: startHour,
+                                    topOffset: offsetForTime(timestamp),
+                                    onRecordMeeting: onRecordMeeting
+                                )
+                                .frame(width: columnWidth(for: columns.count))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -509,6 +617,120 @@ struct DayEventsColumn: View {
         let minute = calendar.component(.minute, from: date)
         let hoursFromStart = CGFloat(hour - startHour) + CGFloat(minute) / 60.0
         return max(0, hoursFromStart * hourHeight)
+    }
+
+    // MARK: - Event Overlap Resolution
+
+    struct EventLayout: Identifiable {
+        let id = UUID()
+        let meeting: BriefingItem
+        let columnIndex: Int
+        let columnCount: Int
+    }
+
+    private func resolveEventOverlaps(_ meetings: [BriefingItem]) -> [EventLayout] {
+        // Convert meetings to time intervals
+        let intervals: [(start: Date, end: Date, meeting: BriefingItem)] = meetings.compactMap { meeting in
+            guard let timestamp = meeting.timestamp else { return nil }
+            let duration = meeting.metadata["duration"] ?? "1h"
+            let endTime = calculateEndTime(from: timestamp, duration: duration)
+            return (timestamp, endTime, meeting)
+        }
+
+        // Sort by start time
+        let sortedIntervals = intervals.sorted { $0.start < $1.start }
+
+        // Assign columns to avoid overlaps
+        var columns: [[(start: Date, end: Date, meeting: BriefingItem)]] = []
+
+        for interval in sortedIntervals {
+            // Find first available column
+            var assignedToColumn = false
+            for (index, column) in columns.enumerated() {
+                if let lastEvent = column.last {
+                    // Check if this event overlaps with the last event in this column
+                    if interval.start >= lastEvent.end {
+                        // No overlap, add to this column
+                        columns[index].append(interval)
+                        assignedToColumn = true
+                        break
+                    }
+                } else {
+                    // Empty column
+                    columns[index].append(interval)
+                    assignedToColumn = true
+                    break
+                }
+            }
+
+            // If no available column found, create a new one
+            if !assignedToColumn {
+                columns.append([interval])
+            }
+        }
+
+        // Convert to EventLayout
+        var layouts: [EventLayout] = []
+        for (columnIndex, column) in columns.enumerated() {
+            for event in column {
+                layouts.append(EventLayout(
+                    meeting: event.meeting,
+                    columnIndex: columnIndex,
+                    columnCount: columns.count
+                ))
+            }
+        }
+
+        return layouts
+    }
+
+    private func groupEventsByColumn(_ layouts: [EventLayout]) -> [[EventLayout]] {
+        var columns: [[EventLayout]] = []
+        
+        // Find maximum column index
+        let maxColumn = layouts.map { $0.columnIndex }.max() ?? 0
+        
+        // Initialize columns
+        for _ in 0...maxColumn {
+            columns.append([])
+        }
+        
+        // Group events by column
+        for layout in layouts {
+            if layout.columnIndex < columns.count {
+                columns[layout.columnIndex].append(layout)
+            }
+        }
+        
+        return columns
+    }
+
+    private func columnWidth(for columnCount: Int) -> CGFloat {
+        if columnCount <= 1 {
+            return maxWidth
+        }
+        return max(50, maxWidth / CGFloat(columnCount))
+    }
+
+    private func calculateEndTime(from start: Date, duration: String) -> Date {
+        let calendar = Calendar.current
+        var components = DateComponents()
+
+        // Parse duration string (e.g., "1h 30m" or "30m")
+        let parts = duration.lowercased().components(separatedBy: " ")
+        for part in parts {
+            if part.contains("h") {
+                if let hours = Int(part.replacingOccurrences(of: "h", with: "")) {
+                    components.hour = hours
+                }
+            } else if part.contains("m") {
+                if let minutes = Int(part.replacingOccurrences(of: "m", with: "")) {
+                    components.minute = minutes
+                }
+            }
+        }
+
+        return calendar.date(byAdding: components, to: start) ?? start
     }
 }
 
@@ -549,7 +771,8 @@ struct EventBlock: View {
     let hourHeight: CGFloat
     let startHour: Int
     let topOffset: CGFloat
-    
+    var onRecordMeeting: ((BriefingItem) -> Void)? = nil
+
     @State private var isHovered = false
     
     private var duration: CGFloat {
@@ -611,9 +834,543 @@ struct EventBlock: View {
                 .stroke(isHovered ? Color.primary.opacity(0.5) : Color.clear, lineWidth: 1)
         )
         .offset(y: topOffset)
-        .padding(.horizontal, 1)
         .onHover { isHovered = $0 }
         .help(meeting.title + (meeting.subtitle.map { " - \($0)" } ?? ""))
+        .contextMenu {
+            if let onRecordMeeting {
+                Button {
+                    onRecordMeeting(meeting)
+                } label: {
+                    Label("Meeting aufnehmen", systemImage: "mic.fill")
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Meeting Detail Popup
+
+struct MeetingDetailPopup: View {
+    @Binding var isPresented: Bool
+    let meeting: BriefingItem
+    var onStartRecording: (() -> Void)? = nil
+
+    @StateObject private var notesService = MeetingNotesService.shared
+
+    private var meetingNotes: String? {
+        notesService.getNotes(for: meeting)
+    }
+
+    var body: some View {
+        ZStack {
+            // Backdrop
+            Color.tuiOverlayBackdrop
+                .ignoresSafeArea()
+                .onTapGesture {
+                    isPresented = false
+                }
+
+            // Popup
+            VStack(spacing: 0) {
+                // Header
+                popupHeader
+
+                // Content
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Spacing.lg) {
+                        // Title
+                        Text(meeting.title)
+                            .font(.tuiMono)
+                            .fontWeight(.medium)
+
+                        // Meta info grid
+                        VStack(alignment: .leading, spacing: Spacing.sm) {
+                            if let subtitle = meeting.subtitle {
+                                metaRow(label: "Zeit", value: subtitle)
+                            }
+
+                            if let duration = meeting.metadata["duration"] {
+                                metaRow(label: "Dauer", value: duration)
+                            }
+
+                            if let location = meeting.metadata["location"], !location.isEmpty {
+                                metaRow(label: "Ort", value: location)
+                            }
+
+                            if let organizer = meeting.metadata["organizer"], !organizer.isEmpty {
+                                metaRow(label: "Von", value: organizer)
+                            }
+                        }
+
+                        // Attendees
+                        if let attendees = meeting.metadata["attendees"], !attendees.isEmpty {
+                            VStack(alignment: .leading, spacing: Spacing.xs) {
+                                Text("TEILNEHMER")
+                                    .font(.tuiMonoTiny)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.tertiary)
+
+                                Text(attendees)
+                                    .font(.tuiMonoTiny)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(4)
+                            }
+                        }
+
+                        // Description
+                        if let body = meeting.body, !body.isEmpty {
+                            VStack(alignment: .leading, spacing: Spacing.xs) {
+                                Text("BESCHREIBUNG")
+                                    .font(.tuiMonoTiny)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.tertiary)
+
+                                Text(body)
+                                    .font(.tuiMonoTiny)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(6)
+                            }
+                        }
+
+                        // Notes section
+                        if let notes = meetingNotes, !notes.isEmpty {
+                            VStack(alignment: .leading, spacing: Spacing.xs) {
+                                Text("NOTIZEN")
+                                    .font(.tuiMonoTiny)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.tertiary)
+
+                                Text(notes)
+                                    .font(.tuiMonoTiny)
+                                    .foregroundStyle(.secondary)
+                                    .lineSpacing(2)
+                                    .textSelection(.enabled)
+                            }
+                            .padding(Spacing.sm)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.tuiHover)
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 3)
+                                    .stroke(Color.tuiBorder, lineWidth: 1)
+                            )
+                        }
+                    }
+                    .padding(Spacing.md)
+                }
+
+                // Footer with actions
+                popupFooter
+            }
+            .frame(maxWidth: 420, maxHeight: 480)
+            .background(Color.tuiPanel)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.tuiBorder, lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
+        }
+        .onKeyPress(.escape) {
+            isPresented = false
+            return .handled
+        }
+    }
+
+    private var popupHeader: some View {
+        HStack {
+            Text("TERMIN")
+                .font(.tuiMonoTiny)
+                .fontWeight(.bold)
+                .foregroundStyle(.tertiary)
+
+            Spacer()
+
+            KeyBadge(key: "ESC")
+        }
+        .padding(Spacing.md)
+        .background(Color.tuiBackground)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.tuiBorder)
+                .frame(height: 1)
+        }
+    }
+
+    private var popupFooter: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color.tuiBorder)
+                .frame(height: 1)
+
+            HStack(spacing: Spacing.sm) {
+                // Meeting Link Button
+                if let meetingLink = meeting.metadata["meetingLink"],
+                   let url = URL(string: meetingLink) {
+                    Button {
+                        NSWorkspace.shared.open(url)
+                    } label: {
+                        Text("Beitreten")
+                    }
+                    .buttonStyle(.tuiPrimary)
+                }
+
+                // Record Button
+                if let onStartRecording {
+                    Button {
+                        onStartRecording()
+                    } label: {
+                        Text("Aufnehmen")
+                    }
+                    .buttonStyle(.tui)
+                }
+
+                // Open in Calendar
+                if let deepLink = meeting.deepLink {
+                    Button {
+                        NSWorkspace.shared.open(deepLink)
+                    } label: {
+                        Text("Kalender")
+                    }
+                    .buttonStyle(.tui)
+                }
+
+                Spacer()
+
+                Button {
+                    isPresented = false
+                } label: {
+                    Text("Schließen")
+                }
+                .buttonStyle(.tuiGhost)
+            }
+            .padding(Spacing.md)
+            .background(Color.tuiBackground)
+        }
+    }
+
+    private func metaRow(label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: Spacing.md) {
+            Text(label)
+                .font(.tuiMonoTiny)
+                .foregroundStyle(.tertiary)
+                .frame(width: 50, alignment: .trailing)
+
+            Text(value)
+                .font(.tuiMonoSmall)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - Meeting Recording Popup
+
+struct MeetingRecordingPopup: View {
+    @Binding var isPresented: Bool
+    let meeting: BriefingItem
+    @StateObject private var recordingService = AudioRecordingService.shared
+    @StateObject private var transcriptionService = TranscriptionService.shared
+    @StateObject private var notesService = MeetingNotesService.shared
+    @State private var isRecording = false
+    @State private var isTranscribing = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+    @State private var recordingNotes = ""
+
+    var body: some View {
+        ZStack {
+            // Backdrop
+            Color.tuiOverlayBackdrop
+                .ignoresSafeArea()
+                .onTapGesture {
+                    if !isRecording && !isTranscribing {
+                        isPresented = false
+                    }
+                }
+
+            // Popup
+            VStack(spacing: 0) {
+                // Header
+                popupHeader
+
+                // Meeting Info
+                meetingInfoSection
+
+                Rectangle()
+                    .fill(Color.tuiBorder)
+                    .frame(height: 1)
+
+                // Recording Controls
+                VStack(spacing: Spacing.md) {
+                    if isRecording {
+                        recordingInProgressView
+                    } else if isTranscribing {
+                        transcribingView
+                    } else {
+                        readyToRecordView
+                    }
+
+                    // Notes section
+                    if isRecording || !recordingNotes.isEmpty {
+                        notesSection
+                    }
+                }
+                .padding(Spacing.md)
+
+                // Footer
+                if !isRecording && !isTranscribing {
+                    popupFooter
+                }
+            }
+            .frame(width: 380)
+            .background(Color.tuiPanel)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.tuiBorder, lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
+        }
+        .onKeyPress(.escape) {
+            if !isRecording && !isTranscribing {
+                isPresented = false
+            }
+            return .handled
+        }
+        .task {
+            guard recordingService.isPermissionUndetermined() else { return }
+            _ = await recordingService.requestPermission()
+        }
+        .alert("Fehler", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage)
+        }
+    }
+
+    private var popupHeader: some View {
+        HStack {
+            Text("AUFNAHME")
+                .font(.tuiMonoTiny)
+                .fontWeight(.bold)
+                .foregroundStyle(.tertiary)
+
+            Spacer()
+
+            if !isRecording && !isTranscribing {
+                KeyBadge(key: "ESC")
+            }
+        }
+        .padding(Spacing.md)
+        .background(Color.tuiBackground)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.tuiBorder)
+                .frame(height: 1)
+        }
+    }
+
+    private var meetingInfoSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            Text(meeting.title)
+                .font(.tuiMonoSmall)
+                .fontWeight(.medium)
+                .lineLimit(2)
+
+            if let subtitle = meeting.subtitle {
+                Text(subtitle)
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.tuiHover)
+    }
+
+    private var popupFooter: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color.tuiBorder)
+                .frame(height: 1)
+
+            HStack {
+                Spacer()
+
+                Button {
+                    isPresented = false
+                } label: {
+                    Text("Abbrechen")
+                }
+                .buttonStyle(.tuiGhost)
+            }
+            .padding(Spacing.md)
+            .background(Color.tuiBackground)
+        }
+    }
+
+    private var recordingInProgressView: some View {
+        VStack(spacing: Spacing.md) {
+            // Recording indicator
+            HStack(spacing: Spacing.sm) {
+                HStack(spacing: Spacing.xs) {
+                    Circle()
+                        .fill(Color.recordingActive)
+                        .frame(width: 8, height: 8)
+                        .opacity(recordingService.isRecording ? 1 : 0.5)
+                        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: recordingService.isRecording)
+
+                    Text("REC")
+                        .font(.tuiMonoTiny)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.recordingActive)
+
+                    Text(recordingService.formattedDuration())
+                        .font(.tuiMonoSmall)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+
+                Spacer()
+
+                Button {
+                    stopRecording()
+                } label: {
+                    Text("Beenden")
+                }
+                .buttonStyle(.tuiPrimary)
+            }
+
+            // Audio level indicator
+            GeometryReader { geo in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.tuiHover)
+                    .overlay(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.recordingActive.opacity(0.6))
+                            .frame(width: geo.size.width * CGFloat(recordingService.audioLevel))
+                    }
+            }
+            .frame(height: 4)
+        }
+    }
+
+    private var transcribingView: some View {
+        VStack(spacing: Spacing.sm) {
+            HStack(spacing: Spacing.sm) {
+                ProgressView()
+                    .scaleEffect(0.7)
+                    .tint(.secondary)
+
+                Text("Transkribiere...")
+                    .font(.tuiMonoSmall)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+            }
+
+            Text("Aufnahme wird verarbeitet")
+                .font(.tuiMonoTiny)
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var readyToRecordView: some View {
+        VStack(spacing: Spacing.sm) {
+            HStack {
+                Button {
+                    startRecording()
+                } label: {
+                    Text("Aufnahme starten")
+                }
+                .buttonStyle(.tuiPrimary)
+                .disabled(!recordingService.hasPermission)
+
+                Spacer()
+            }
+
+            if !recordingService.hasPermission {
+                Text("Mikrofon-Berechtigung erforderlich")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text("Bereit")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private var notesSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            Text("NOTIZEN")
+                .font(.tuiMonoTiny)
+                .fontWeight(.bold)
+                .foregroundStyle(.tertiary)
+
+            TextField("Notizen hinzufügen...", text: $recordingNotes, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.tuiMonoTiny)
+                .padding(Spacing.sm)
+                .background(Color.tuiHover)
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 3)
+                        .stroke(Color.tuiBorder, lineWidth: 1)
+                )
+                .frame(minHeight: 60)
+        }
+    }
+
+    private func startRecording() {
+        Task {
+            do {
+                _ = try await recordingService.startRecording()
+                isRecording = true
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+
+    private func stopRecording() {
+        guard let audioURL = recordingService.stopRecording() else {
+            return
+        }
+
+        isRecording = false
+        isTranscribing = true
+
+        Task {
+            do {
+                let transcription = try await transcriptionService.transcribe(audioURL: audioURL)
+
+                // Save meeting notes linked to this calendar event
+                let meetingId = notesService.meetingId(for: meeting)
+                let fullNotes = recordingNotes.isEmpty
+                    ? transcription
+                    : "\(recordingNotes)\n\n---\n\n\(transcription)"
+                notesService.saveNotes(meetingId: meetingId, notes: fullNotes)
+
+                // Clean up audio file
+                try? FileManager.default.removeItem(at: audioURL)
+
+                isTranscribing = false
+                isPresented = false
+
+            } catch {
+                errorMessage = "Transkription fehlgeschlagen: \(error.localizedDescription)"
+                showError = true
+                isTranscribing = false
+
+                // Clean up audio file on error
+                try? FileManager.default.removeItem(at: audioURL)
+            }
+        }
     }
 }
 
@@ -628,81 +1385,26 @@ struct AdHocRecordingSection: View {
     @State private var didRequestPermission = false
     @State private var showError = false
     @State private var errorMessage = ""
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(spacing: Spacing.xs) {
-                Text("🎤")
-                    .font(.tuiMonoSmall)
-                Text("Neue Aufnahme")
-                    .font(.tuiMonoSmall)
-                    .fontWeight(.medium)
-            }
-            
+            // Header
+            Text("NEUE AUFNAHME")
+                .font(.tuiMonoTiny)
+                .fontWeight(.bold)
+                .foregroundStyle(.tertiary)
+
             if isRecording {
-                // Recording in progress
-                HStack(spacing: Spacing.sm) {
-                    // Recording indicator
-                    HStack(spacing: Spacing.xs) {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 8, height: 8)
-                            .opacity(recordingService.isRecording ? 1 : 0.5)
-                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: recordingService.isRecording)
-                        
-                        Text(recordingService.formattedDuration())
-                            .font(.tuiMonoSmall)
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    // Stop button
-                    Button {
-                        stopRecording()
-                    } label: {
-                        HStack(spacing: Spacing.xs) {
-                            Text("⏹")
-                            Text("Aufnahme beenden")
-                                .font(.tuiMonoTiny)
-                        }
-                    }
-                    .buttonStyle(.tuiPrimary)
-                }
+                recordingView
             } else if isTranscribing {
-                // Transcribing
-                HStack(spacing: Spacing.xs) {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                    Text("Transkribiere...")
-                        .font(.tuiMonoTiny)
-                        .foregroundStyle(.secondary)
-                }
+                transcribingView
             } else {
-                // Start recording button
-                HStack {
-                    Button {
-                        startRecording()
-                    } label: {
-                        HStack(spacing: Spacing.xs) {
-                            Text("🔴")
-                            Text("Aufnahme starten")
-                        }
-                    }
-                    .buttonStyle(.tuiPrimary)
-                    .disabled(!recordingService.hasPermission)
-                    
-                    if !recordingService.hasPermission {
-                        Text("Mikrofon-Berechtigung erforderlich")
-                            .font(.tuiMonoTiny)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
+                readyView
             }
         }
         .padding(Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tuiHover.opacity(0.3))
+        .background(Color.tuiHover)
         .task {
             guard !didRequestPermission, recordingService.isPermissionUndetermined() else { return }
             didRequestPermission = true
@@ -714,7 +1416,67 @@ struct AdHocRecordingSection: View {
             Text(errorMessage)
         }
     }
-    
+
+    private var recordingView: some View {
+        HStack(spacing: Spacing.sm) {
+            HStack(spacing: Spacing.xs) {
+                Circle()
+                    .fill(Color.recordingActive)
+                    .frame(width: 8, height: 8)
+                    .opacity(recordingService.isRecording ? 1 : 0.5)
+                    .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: recordingService.isRecording)
+
+                Text("REC")
+                    .font(.tuiMonoTiny)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.recordingActive)
+
+                Text(recordingService.formattedDuration())
+                    .font(.tuiMonoSmall)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+
+            Spacer()
+
+            Button {
+                stopRecording()
+            } label: {
+                Text("Beenden")
+            }
+            .buttonStyle(.tuiPrimary)
+        }
+    }
+
+    private var transcribingView: some View {
+        HStack(spacing: Spacing.sm) {
+            ProgressView()
+                .scaleEffect(0.7)
+                .tint(.secondary)
+            Text("Transkribiere...")
+                .font(.tuiMonoSmall)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var readyView: some View {
+        HStack {
+            Button {
+                startRecording()
+            } label: {
+                Text("Aufnahme starten")
+            }
+            .buttonStyle(.tuiPrimary)
+            .disabled(!recordingService.hasPermission)
+
+            if !recordingService.hasPermission {
+                Text("Mikrofon-Berechtigung erforderlich")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
     private func startRecording() {
         Task {
             do {
@@ -726,32 +1488,25 @@ struct AdHocRecordingSection: View {
             }
         }
     }
-    
+
     private func stopRecording() {
         guard let audioURL = recordingService.stopRecording() else {
             return
         }
-        
+
         isRecording = false
         isTranscribing = true
-        
+
         Task {
             do {
                 let transcription = try await transcriptionService.transcribe(audioURL: audioURL)
-                
-                // Create ad-hoc meeting with the transcription
                 notesService.createAdHocMeeting(notes: transcription)
-                
-                // Clean up audio file
                 try? FileManager.default.removeItem(at: audioURL)
-                
                 isTranscribing = false
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true
                 isTranscribing = false
-                
-                // Clean up audio file on error
                 try? FileManager.default.removeItem(at: audioURL)
             }
         }
@@ -762,33 +1517,43 @@ struct AdHocRecordingSection: View {
 
 struct AdHocMeetingsSection: View {
     @StateObject private var notesService = MeetingNotesService.shared
-    
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("AUFNAHMEN")
-                    .font(.tuiMonoTiny)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.quaternary)
-                
-                Spacer()
-                
-                Text("\(notesService.adHocMeetings.count)")
-                    .font(.tuiMonoTiny)
-                    .foregroundStyle(.quaternary)
-            }
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-            .background(Color.tuiHover.opacity(0.3))
-            
-            // Meetings list
-            ForEach(notesService.adHocMeetings) { meeting in
-                AdHocMeetingRow(meeting: meeting)
-                
+        if !notesService.adHocMeetings.isEmpty {
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text("AUFNAHMEN")
+                        .font(.tuiMonoTiny)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.tertiary)
+
+                    Spacer()
+
+                    Text("\(notesService.adHocMeetings.count)")
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.quaternary)
+                        .padding(.horizontal, Spacing.xs)
+                        .padding(.vertical, 2)
+                        .background(Color.tuiHover)
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                }
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
+                .background(Color.tuiBackground)
+
                 Rectangle()
-                    .fill(Color.tuiBorder.opacity(0.5))
+                    .fill(Color.tuiBorder)
                     .frame(height: 1)
+
+                // Meetings list
+                ForEach(notesService.adHocMeetings) { meeting in
+                    AdHocMeetingRow(meeting: meeting)
+
+                    Rectangle()
+                        .fill(Color.tuiBorder)
+                        .frame(height: 1)
+                }
             }
         }
     }
@@ -803,7 +1568,7 @@ struct AdHocMeetingRow: View {
     @State private var isEditing = false
     @State private var editedTitle: String = ""
     @StateObject private var notesService = MeetingNotesService.shared
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Main row
@@ -814,41 +1579,38 @@ struct AdHocMeetingRow: View {
             } label: {
                 HStack(spacing: Spacing.sm) {
                     // Time indicator
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: 2) {
                         Text(timeString(from: meeting.createdAt))
                             .font(.tuiMonoTiny)
                             .foregroundStyle(.secondary)
-                        
+
                         Text(dateString(from: meeting.createdAt))
                             .font(.tuiMonoTiny)
                             .foregroundStyle(.quaternary)
                     }
-                    .frame(width: 60)
-                    
+                    .frame(width: 55)
+
                     // Content
                     VStack(alignment: .leading, spacing: 2) {
                         Text(meeting.title)
                             .font(.tuiMonoSmall)
                             .foregroundStyle(.primary)
                             .lineLimit(1)
-                        
-                        Text(String(meeting.notes.prefix(50)) + "...")
-                            .font(.tuiMonoTiny)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
+
+                        if !meeting.notes.isEmpty {
+                            Text(String(meeting.notes.prefix(60)))
+                                .font(.tuiMonoTiny)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
                     }
-                    
+
                     Spacer()
-                    
-                    // Indicators
-                    HStack(spacing: Spacing.xs) {
-                        Text("📝")
-                            .font(.tuiMonoTiny)
-                        
-                        Text(isExpanded ? "▼" : "▶")
-                            .font(.tuiMonoTiny)
-                            .foregroundStyle(.quaternary)
-                    }
+
+                    // Expand indicator
+                    Text(isExpanded ? "−" : "+")
+                        .font(.tuiMonoSmall)
+                        .foregroundStyle(.quaternary)
                 }
                 .padding(.horizontal, Spacing.md)
                 .padding(.vertical, Spacing.sm)
@@ -856,7 +1618,7 @@ struct AdHocMeetingRow: View {
             }
             .buttonStyle(.plain)
             .onHover { isHovered = $0 }
-            
+
             // Expanded details
             if isExpanded {
                 expandedDetails
@@ -867,107 +1629,94 @@ struct AdHocMeetingRow: View {
             }
         }
     }
-    
+
     private var expandedDetails: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: Spacing.md) {
             // Title editing
             if isEditing {
-                HStack {
+                HStack(spacing: Spacing.sm) {
                     TextField("Titel", text: $editedTitle)
                         .textFieldStyle(.plain)
                         .font(.tuiMonoSmall)
-                        .padding(Spacing.xs)
+                        .padding(Spacing.sm)
                         .background(Color.tuiBackground)
-                        .cornerRadius(4)
-                    
-                    Button("Speichern") {
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 3)
+                                .stroke(Color.tuiBorder, lineWidth: 1)
+                        )
+
+                    Button("OK") {
                         notesService.updateAdHocMeeting(id: meeting.id, title: editedTitle)
                         isEditing = false
                     }
-                    .buttonStyle(.tui)
-                    
+                    .buttonStyle(.tuiPrimary)
+
                     Button("Abbrechen") {
                         isEditing = false
                     }
-                    .buttonStyle(.tui)
+                    .buttonStyle(.tuiGhost)
                 }
             }
-            
+
             // Notes
             VStack(alignment: .leading, spacing: Spacing.xs) {
-                HStack(spacing: Spacing.xs) {
-                    Text("📝")
-                        .font(.tuiMonoTiny)
-                    Text("Notizen")
-                        .font(.tuiMonoTiny)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
-                }
-                
+                Text("TRANSKRIPTION")
+                    .font(.tuiMonoTiny)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.tertiary)
+
                 Text(meeting.notes)
                     .font(.tuiMonoTiny)
-                    .foregroundStyle(.tertiary)
-                    .lineSpacing(2)
+                    .foregroundStyle(.secondary)
+                    .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
             }
-            
-            Divider()
-                .padding(.vertical, Spacing.xs)
-            
+
             // Action buttons
             HStack(spacing: Spacing.sm) {
                 Button {
                     editedTitle = meeting.title
                     isEditing = true
                 } label: {
-                    HStack(spacing: Spacing.xs) {
-                        Text("✏️")
-                        Text("Umbenennen")
-                            .font(.tuiMonoTiny)
-                    }
+                    Text("Umbenennen")
                 }
                 .buttonStyle(.tui)
-                
+
                 Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(meeting.notes, forType: .string)
                 } label: {
-                    HStack(spacing: Spacing.xs) {
-                        Text("📋")
-                        Text("Kopieren")
-                            .font(.tuiMonoTiny)
-                    }
+                    Text("Kopieren")
                 }
                 .buttonStyle(.tui)
-                
+
                 Spacer()
-                
+
                 Button {
-                    notesService.deleteAdHocMeeting(id: meeting.id)
-                } label: {
-                    HStack(spacing: Spacing.xs) {
-                        Text("🗑")
-                        Text("Löschen")
-                            .font(.tuiMonoTiny)
+                    withAnimation(.tuiSnappy) {
+                        notesService.deleteAdHocMeeting(id: meeting.id)
                     }
+                } label: {
+                    Text("Löschen")
+                        .foregroundStyle(Color.recordingActive)
                 }
-                .buttonStyle(.tui)
+                .buttonStyle(.tuiGhost)
             }
         }
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.sm)
+        .padding(Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tuiHover.opacity(0.5))
+        .background(Color.tuiHover)
     }
-    
+
     private func timeString(from date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "de_DE")
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
     }
-    
+
     private func dateString(from date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "de_DE")
@@ -980,11 +1729,14 @@ struct AdHocMeetingRow: View {
 
 struct MeetingRow: View {
     let item: BriefingItem
+    var onTap: ((BriefingItem) -> Void)? = nil
     @State private var isHovered = false
-    
+
     var body: some View {
         Button {
-            if let meetingLink = item.metadata["meetingLink"],
+            if let onTap {
+                onTap(item)
+            } else if let meetingLink = item.metadata["meetingLink"],
                let url = URL(string: meetingLink) {
                 NSWorkspace.shared.open(url)
             } else if let deepLink = item.deepLink {

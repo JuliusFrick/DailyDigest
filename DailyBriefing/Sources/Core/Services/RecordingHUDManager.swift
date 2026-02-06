@@ -4,8 +4,11 @@ import Combine
 
 /// Manager for the floating recording HUD window
 @MainActor
-final class RecordingHUDManager: NSObject {
+final class RecordingHUDManager: NSObject, ObservableObject {
     static let shared = RecordingHUDManager()
+    
+    @Published var isReviewing = false
+    private var tempRecordingURL: URL?
     
     private var hudWindow: NSPanel?
     private var cancellables = Set<AnyCancellable>()
@@ -20,13 +23,60 @@ final class RecordingHUDManager: NSObject {
         AudioRecordingService.shared.$isRecording
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isRecording in
+                guard let self = self else { return }
                 if isRecording {
-                    self?.showHUD()
-                } else {
-                    self?.hideHUD()
+                    self.showHUD()
+                } else if !self.isReviewing {
+                    // Only hide if not reviewing
+                    self.hideHUD()
                 }
             }
             .store(in: &cancellables)
+            
+        // Monitor review state to hide HUD when finished
+        $isReviewing
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isReviewing in
+                guard let self = self else { return }
+                if !isReviewing && !AudioRecordingService.shared.isRecording {
+                    self.hideHUD()
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
+    func startReview(url: URL) {
+        self.tempRecordingURL = url
+        self.isReviewing = true
+        // Ensure HUD stays visible
+        showHUD()
+    }
+    
+    func confirmReview() {
+        guard let url = tempRecordingURL else {
+            discardReview()
+            return
+        }
+        
+        NotificationCenter.default.post(
+            name: .recordingConfirmed,
+            object: nil,
+            userInfo: ["url": url]
+        )
+        
+        finishReview()
+    }
+    
+    func discardReview() {
+        if let url = tempRecordingURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+        finishReview()
+    }
+    
+    private func finishReview() {
+        tempRecordingURL = nil
+        isReviewing = false
     }
     
     func showHUD() {
@@ -36,7 +86,7 @@ final class RecordingHUDManager: NSObject {
             .environmentObject(AudioRecordingService.shared)
         
         let hostingView = NSHostingView(rootView: contentView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 220, height: 40)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 100, height: 150)
         
         let panel = NSPanel(
             contentRect: hostingView.frame,
@@ -61,7 +111,7 @@ final class RecordingHUDManager: NSObject {
         if let screen = NSScreen.main {
             let screenFrame = screen.visibleFrame
             let x = screenFrame.maxX - hostingView.frame.width - 20
-            let y = screenFrame.minY + 20
+            let y = screenFrame.minY + 150
             panel.setFrameOrigin(NSPoint(x: x, y: y))
         }
         
@@ -78,4 +128,5 @@ final class RecordingHUDManager: NSObject {
 // Extension for stop notification
 extension Notification.Name {
     static let stopRecordingFromHUD = Notification.Name("stopRecordingFromHUD")
+    static let recordingConfirmed = Notification.Name("recordingConfirmed")
 }

@@ -292,19 +292,18 @@ final class BriefingGenerationService: ObservableObject {
     /// Build the system prompt for the LLM
     private func buildSystemPrompt(detailLevel: Briefing.DetailLevel) -> String {
         let lengthGuidance = detailLevel == .quick
-            ? "Die Zusammenfassung sollte kurz und prägnant sein (2-3 Absätze)."
+            ? "Das Briefing MUSS extrem kurz und prägnant sein. Verwende maximal 3-5 kurze Sätze oder Stichpunkte. Vermeide jeglichen Fülltext oder Einleitungen. Komm sofort zum Punkt."
             : "Die Zusammenfassung sollte ausführlich sein und alle wichtigen Details enthalten (5-7 Absätze)."
 
         return """
-        Du bist ein persönlicher Assistent, der ein tägliches Briefing erstellt. \
-        Fasse die folgenden Informationen aus verschiedenen Quellen zu einer \
-        natürlich klingenden Zusammenfassung zusammen.
+        Du bist ein hocheffizienter persönlicher Assistent. Deine Aufgabe ist es, ein präzises tägliches Briefing zu erstellen.
+        Fasse die Informationen aus den Quellen so zusammen, dass der Benutzer in kürzester Zeit den Überblick erhält.
 
         \(lengthGuidance)
 
-        Beginne mit den wichtigsten und dringendsten Punkten. \
-        Verwende einen freundlichen, aber professionellen Ton. \
-        Antworte auf Deutsch.
+        Reihenfolge: Wichtigstes/Dringendstes zuerst.
+        Sprache: Deutsch.
+        Tonfall: Direkt, professionell, effizient.
         """
     }
 }

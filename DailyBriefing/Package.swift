@@ -24,7 +24,8 @@ let package = Package(
             ],
             path: "Sources",
             resources: [
-                .process("Resources")
+                .process("Resources"),
+                .process("UI/Shaders")
             ]
         )
     ]

@@ -82,7 +82,7 @@ final class AppleCalendarSource: BriefingSource, ObservableObject {
     private func checkCalendarAccess() {
         let status = EKEventStore.authorizationStatus(for: .event)
         switch status {
-        case .fullAccess, .authorized, .writeOnly:
+        case .fullAccess, .authorized:
             isAuthenticated = true
             connectionStatus = .connected
             Task {
@@ -126,7 +126,7 @@ final class AppleCalendarSource: BriefingSource, ObservableObject {
         }
     }
     
-    private func fetchEvents(from startDate: Date, to endDate: Date) async throws -> [BriefingItem] {
+    func fetchEvents(from startDate: Date, to endDate: Date) async throws -> [BriefingItem] {
         isLoading = true
         defer { isLoading = false }
         

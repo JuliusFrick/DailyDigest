@@ -30,6 +30,7 @@ struct DailyBriefingApp: App {
                 }
                 .onAppear {
                     AppIconService.shared.start()
+                    MeetingPresenceService.shared.startMonitoring()
                     setupMenuBarIcon()
                     setupNotificationHandling()
                     requestNotificationPermissionIfNeeded()

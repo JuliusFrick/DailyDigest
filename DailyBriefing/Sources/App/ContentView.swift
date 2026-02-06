@@ -16,14 +16,13 @@ struct ContentView: View {
 }
 
 struct MainView: View {
-    @EnvironmentObject private var appState: AppState
     @State private var showSettings = false
     @State private var showSources = false
-    @State private var showHistory = false
-    @State private var showMeetings = false
+    @State private var selectedDashboardTab: TUIDashboardView.DashboardTab = .briefing
 
     var body: some View {
         ZStack {
+            // Simple dark background
             Color.tuiBackground
                 .ignoresSafeArea()
 
@@ -32,12 +31,11 @@ struct MainView: View {
                 TopBar(
                     showSettings: $showSettings,
                     showSources: $showSources,
-                    showHistory: $showHistory,
-                    showMeetings: $showMeetings
+                    selectedTab: $selectedDashboardTab
                 )
 
                 // Main content
-                TUIDashboardView()
+                TUIDashboardView(selectedTab: $selectedDashboardTab)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 // Bottom status bar
@@ -74,36 +72,13 @@ struct MainView: View {
                 ))
             }
 
-            if showHistory {
-                ModalOverlay(isPresented: $showHistory, title: "History") {
-                    TUIHistoryView()
-                }
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
-                    removal: .opacity.combined(with: .scale(scale: 0.98))
-                ))
-            }
-
-            if showMeetings {
-                ModalOverlay(isPresented: $showMeetings, title: "Meetings") {
-                    MeetingsView()
-                }
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
-                    removal: .opacity.combined(with: .scale(scale: 0.98))
-                ))
-            }
         }
         .animation(.tuiSnappy, value: showSettings)
         .animation(.tuiSnappy, value: showSources)
-        .animation(.tuiSnappy, value: showHistory)
-        .animation(.tuiSnappy, value: showMeetings)
         .onKeyPress(.escape) {
-            if showSettings || showSources || showHistory || showMeetings {
+            if showSettings || showSources {
                 showSettings = false
                 showSources = false
-                showHistory = false
-                showMeetings = false
                 return .handled
             }
             return .ignored
@@ -111,8 +86,7 @@ struct MainView: View {
         .modifier(ContentViewKeyboardModifier(
             showSettings: $showSettings,
             showSources: $showSources,
-            showHistory: $showHistory,
-            showMeetings: $showMeetings
+            selectedTab: $selectedDashboardTab
         ))
     }
 }
@@ -122,8 +96,7 @@ struct MainView: View {
 struct TopBar: View {
     @Binding var showSettings: Bool
     @Binding var showSources: Bool
-    @Binding var showHistory: Bool
-    @Binding var showMeetings: Bool
+    @Binding var selectedTab: TUIDashboardView.DashboardTab
 
     var body: some View {
         HStack(spacing: 0) {
@@ -137,26 +110,34 @@ struct TopBar: View {
 
             // Nav items
             HStack(spacing: 2) {
-                NavButton(label: "1", title: "Home", isActive: !showHistory && !showSources && !showSettings && !showMeetings) {
-                    showHistory = false; showSources = false; showSettings = false; showMeetings = false
+                NavButton(label: "1", title: "Home", isActive: selectedTab == .briefing && !showSources && !showSettings) {
+                    selectedTab = .briefing
+                    showSources = false
+                    showSettings = false
                 }
-                NavButton(label: "2", title: "History", isActive: showHistory) {
-                    showHistory.toggle(); showSources = false; showSettings = false; showMeetings = false
+                NavButton(label: "2", title: "History", isActive: selectedTab == .history && !showSources && !showSettings) {
+                    selectedTab = .history
+                    showSources = false
+                    showSettings = false
                 }
                 NavButton(label: "3", title: "Sources", isActive: showSources) {
-                    showSources.toggle(); showHistory = false; showSettings = false; showMeetings = false
+                    showSources.toggle()
+                    showSettings = false
                 }
-                NavButton(label: "4", title: "Meetings", isActive: showMeetings) {
-                    showMeetings.toggle(); showHistory = false; showSources = false; showSettings = false
+                NavButton(label: "4", title: "Meetings", isActive: selectedTab == .calendar && !showSources && !showSettings) {
+                    selectedTab = .calendar
+                    showSources = false
+                    showSettings = false
                 }
                 NavButton(label: ",", title: "Settings", isActive: showSettings) {
-                    showSettings.toggle(); showHistory = false; showSources = false; showMeetings = false
+                    showSettings.toggle()
+                    showSources = false
                 }
             }
         }
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.sm)
-        .background(Color.tuiBackground)
+        .background(Color.tuiBackground.opacity(0.9))
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(Color.tuiBorder)
@@ -186,13 +167,15 @@ struct NavButton: View {
             .padding(.horizontal, Spacing.sm)
             .padding(.vertical, Spacing.xs)
             .background(
-                RoundedRectangle(cornerRadius: 2)
+                RoundedRectangle(cornerRadius: 3)
                     .fill(isActive ? Color.tuiHighlight : (isHovered ? Color.tuiHover : Color.clear))
             )
             .foregroundStyle(isActive ? .primary : .secondary)
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+        .animation(.tuiFast, value: isActive)
+        .animation(.tuiFast, value: isHovered)
     }
 }
 
@@ -213,7 +196,7 @@ struct StatusBar: View {
                     .font(.system(.caption2, design: .monospaced))
                     .foregroundStyle(.tertiary)
             }
-            
+
             // Connected sources indicator
             HStack(spacing: 4) {
                 Circle()
@@ -234,7 +217,7 @@ struct StatusBar: View {
                         KeyHint(key: "⌘.", action: "stop")
                     }
                 }
-                
+
                 KeyHint(key: "⌘R", action: "refresh")
                 KeyHint(key: "⌘⇧Q", action: "quick")
                 KeyHint(key: "⌘⇧D", action: "detail")
@@ -243,7 +226,7 @@ struct StatusBar: View {
         }
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.xs)
-        .background(Color.tuiBackground)
+        .background(Color.tuiBackground.opacity(0.9))
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(Color.tuiBorder)
@@ -255,7 +238,7 @@ struct StatusBar: View {
 struct KeyHint: View {
     let key: String
     let action: String
-    
+
     var body: some View {
         Text("\(key) \(action)")
             .font(.system(.caption2, design: .monospaced))
@@ -268,39 +251,44 @@ struct KeyHint: View {
 struct ContentViewKeyboardModifier: ViewModifier {
     @Binding var showSettings: Bool
     @Binding var showSources: Bool
-    @Binding var showHistory: Bool
-    @Binding var showMeetings: Bool
+    @Binding var selectedTab: TUIDashboardView.DashboardTab
 
     func body(content: Content) -> some View {
         content
             .onKeyPress("w", modifiers: .command) {
-                if showSettings || showSources || showHistory || showMeetings {
+                if showSettings || showSources {
                     showSettings = false
                     showSources = false
-                    showHistory = false
-                    showMeetings = false
                     return .handled
                 }
                 return .ignored
             }
             .onKeyPress("1", modifiers: .command) {
-                showHistory = false; showSources = false; showSettings = false; showMeetings = false
+                selectedTab = .briefing
+                showSources = false
+                showSettings = false
                 return .handled
             }
             .onKeyPress("2", modifiers: .command) {
-                showHistory.toggle(); showSources = false; showSettings = false; showMeetings = false
+                selectedTab = .history
+                showSources = false
+                showSettings = false
                 return .handled
             }
             .onKeyPress("3", modifiers: .command) {
-                showSources.toggle(); showHistory = false; showSettings = false; showMeetings = false
+                showSources.toggle()
+                showSettings = false
                 return .handled
             }
             .onKeyPress("4", modifiers: .command) {
-                showMeetings.toggle(); showHistory = false; showSources = false; showSettings = false
+                selectedTab = .calendar
+                showSources = false
+                showSettings = false
                 return .handled
             }
             .onKeyPress(",", modifiers: .command) {
-                showSettings.toggle(); showHistory = false; showSources = false; showMeetings = false
+                showSettings.toggle()
+                showSources = false
                 return .handled
             }
     }
@@ -316,8 +304,8 @@ struct ModalOverlay<Content: View>: View {
 
     var body: some View {
         ZStack {
-            // Backdrop
-            Color.black.opacity(0.4)
+            // Semi-transparent backdrop - adapts to appearance
+            Color.tuiOverlayBackdrop
                 .ignoresSafeArea()
                 .onTapGesture {
                     isPresented = false
@@ -358,12 +346,12 @@ struct ModalOverlay<Content: View>: View {
             }
             .frame(maxWidth: 600, maxHeight: 500)
             .background(Color.tuiBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: 6)
                     .stroke(Color.tuiBorder, lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.3), radius: 20, y: 10)
+            .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
         }
     }
 }

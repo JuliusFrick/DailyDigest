@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - QuickActionGrid
+
 struct QuickActionGrid: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
@@ -70,7 +72,7 @@ struct QuickActionGrid: View {
                 dismiss()
             }
         }
-        .padding(.horizontal)
+        .padding(.horizontal, Spacing.md)
         .alert("Mikrofon-Zugriff erforderlich", isPresented: $showPermissionAlert) {
             Button("Einstellungen öffnen", role: .none) {
                 recordingService.openMicrophoneSettings()
@@ -113,25 +115,25 @@ private struct CommandButton: View {
                     .foregroundStyle(isDisabled ? .gray : color)
                 
                 Text(title)
-                    .font(.system(.caption, design: .rounded))
+                    .font(.system(.caption, design: .monospaced))
                     .fontWeight(.medium)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .padding(.vertical, Spacing.md)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(isHovered ? Color.primary.opacity(0.05) : Color.primary.opacity(0.02))
+                    .fill(isHovered ? Color.tuiHover : Color.clear)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                    .stroke(Color.tuiBorder, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
         .onHover { isHovered = $0 }
         .scaleEffect(isHovered && !isDisabled ? 1.02 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+        .animation(.tuiSnappy, value: isHovered)
     }
 }

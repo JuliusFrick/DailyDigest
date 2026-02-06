@@ -4,16 +4,21 @@ import SwiftUI
 
 struct TUIDashboardView: View {
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var settingsStore: UserSettingsStore
     @StateObject private var connectionManager = ServiceConnectionManager.shared
     @State private var selectedDetailLevel: Briefing.DetailLevel = .quick
     @State private var selectedSection: Int = 0
     @State private var showChat: Bool = false
+    @State private var showLeftPanel: Bool = true
     @State private var upcomingMeetings: [BriefingItem] = []
     @State private var isLoadingMeetings: Bool = false
-    @State private var selectedTab: DashboardTab = .briefing
+    @State private var historicalBriefings: [Briefing] = []
+    @State private var isLoadingHistory: Bool = false
+    @Binding var selectedTab: DashboardTab
 
     enum DashboardTab: String, CaseIterable, Identifiable {
         case briefing = "Briefing"
+        case history = "History"
         case calendar = "Kalender"
         
         var id: String { rawValue }
@@ -22,18 +27,33 @@ struct TUIDashboardView: View {
     var body: some View {
         mainContent
             .background(Color.tuiBackground)
+            .onAppear {
+                // Load panel states from user settings
+                showChat = settingsStore.settings.showChatPanel
+                showLeftPanel = settingsStore.settings.showLeftPanel
+            }
+            .onChange(of: showChat) { _, newValue in
+                // Save chat panel state to user settings
+                settingsStore.update { settings in
+                    settings.showChatPanel = newValue
+                }
+            }
+            .onChange(of: showLeftPanel) { _, newValue in
+                // Save left panel state to user settings
+                settingsStore.update { settings in
+                    settings.showLeftPanel = newValue
+                }
+            }
             .modifier(KeyboardHandlersModifier(
                 appState: appState,
                 selectedDetailLevel: $selectedDetailLevel,
                 selectedSection: $selectedSection,
                 selectedTab: $selectedTab
             ))
-            .onKeyPress("c", modifiers: .command) {
-                withAnimation(.tuiSnappy) {
-                    showChat.toggle()
-                }
-                return .handled
-            }
+            .modifier(PanelKeysModifier(
+                showChat: $showChat,
+                showLeftPanel: $showLeftPanel
+            ))
             .task {
                 await loadUpcomingMeetings()
             }
@@ -41,14 +61,23 @@ struct TUIDashboardView: View {
 
     private var mainContent: some View {
         HStack(spacing: 1) {
-            // Left panel - Controls & Summary
-            leftPanel
-                .frame(width: 280)
+            // Left panel - Controls & Summary (collapsable)
+            if showLeftPanel {
+                leftPanel
+                    .frame(width: 280)
+                    .background(Color.tuiPanel.opacity(0.3))
 
-            // Divider
-            Rectangle()
-                .fill(Color.tuiBorder)
-                .frame(width: 1)
+                // Divider
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.secondary.opacity(0.3), Color.primary.opacity(0.1)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: 1)
+            }
 
             // Center panel - Sections
             rightPanel
@@ -57,11 +86,18 @@ struct TUIDashboardView: View {
             // Chat panel (conditional)
             if showChat {
                 Rectangle()
-                    .fill(Color.tuiBorder)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.primary.opacity(0.2), Color.secondary.opacity(0.1)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
                     .frame(width: 1)
 
                 chatPanel
                     .frame(width: 320)
+                    .background(Color.tuiPanel.opacity(0.3))
                     .transition(.asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .trailing).combined(with: .opacity)
@@ -122,12 +158,12 @@ struct TUIDashboardView: View {
                     .font(.tuiMonoSmall)
                     .fontWeight(.bold)
                     .foregroundStyle(.primary)
-                
+
                 Spacer()
-                
+
                 Text(timeText)
                     .font(.tuiMonoTiny)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.primary.opacity(0.5))
             }
 
             // Quick stats row
@@ -223,6 +259,9 @@ struct TUIDashboardView: View {
             if appState.isLoadingBriefing {
                 progressIndicator
             }
+
+            // Left panel toggle button
+            LeftPanelToggleButton(showLeftPanel: $showLeftPanel)
 
             // Chat toggle button
             if appState.currentBriefing != nil {
@@ -397,12 +436,16 @@ struct TUIDashboardView: View {
                             Text(tab.rawValue.uppercased())
                                 .font(.tuiMonoSmall)
                                 .fontWeight(selectedTab == tab ? .bold : .regular)
-                                .foregroundStyle(selectedTab == tab ? .primary : .tertiary)
+                                .foregroundStyle(selectedTab == tab ? Color.primary : Color.secondary.opacity(0.5))
                                 .padding(.vertical, Spacing.sm)
                                 .padding(.horizontal, Spacing.md)
-                            
+
                             Rectangle()
-                                .fill(selectedTab == tab ? Color.primary : Color.clear)
+                                .fill(
+                                    selectedTab == tab
+                                        ? LinearGradient(colors: [Color.primary, Color.secondary.opacity(0.5)], startPoint: .leading, endPoint: .trailing)
+                                        : LinearGradient(colors: [Color.clear], startPoint: .leading, endPoint: .trailing)
+                                )
                                 .frame(height: 2)
                         }
                         .contentShape(Rectangle())
@@ -410,20 +453,26 @@ struct TUIDashboardView: View {
                     .buttonStyle(.plain)
                     .contentShape(Rectangle())
                 }
-                
+
                 Spacer()
-                
+
                 if selectedTab == .briefing, let briefing = appState.currentBriefing {
                     Text("\(briefing.sections.count) sources")
                         .font(.tuiMonoTiny)
-                        .foregroundStyle(.quaternary)
+                        .foregroundStyle(Color.secondary.opacity(0.5))
                         .padding(.trailing, Spacing.md)
                 }
             }
-            .background(Color.tuiBackground)
+            .background(Color.tuiPanel.opacity(0.5))
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color.tuiBorder)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.secondary.opacity(0.2), Color.primary.opacity(0.1)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                     .frame(height: 1)
             }
 
@@ -431,6 +480,8 @@ struct TUIDashboardView: View {
             switch selectedTab {
             case .briefing:
                 briefingContent
+            case .history:
+                TUIHistoryView()
             case .calendar:
                 MeetingsView(showHeader: false)
             }
@@ -458,7 +509,7 @@ struct TUIDashboardView: View {
                     }
                 }
             } else {
-                // Enhanced empty state with upcoming meetings
+                // Show history and upcoming meetings when no current briefing
                 enhancedEmptyState
             }
         }
@@ -469,6 +520,70 @@ struct TUIDashboardView: View {
     private var enhancedEmptyState: some View {
         ScrollView {
             VStack(spacing: 0) {
+                // Recent Briefings section
+                if !historicalBriefings.isEmpty {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack {
+                            Text("RECENT BRIEFINGS")
+                                .font(.tuiMonoTiny)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.tertiary)
+                            
+                            Spacer()
+                            
+                            if isLoadingHistory {
+                                ProgressView()
+                                    .scaleEffect(0.5)
+                            }
+                        }
+                        .padding(Spacing.md)
+                        
+                        ForEach(historicalBriefings.prefix(5)) { briefing in
+                            Button {
+                                withAnimation(.tuiSnappy) {
+                                    appState.currentBriefing = briefing
+                                }
+                            } label: {
+                                HStack(spacing: Spacing.sm) {
+                                    Text("󰧟")
+                                        .font(.tuiMonoTiny)
+                                        .foregroundStyle(.tertiary)
+                                        .frame(width: 12)
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(briefing.generatedAt.formatted(date: .abbreviated, time: .shortened))
+                                            .font(.tuiMonoSmall)
+                                            .foregroundStyle(.primary)
+                                        
+                                        Text("\(briefing.sections.count) sources · \(briefing.detailLevel.displayName.lowercased())")
+                                            .font(.tuiMonoTiny)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Text("→")
+                                        .font(.tuiMonoTiny)
+                                        .foregroundStyle(.quaternary)
+                                }
+                                .padding(.horizontal, Spacing.md)
+                                .padding(.vertical, Spacing.sm)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Rectangle()
+                                .fill(Color.tuiBorder.opacity(0.3))
+                                .frame(height: 1)
+                                .padding(.leading, Spacing.md + 12 + Spacing.sm)
+                        }
+                    }
+                    
+                    Rectangle()
+                        .fill(Color.tuiBorder)
+                        .frame(height: 1)
+                }
+
                 // Upcoming meetings section
                 if !upcomingMeetings.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
@@ -552,21 +667,21 @@ struct TUIDashboardView: View {
         VStack(spacing: Spacing.md) {
             Text("────────────────────────")
                 .font(.tuiMonoSmall)
-                .foregroundStyle(.quaternary)
-            
+                .foregroundStyle(Color.secondary.opacity(0.3))
+
             Text("welcome to daily briefing")
                 .font(.tuiMonoSmall)
                 .foregroundStyle(.secondary)
-            
+
             Text("connect your calendar, email, and other\nservices to get started with your\npersonalized daily overview.")
                 .font(.tuiMonoTiny)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.secondary.opacity(0.6))
                 .multilineTextAlignment(.center)
                 .lineSpacing(2)
-            
+
             Text("────────────────────────")
                 .font(.tuiMonoSmall)
-                .foregroundStyle(.quaternary)
+                .foregroundStyle(Color.primary.opacity(0.3))
         }
     }
 
@@ -574,7 +689,7 @@ struct TUIDashboardView: View {
         VStack(spacing: Spacing.md) {
             Text("─────────────────")
                 .font(.tuiMonoSmall)
-                .foregroundStyle(.quaternary)
+                .foregroundStyle(Color.secondary.opacity(0.3))
 
             Text("no data")
                 .font(.tuiMonoSmall)
@@ -582,7 +697,7 @@ struct TUIDashboardView: View {
 
             Text("connect sources and generate a briefing")
                 .font(.tuiMonoTiny)
-                .foregroundStyle(.quaternary)
+                .foregroundStyle(Color.secondary.opacity(0.5))
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -592,7 +707,7 @@ struct TUIDashboardView: View {
         VStack(spacing: Spacing.md) {
             Text("─────────────────")
                 .font(.tuiMonoSmall)
-                .foregroundStyle(.quaternary)
+                .foregroundStyle(Color.primary.opacity(0.3))
 
             Text("no sections")
                 .font(.tuiMonoSmall)
@@ -600,7 +715,7 @@ struct TUIDashboardView: View {
 
             Text("briefing generated but no sections available")
                 .font(.tuiMonoTiny)
-                .foregroundStyle(.quaternary)
+                .foregroundStyle(Color.secondary.opacity(0.5))
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -609,6 +724,11 @@ struct TUIDashboardView: View {
     // MARK: - Data Loading
     
     private func loadUpcomingMeetings() async {
+        // Load History
+        isLoadingHistory = true
+        historicalBriefings = BriefingCacheService.shared.loadAll()
+        isLoadingHistory = false
+
         guard let calendarSource = connectionManager.googleCalendarSource,
               calendarSource.isAuthenticated else {
             return
@@ -644,17 +764,18 @@ struct QuickStatBadge: View {
     let value: String
     let label: String
     let color: Color
-    
+
     var body: some View {
         HStack(spacing: 4) {
             Text(icon)
                 .font(.tuiMonoTiny)
-                .foregroundStyle(color)
-            
+                .foregroundStyle(color == .green ? Color.primary : (color == .blue ? Color.secondary : color))
+                .shadow(color: color == .green ? Color.primary.opacity(0.5) : Color.clear, radius: 4)
+
             Text(value)
                 .font(.tuiMonoTiny)
                 .fontWeight(.medium)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.secondary.opacity(0.8))
         }
     }
 }
@@ -1179,6 +1300,27 @@ struct RefreshKeysModifier: ViewModifier {
     }
 }
 
+struct PanelKeysModifier: ViewModifier {
+    @Binding var showChat: Bool
+    @Binding var showLeftPanel: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .onKeyPress("c", modifiers: .command) {
+                withAnimation(.tuiSnappy) {
+                    showChat.toggle()
+                }
+                return .handled
+            }
+            .onKeyPress("s", modifiers: .command) {
+                withAnimation(.tuiSnappy) {
+                    showLeftPanel.toggle()
+                }
+                return .handled
+            }
+    }
+}
+
 struct AudioKeysModifier: ViewModifier {
     @ObservedObject var appState: AppState
 
@@ -1283,48 +1425,83 @@ struct ChatToggleButton: View {
     @Binding var showChat: Bool
 
     var body: some View {
-        Group {
-            if showChat {
-                Button {
-                    withAnimation(.tuiSnappy) {
-                        showChat.toggle()
-                    }
-                } label: {
-                    buttonLabel
-                }
-                .buttonStyle(.tuiPrimary)
-            } else {
-                Button {
-                    withAnimation(.tuiSnappy) {
-                        showChat.toggle()
-                    }
-                } label: {
-                    buttonLabel
-                }
-                .buttonStyle(.tui)
+        Button {
+            withAnimation(.tuiSnappy) {
+                showChat.toggle()
             }
+        } label: {
+            HStack {
+                Text(showChat ? ">" : "<")
+                    .font(.tuiMonoSmall)
+                    .foregroundStyle(showChat ? Color.primary : Color.secondary)
+
+                Text("chat")
+                    .font(.tuiMonoSmall)
+                    .foregroundStyle(showChat ? Color.primary : Color.secondary)
+
+                Spacer()
+
+                KeyBadge(key: "\u{2318}C")
+            }
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.xs)
+            .background(
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(showChat ? Color.primary.opacity(0.15) : Color.tuiPanel)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 3)
+                    .stroke(showChat ? Color.primary.opacity(0.3) : Color.secondary.opacity(0.2), lineWidth: 1)
+            )
         }
     }
+}
 
-    private var buttonLabel: some View {
-        HStack {
-            Text(showChat ? ">" : "<")
-                .font(.tuiMonoSmall)
+// MARK: - Left Panel Toggle Button
 
-            Text("chat")
-                .font(.tuiMonoSmall)
+struct LeftPanelToggleButton: View {
+    @Binding var showLeftPanel: Bool
 
-            Spacer()
+    var body: some View {
+        Button {
+            withAnimation(.tuiSnappy) {
+                showLeftPanel.toggle()
+            }
+        } label: {
+            HStack {
+                Text(showLeftPanel ? "<" : ">")
+                    .font(.tuiMonoSmall)
+                    .foregroundStyle(showLeftPanel ? Color.primary : Color.secondary)
 
-            KeyBadge(key: "\u{2318}C")
+                Text("panel")
+                    .font(.tuiMonoSmall)
+                    .foregroundStyle(showLeftPanel ? Color.primary : Color.secondary)
+
+                Spacer()
+
+                KeyBadge(key: "\u{2318}S")
+            }
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.xs)
+            .background(
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(showLeftPanel ? Color.primary.opacity(0.15) : Color.tuiPanel)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 3)
+                    .stroke(showLeftPanel ? Color.primary.opacity(0.3) : Color.secondary.opacity(0.2), lineWidth: 1)
+            )
         }
+        .buttonStyle(.plain)
     }
 }
 
 // MARK: - Legacy Dashboard View (for compatibility)
 
 struct DashboardView: View {
+    @State private var selectedTab: TUIDashboardView.DashboardTab = .briefing
+
     var body: some View {
-        TUIDashboardView()
+        TUIDashboardView(selectedTab: $selectedTab)
     }
 }

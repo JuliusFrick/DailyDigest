@@ -141,7 +141,7 @@ final class UpdateService: NSObject, ObservableObject {
             case 3001:
                 details += " (Signature verification failed)"
                 // Add helpful message for signature failures
-                if let feedURL = feedURL {
+                if feedURL != nil {
                     details += " · Check that appcast.xml contains sparkle:edSignature attribute"
                     details += " · Verify SUPublicEDKey is in Info.plist"
                     details += " · Ensure SPARKLE_PUBLIC_ED_KEY matches SPARKLE_PRIVATE_ED_KEY used to sign DMG"
@@ -194,23 +194,25 @@ extension UpdateService: SPUUpdaterDelegate {
         }
     }
 
-    func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
-        let message = error.localizedDescription
-        let details = formatErrorDetails(error)
-        
-        // Log with more context
-        logger.error("Update check failed: \(message, privacy: .public)")
-        logger.debug("Error details: \(details, privacy: .public)")
-        
-        // Store error information for UI display
-        lastUpdateError = message
-        lastUpdateErrorDetails = details
-        
-        // For error 1001 (no update available), provide a more user-friendly message
-        let nsError = error as NSError
-        if nsError.domain == "SUSparkleErrorDomain" && nsError.code == 1001 {
-            lastUpdateError = "Keine Updates verfügbar"
-            lastUpdateErrorDetails = "Die aktuelle Version ist bereits die neueste verfügbare Version."
+    nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
+        Task { @MainActor in
+            let message = error.localizedDescription
+            let details = formatErrorDetails(error)
+            
+            // Log with more context
+            logger.error("Update check failed: \(message, privacy: .public)")
+            logger.debug("Error details: \(details, privacy: .public)")
+            
+            // Store error information for UI display
+            lastUpdateError = message
+            lastUpdateErrorDetails = details
+            
+            // For error 1001 (no update available), provide a more user-friendly message
+            let nsError = error as NSError
+            if nsError.domain == "SUSparkleErrorDomain" && nsError.code == 1001 {
+                lastUpdateError = "Keine Updates verfügbar"
+                lastUpdateErrorDetails = "Die aktuelle Version ist bereits die neueste verfügbare Version."
+            }
         }
     }
 }
@@ -218,8 +220,10 @@ extension UpdateService: SPUUpdaterDelegate {
 // MARK: - SPUStandardUserDriverDelegate
 
 extension UpdateService: SPUStandardUserDriverDelegate {
-    func standardUserDriverWillShowModalAlert() {
+    nonisolated func standardUserDriverWillShowModalAlert() {
         // Ensure Sparkle dialogs appear in front of other apps/windows.
-        NSApp.activate(ignoringOtherApps: true)
+        Task { @MainActor in
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 }

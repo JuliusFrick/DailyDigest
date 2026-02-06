@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - QuickCaptureField
+
 struct QuickCaptureField: View {
     @EnvironmentObject private var appState: AppState
     @State private var text: String = ""
@@ -7,13 +9,13 @@ struct QuickCaptureField: View {
     @State private var justSubmitted: Bool = false
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Spacing.sm) {
             Image(systemName: "square.and.pencil")
                 .foregroundStyle(.secondary)
             
             TextField("Type a note to self...", text: $text)
                 .textFieldStyle(.plain)
-                .font(.system(.body, design: .rounded))
+                .font(.system(.body, design: .monospaced))
                 .focused($isFocused)
                 .onSubmit {
                     submitNote()
@@ -28,14 +30,14 @@ struct QuickCaptureField: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(10)
-        .background(Color.primary.opacity(0.04))
+        .padding(Spacing.sm)
+        .background(Color.tuiHover)
         .cornerRadius(8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(isFocused ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
         )
-        .padding(.horizontal)
+        .padding(.horizontal, Spacing.md)
         .overlay {
             if justSubmitted {
                 Text("Saved!")
