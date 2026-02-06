@@ -49,7 +49,8 @@ struct MeetingDetailPopup: View {
                     .padding(Spacing.md)
                 }
             }
-            .frame(width: 480, maxHeight: 560)
+            .frame(width: 480)
+            .frame(maxHeight: 560)
             .background(Color.tuiBackground)
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
