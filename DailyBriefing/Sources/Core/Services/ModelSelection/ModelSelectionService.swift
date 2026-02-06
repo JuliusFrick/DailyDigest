@@ -104,6 +104,7 @@ final class ModelSelectionService: ObservableObject {
     static let shared = ModelSelectionService()
     
     @Published private(set) var selectedModels: [FeatureType: ModelProvider]
+    @Published var lastFallback: (feature: FeatureType, from: ModelProvider, to: ModelProvider)?
     
     private let userDefaultsPrefix = "selectedModel"
     
@@ -399,6 +400,92 @@ struct ModelInfo {
                     description: "Lokales Ollama Modell - kostenlos und privat"
                 )
             }
+        }
+    }
+}
+
+// MARK: - Fallback Mechanism
+
+extension ModelSelectionService {
+    /// Get model with fallback chain
+    func getModelWithFallback(for feature: FeatureType) async -> ModelProvider {
+        let primary = getModel(for: feature)
+        
+        // Try primary
+        if await isAvailable(primary) {
+            // Clear any previous fallback notification for this feature
+            if lastFallback?.feature == feature {
+                lastFallback = nil
+            }
+            return primary
+        }
+        
+        // Try fallback chain
+        let fallbacks = getFallbackChain(for: feature)
+        for fallback in fallbacks {
+            if await isAvailable(fallback) {
+                print("⚠️ Primary model unavailable, using fallback: \(fallback.displayName)")
+                
+                // Notify user on main thread
+                DispatchQueue.main.async { [weak self] in
+                    self?.lastFallback = (feature, primary, fallback)
+                }
+                
+                return fallback
+            }
+        }
+        
+        // Last resort: return primary and let caller handle error
+        print("❌ No available models for \(feature.displayName)")
+        return primary
+    }
+    
+    /// Check if a model provider is available
+    private func isAvailable(_ provider: ModelProvider) async -> Bool {
+        switch provider {
+        case .ollama(let model):
+            // Check if Ollama is running and model exists
+            return await OllamaService.shared.isModelAvailable(model)
+            
+        case .openai:
+            // Check if API key exists
+            return KeychainService.shared.getOpenAIKey() != nil
+            
+        case .anthropic:
+            return KeychainService.shared.getAnthropicKey() != nil
+            
+        case .deepgram:
+            return KeychainService.shared.getDeepgramKey() != nil
+            
+        case .voxtral:
+            // Always available if installed (local transcription)
+            return true
+        }
+    }
+    
+    /// Get fallback chain for a feature
+    private func getFallbackChain(for feature: FeatureType) -> [ModelProvider] {
+        switch feature {
+        case .transcription:
+            return [
+                .voxtral,
+                .ollama(model: "whisper"),
+                .openai(model: "whisper-1")
+            ]
+            
+        case .chat, .summaries, .actionItems:
+            return [
+                .ollama(model: "mistral"),
+                .ollama(model: "llama3.2"),
+                .openai(model: "gpt-4o-mini"),
+                .anthropic(model: "claude-3-5-haiku-20241022")
+            ]
+            
+        case .embeddings:
+            return [
+                .ollama(model: "nomic-embed-text"),
+                .openai(model: "text-embedding-3-small")
+            ]
         }
     }
 }
