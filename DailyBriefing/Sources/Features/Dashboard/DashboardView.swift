@@ -21,6 +21,7 @@ struct TUIDashboardView: View {
         case briefing = "Briefing"
         case history = "History"
         case calendar = "Kalender"
+        case recordings = "Aufnahmen"
         
         var id: String { rawValue }
     }
@@ -543,6 +544,8 @@ struct TUIDashboardView: View {
                 TUIHistoryView()
             case .calendar:
                 MeetingsView(showHeader: false)
+            case .recordings:
+                RecordingsView()
             }
         }
     }
