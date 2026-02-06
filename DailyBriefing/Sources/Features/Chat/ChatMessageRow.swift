@@ -121,7 +121,7 @@ struct TimestampButton: View {
         text: String? = nil,
         onTap: ((TimeInterval) -> Void)? = nil
     ) {
-        self.label = label ?? formatTime(time)
+        self.label = label ?? Self.formatTime(time)
         self.time = time
         self.text = text
         self.onTap = onTap
