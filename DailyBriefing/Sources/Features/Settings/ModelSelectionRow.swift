@@ -226,25 +226,25 @@ struct ModelPickerRow: View {
 
 // MARK: - Preview
 
-#Preview {
-    VStack(spacing: 20) {
-        ModelSelectionRow(
-            feature: .transcription,
-            title: "Transkription",
-            icon: "waveform"
-        )
-        
-        ModelSelectionRow(
-            feature: .chat,
-            title: "Chat",
-            icon: "message"
-        )
-        
-        ModelSelectionRow(
-            feature: .actionItems,
-            title: "Action Items",
-            icon: "checkmark.circle"
-        )
+struct ModelSelectionRow_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(spacing: 20) {
+            ModelSelectionRow(
+                feature: .transcription,
+                title: "Transkription",
+                icon: "waveform"
+            )
+            ModelSelectionRow(
+                feature: .chat,
+                title: "Chat",
+                icon: "message"
+            )
+            ModelSelectionRow(
+                feature: .actionItems,
+                title: "Action Items",
+                icon: "checkmark.circle"
+            )
+        }
+        .padding()
     }
-    .padding()
 }

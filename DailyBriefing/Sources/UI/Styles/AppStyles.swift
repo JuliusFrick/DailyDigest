@@ -129,6 +129,21 @@ extension Color {
     static let invertedText = tuiBackground
 }
 
+// MARK: - Linear Gradient Helpers
+
+extension LinearGradient {
+    static let glassOverlay = LinearGradient(
+        colors: [Color.white.opacity(0.06), Color.clear],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+    static let subtleBorder = LinearGradient(
+        colors: [Color.primary.opacity(0.15), Color.primary.opacity(0.08)],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+}
+
 // MARK: - TUI Animations
 
 extension Animation {

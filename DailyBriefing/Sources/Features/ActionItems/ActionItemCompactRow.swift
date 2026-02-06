@@ -74,7 +74,7 @@ struct ActionItemCompactRow: View {
             return .orange
         }
         
-        return .tertiary
+        return .secondary
     }
     
     // MARK: - Formatters
@@ -101,29 +101,29 @@ struct ActionItemCompactRow: View {
 
 // MARK: - Preview
 
-#Preview {
-    VStack(spacing: 8) {
-        ActionItemCompactRow(item: ActionItem(
-            title: "Review Q4 report",
-            dueDate: Date().addingTimeInterval(3600 * 24),
-            meetingId: "test",
-            status: .todo
-        ))
-        
-        ActionItemCompactRow(item: ActionItem(
-            title: "Send follow-up email",
-            dueDate: Date().addingTimeInterval(-3600),
-            meetingId: "test",
-            status: .inProgress
-        ))
-        
-        ActionItemCompactRow(item: ActionItem(
-            title: "Update documentation",
-            dueDate: Date().addingTimeInterval(3600 * 2),
-            meetingId: "test",
-            status: .completed
-        ))
+struct ActionItemCompactRow_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(spacing: 8) {
+            ActionItemCompactRow(item: ActionItem(
+                title: "Review Q4 report",
+                dueDate: Date().addingTimeInterval(3600 * 24),
+                meetingId: "test",
+                status: .todo
+            ))
+            ActionItemCompactRow(item: ActionItem(
+                title: "Send follow-up email",
+                dueDate: Date().addingTimeInterval(-3600),
+                meetingId: "test",
+                status: .inProgress
+            ))
+            ActionItemCompactRow(item: ActionItem(
+                title: "Update documentation",
+                dueDate: Date().addingTimeInterval(3600 * 2),
+                meetingId: "test",
+                status: .completed
+            ))
+        }
+        .padding()
+        .background(Color.tuiBackground)
     }
-    .padding()
-    .background(Color.tuiBackground)
 }

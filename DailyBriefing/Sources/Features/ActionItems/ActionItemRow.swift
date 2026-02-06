@@ -207,33 +207,33 @@ struct ActionItemRow: View {
 
 // MARK: - Preview
 
-#Preview {
-    VStack(spacing: 12) {
-        ActionItemRow(item: ActionItem(
-            title: "Review Q4 report",
-            description: "Check all numbers and prepare presentation",
-            assignee: "John Doe",
-            dueDate: Date().addingTimeInterval(3600 * 24),
-            meetingId: "test-meeting",
-            timestamp: 125.5,
-            status: .todo
-        ))
-        
-        ActionItemRow(item: ActionItem(
-            title: "Send follow-up email",
-            assignee: "Jane Smith",
-            dueDate: Date().addingTimeInterval(-3600),
-            meetingId: "test-meeting",
-            status: .inProgress
-        ))
-        
-        ActionItemRow(item: ActionItem(
-            title: "Update documentation",
-            dueDate: Date().addingTimeInterval(3600 * 48),
-            meetingId: "test-meeting",
-            status: .completed,
-            completedAt: Date()
-        ))
+struct ActionItemRow_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(spacing: 12) {
+            ActionItemRow(item: ActionItem(
+                title: "Review Q4 report",
+                description: "Check all numbers and prepare presentation",
+                assignee: "John Doe",
+                dueDate: Date().addingTimeInterval(3600 * 24),
+                meetingId: "test-meeting",
+                timestamp: 125.5,
+                status: .todo
+            ))
+            ActionItemRow(item: ActionItem(
+                title: "Send follow-up email",
+                assignee: "Jane Smith",
+                dueDate: Date().addingTimeInterval(-3600),
+                meetingId: "test-meeting",
+                status: .inProgress
+            ))
+            ActionItemRow(item: ActionItem(
+                title: "Update documentation",
+                dueDate: Date().addingTimeInterval(3600 * 48),
+                meetingId: "test-meeting",
+                status: .completed,
+                completedAt: Date()
+            ))
+        }
+        .padding()
     }
-    .padding()
 }
