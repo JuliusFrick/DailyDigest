@@ -498,24 +498,27 @@ extension ModelSelectionService {
         switch feature {
         case .transcription:
             return [
-                .voxtral,
-                .ollama(model: "whisper"),
-                .openai(model: "whisper-1")
+                .openai(model: "whisper-1"),      // Cloud first
+                .deepgram,                         // Cloud
+                .voxtral,                          // Local
+                .ollama(model: "whisper")          // Local
             ]
             
         case .chat, .summaries, .actionItems:
             return [
-                .ollama(model: "mistral"),
-                .ollama(model: "llama3.2"),
-                .mistral(model: "mistral-large-latest"),
-                .openai(model: "gpt-4o-mini"),
-                .anthropic(model: "claude-3-5-haiku-20241022")
+                .anthropic(model: "claude-sonnet-4-5"),    // 1. Claude
+                .anthropic(model: "claude-3.5-haiku"),     // Claude cheaper
+                .mistral(model: "mistral-large-latest"),   // 2. Mistral
+                .mistral(model: "mistral-medium"),         // Mistral cheaper
+                .ollama(model: "mistral"),                 // 3. Local
+                .ollama(model: "llama3.2")                 // Local
             ]
             
         case .embeddings:
             return [
-                .ollama(model: "nomic-embed-text"),
-                .openai(model: "text-embedding-3-small")
+                .openai(model: "text-embedding-3-large"),  // Cloud first
+                .openai(model: "text-embedding-3-small"),  // Cloud cheaper
+                .ollama(model: "nomic-embed-text")         // Local
             ]
         }
     }
