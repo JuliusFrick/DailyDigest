@@ -75,7 +75,9 @@ struct SettingsView: View {
     private var integrationsSection: some View {
         Section {
             NavigationLink {
-                ServiceIntegrationsView()
+                SettingsSubView(title: "Integrationen") {
+                    ServiceIntegrationsView()
+                }
             } label: {
                 HStack {
                     Label("Dienst-Integrationen", systemImage: "square.stack.3d.up.fill")
@@ -113,8 +115,9 @@ struct SettingsView: View {
     private var llmNavigationSection: some View {
         Section {
             NavigationLink {
-                LLMSettingsView()
-                    .navigationTitle("KI-Provider")
+                SettingsSubView(title: "KI-Provider") {
+                    LLMSettingsView()
+                }
             } label: {
                 HStack {
                     Label("KI-Provider", systemImage: "brain.head.profile")
@@ -182,8 +185,9 @@ struct SettingsView: View {
     private var transcriptionSection: some View {
         Section {
             NavigationLink {
-                TranscriptionSettingsView()
-                    .navigationTitle("Transkription")
+                SettingsSubView(title: "Transkription") {
+                    TranscriptionSettingsView()
+                }
             } label: {
                 HStack {
                     Label("Transkription", systemImage: "waveform.badge.mic")
@@ -204,8 +208,9 @@ struct SettingsView: View {
     private var audioSection: some View {
         Section {
             NavigationLink {
-                TTSSettingsView()
-                    .navigationTitle("Sprachausgabe")
+                SettingsSubView(title: "Sprachausgabe") {
+                    TTSSettingsView()
+                }
             } label: {
                 HStack {
                     Label("Sprachausgabe", systemImage: "waveform.circle")
@@ -518,8 +523,9 @@ struct SettingsView: View {
     private var privacySection: some View {
         Section {
             NavigationLink {
-                PrivacySettingsView()
-                    .navigationTitle("Datenschutz")
+                SettingsSubView(title: "Datenschutz") {
+                    PrivacySettingsView()
+                }
             } label: {
                 Label("Datenschutz", systemImage: "hand.raised.fill")
             }
@@ -671,5 +677,36 @@ struct ConnectedServicesCount: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+// MARK: - Settings Sub View Wrapper
+
+/// Wrapper for settings sub-views that ensures back navigation is visible on macOS
+struct SettingsSubView<Content: View>: View {
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+    @ViewBuilder let content: () -> Content
+    
+    var body: some View {
+        content()
+            .navigationTitle(title)
+            #if os(macOS)
+            .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("Zurück")
+                                .font(.system(.body, design: .default))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            #endif
     }
 }
