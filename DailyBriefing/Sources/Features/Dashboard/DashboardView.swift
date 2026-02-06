@@ -526,18 +526,33 @@ struct TUIDashboardView: View {
                         }
                     } label: {
                         VStack(spacing: 0) {
-                            Text(tab.rawValue.uppercased())
-                                .font(.tuiMonoSmall)
-                                .fontWeight(selectedTab == tab ? .bold : .regular)
-                                .foregroundStyle(selectedTab == tab ? Color.primary : Color.secondary.opacity(0.5))
-                                .padding(.vertical, Spacing.sm)
-                                .padding(.horizontal, Spacing.md)
+                            HStack(spacing: 4) {
+                                // Tab indicator dot for active tab
+                                if selectedTab == tab {
+                                    Circle()
+                                        .fill(Color.tuiAccent)
+                                        .frame(width: 6, height: 6)
+                                }
+                                
+                                Text(tab.rawValue.uppercased())
+                                    .font(.tuiMonoSmall)
+                                    .fontWeight(selectedTab == tab ? .bold : .regular)
+                            }
+                            .foregroundStyle(selectedTab == tab ? Color.primary : Color.secondary.opacity(0.5))
+                            .padding(.vertical, Spacing.sm)
+                            .padding(.horizontal, Spacing.md)
+                            .background(
+                                selectedTab == tab
+                                    ? Color.tuiAccent.opacity(0.1)
+                                    : Color.clear
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
 
                             Rectangle()
                                 .fill(
                                     selectedTab == tab
-                                        ? LinearGradient(colors: [Color.primary, Color.secondary.opacity(0.5)], startPoint: .leading, endPoint: .trailing)
-                                        : LinearGradient(colors: [Color.clear], startPoint: .leading, endPoint: .trailing)
+                                        ? Color.tuiAccent
+                                        : Color.clear
                                 )
                                 .frame(height: 2)
                         }
