@@ -26,6 +26,7 @@ struct SettingsView: View {
             briefingSection
             integrationsSection
             llmNavigationSection
+            modelConfigurationSection
             transcriptionSection
             audioSection
             scheduleSection
@@ -126,6 +127,46 @@ struct SettingsView: View {
             Text("KI-Zusammenfassung")
         } footer: {
             Text("Die KI generiert eine Zusammenfassung deiner Briefing-Daten.")
+        }
+    }
+    
+    // MARK: - Model Configuration Section
+    
+    private var modelConfigurationSection: some View {
+        Section {
+            ModelSelectionRow(
+                feature: .transcription,
+                title: "Transkription",
+                icon: "waveform"
+            )
+            
+            ModelSelectionRow(
+                feature: .chat,
+                title: "Chat mit Transkript",
+                icon: "message"
+            )
+            
+            ModelSelectionRow(
+                feature: .actionItems,
+                title: "Action Items",
+                icon: "checkmark.circle"
+            )
+            
+            ModelSelectionRow(
+                feature: .summaries,
+                title: "Zusammenfassungen",
+                icon: "doc.text"
+            )
+            
+            ModelSelectionRow(
+                feature: .embeddings,
+                title: "Embeddings",
+                icon: "brain"
+            )
+        } header: {
+            Text("Model Configuration")
+        } footer: {
+            Text("🏠 On-Device Modelle laufen lokal und sind kostenlos. ☁️ Cloud-Modelle benötigen API-Keys.")
         }
     }
 

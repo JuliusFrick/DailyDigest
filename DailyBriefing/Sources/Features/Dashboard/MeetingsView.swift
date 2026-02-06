@@ -551,7 +551,8 @@ struct EventBlock: View {
     let topOffset: CGFloat
     
     @State private var isHovered = false
-    
+    @State private var showEventPopup = false
+
     private var duration: CGFloat {
         // Try to parse duration from metadata, default to 1 hour
         if let durationStr = meeting.metadata["duration"] {
@@ -614,6 +615,12 @@ struct EventBlock: View {
         .padding(.horizontal, 1)
         .onHover { isHovered = $0 }
         .help(meeting.title + (meeting.subtitle.map { " - \($0)" } ?? ""))
+        .onTapGesture {
+            showEventPopup = true
+        }
+        .sheet(isPresented: $showEventPopup) {
+            MeetingDetailPopup(meeting: meeting, isPresented: $showEventPopup)
+        }
     }
 }
 
@@ -622,15 +629,11 @@ struct EventBlock: View {
 struct MeetingRow: View {
     let item: BriefingItem
     @State private var isHovered = false
-    
+    @State private var showMeetingPopup = false
+
     var body: some View {
         Button {
-            if let meetingLink = item.metadata["meetingLink"],
-               let url = URL(string: meetingLink) {
-                NSWorkspace.shared.open(url)
-            } else if let deepLink = item.deepLink {
-                NSWorkspace.shared.open(deepLink)
-            }
+            showMeetingPopup = true
         } label: {
             HStack(spacing: Spacing.sm) {
                 // Time
@@ -642,33 +645,33 @@ struct MeetingRow: View {
                     }
                 }
                 .frame(width: 60, alignment: .leading)
-                
+
                 // Title
                 Text(item.title)
                     .font(.tuiMonoSmall)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                
+
                 Spacer()
-                
+
                 // Duration
                 if let duration = item.metadata["duration"] {
                     Text("[\(duration)]")
                         .font(.tuiMonoTiny)
                         .foregroundStyle(.quaternary)
                 }
-                
+
                 // Link indicator
                 if item.metadata["meetingLink"] != nil {
                     Text("📹")
                         .font(.tuiMonoTiny)
                 }
-                
-                // Arrow
+
+                // Arrow — immer leicht sichtbar
                 Text("→")
                     .font(.tuiMonoTiny)
                     .foregroundStyle(.quaternary)
-                    .opacity(isHovered ? 1 : 0)
+                    .opacity(isHovered ? 1 : 0.4)
             }
             .padding(.horizontal, Spacing.md)
             .padding(.vertical, Spacing.sm)
@@ -676,6 +679,9 @@ struct MeetingRow: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+        .sheet(isPresented: $showMeetingPopup) {
+            MeetingDetailPopup(meeting: item, isPresented: $showMeetingPopup)
+        }
     }
 }
 
