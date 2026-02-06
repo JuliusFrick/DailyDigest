@@ -236,8 +236,7 @@ extension AppleCalendarSource {
     /// Extract email from EKParticipant URL
     /// EKParticipant stores email as URL like "mailto:email@example.com"
     private func extractEmail(from participant: EKParticipant) -> String? {
-        guard let url = participant.url else { return nil }
-        let urlString = url.absoluteString
+        let urlString = participant.url.absoluteString
         if urlString.hasPrefix("mailto:") {
             return String(urlString.dropFirst(7))
         }
