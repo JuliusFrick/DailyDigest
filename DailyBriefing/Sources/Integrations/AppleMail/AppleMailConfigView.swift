@@ -3,6 +3,7 @@ import SwiftUI
 /// Configuration view for Apple Mail integration
 struct AppleMailConfigView: View {
     @ObservedObject var source: AppleMailSource
+    @StateObject private var connectionManager = ServiceConnectionManager.shared
 
     var body: some View {
         Form {
@@ -38,7 +39,7 @@ struct AppleMailConfigView: View {
                 if source.isAuthenticated {
                     Button("Trennen") {
                         Task {
-                            await source.disconnect()
+                            await connectionManager.disconnect(.appleMail)
                         }
                     }
                     .buttonStyle(.tui)
@@ -46,7 +47,7 @@ struct AppleMailConfigView: View {
                 } else {
                     Button("Verbinden") {
                         Task {
-                            try? await source.authenticate()
+                            try? await connectionManager.connect(.appleMail)
                         }
                     }
                     .buttonStyle(.tuiPrimary)
