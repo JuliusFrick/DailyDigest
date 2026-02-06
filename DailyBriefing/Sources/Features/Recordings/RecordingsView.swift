@@ -396,7 +396,7 @@ struct QuickRecordSheet: View {
                                 .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: recorder.isRecording)
                             
                             Text(recorder.formattedDuration())
-                                .font(.tuiMonoLarge)
+                                .font(.system(.title2, design: .monospaced))
                                 .fontWeight(.bold)
                                 .foregroundStyle(.red)
                         }
