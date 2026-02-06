@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - CommandCenterHeader
+
 struct CommandCenterHeader: View {
     @EnvironmentObject private var appState: AppState
     
@@ -43,8 +45,8 @@ struct CommandCenterHeader: View {
             
             // "Pulse" logic could go here or be part of the background
         }
-        .font(.system(.body, design: .rounded).weight(.medium))
-        .padding()
+        .font(.system(.body, design: .monospaced).weight(.medium))
+        .padding(Spacing.md)
         .background {
             if appState.isPlayingAudio {
                 Color.blue.opacity(0.1)
@@ -54,8 +56,8 @@ struct CommandCenterHeader: View {
                 Color.clear
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: appState.isPlayingAudio)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: appState.isLoadingBriefing)
+        .animation(.tuiSnappy, value: appState.isPlayingAudio)
+        .animation(.tuiSnappy, value: appState.isLoadingBriefing)
     }
     
     private var greeting: String {

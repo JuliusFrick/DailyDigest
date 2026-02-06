@@ -10,6 +10,10 @@ struct GmailConfigView: View {
         return !clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var canConnect: Bool {
+        !GoogleConfig.clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         Form {
             GoogleOAuthCredentialsSection()

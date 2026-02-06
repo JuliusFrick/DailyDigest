@@ -345,7 +345,7 @@ enum OAuthError: LocalizedError {
         case .invalidConfiguration:
             return "OAuth-Konfiguration ist ungültig"
         case .missingClientId:
-            return "Client-ID fehlt (bitte in den Einstellungen hinterlegen)"
+            return "Client-ID fehlt (OAuth-Konfiguration in der App ist nicht gesetzt)"
         case .sessionStartFailed:
             return "Authentifizierung konnte nicht gestartet werden"
         case .noCallbackReceived:

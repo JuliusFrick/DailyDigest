@@ -61,19 +61,31 @@ Output:
 VERSION=0.1.0 BUILD_NUMBER=1 ./scripts/package-dmg.sh
 ```
 
-### Configuration
+### Configuration (OAuth)
 
-Integrations currently read OAuth client configuration from `UserDefaults` keys (you can set them via the app’s Settings UI where available, or via `defaults write` during development).
+OAuth secrets are injected at build time (so they don't live in Git). The app looks for a bundled `oauth_clients.json` inside the app bundle.
 
-- **Google (Calendar/Gmail)**:
-  - `google_client_id`
-  - `google_client_secret` (optional for PKCE flows)
-- **Slack**:
-  - `slack_client_id`
-  - `slack_client_secret`
-- **Jira**:
-  - `jira_client_id`
-  - `jira_client_secret`
+You can provide it in three ways:
+
+1) **Path to JSON file** (recommended):
+```bash
+OAUTH_CLIENTS_JSON_PATH="/secure/path/oauth_clients.json" ./scripts/run-app.sh
+```
+
+2) **Inline JSON**:
+```bash
+OAUTH_CLIENTS_JSON='{"google":{"clientId":"...","clientSecret":"..."},"slack":{"clientId":"...","clientSecret":"..."},"jira":{"clientId":"...","clientSecret":"..."}}' ./scripts/package-release.sh
+```
+
+3) **Per-provider env vars**:
+```bash
+OAUTH_GOOGLE_CLIENT_ID="..." OAUTH_GOOGLE_CLIENT_SECRET="..." \
+OAUTH_SLACK_CLIENT_ID="..." OAUTH_SLACK_CLIENT_SECRET="..." \
+OAUTH_JIRA_CLIENT_ID="..." OAUTH_JIRA_CLIENT_SECRET="..." \
+./scripts/package-release.sh
+```
+
+Template (do not commit secrets): `DailyBriefing/Sources/Resources/oauth_clients.template.json`
 
 LLM/TTS provider API keys are stored in the system keychain by the app (see Settings).
 
@@ -124,7 +136,7 @@ For automatic updates to work, you need to enable GitHub Pages:
 5. Save
 
 The appcast.xml will be available at:
-`https://juliusfrick.github.io/DailyBriefing/appcast.xml`
+`https://juliusfrick.github.io/DailyDigest/appcast.xml`
 
 Make sure this URL matches the `SPARKLE_FEED_URL` in your build scripts.
 

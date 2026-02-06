@@ -4,8 +4,10 @@ import SwiftUI
 struct SlackConfigView: View {
     @ObservedObject var source: SlackSource
     @State private var channelSearchText = ""
-    @AppStorage("slack_client_id") private var slackClientId: String = ""
-    @AppStorage("slack_client_secret") private var slackClientSecret: String = ""
+
+    private var canConnect: Bool {
+        !SlackConfig.clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         Form {
@@ -71,7 +73,7 @@ struct SlackConfigView: View {
                         }
                     }
                     .buttonStyle(.tuiPrimary)
-                    .disabled(source.isLoading || slackClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(source.isLoading || !canConnect)
                 }
             }
 
@@ -95,13 +97,21 @@ struct SlackConfigView: View {
 
     private var oauthCredentialsSection: some View {
         Section {
-            TextField("Client ID", text: $slackClientId)
-                .autocorrectionDisabled(true)
-                .font(Font.system(.body, design: .monospaced))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Anmeldung erfolgt im Browser bei Slack.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-            SecureField("Client Secret", text: $slackClientSecret)
-                .autocorrectionDisabled(true)
-                .font(Font.system(.body, design: .monospaced))
+                if SlackConfig.hasBundledConfig {
+                    Text("OAuth ist in der App vorkonfiguriert.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("OAuth-Konfiguration fehlt in der App. Bitte eine gültige Slack Client ID hinterlegen.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Redirect URL (in Slack App hinterlegen):")
@@ -112,21 +122,11 @@ struct SlackConfigView: View {
                     .textSelection(.enabled)
             }
 
-            if source.isAuthenticated {
-                Text("Hinweis: Wenn du Client ID/Secret änderst, trenne Slack bitte einmal und verbinde anschließend neu.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             Link("Slack Apps öffnen", destination: URL(string: "https://api.slack.com/apps")!)
         } header: {
             Text("OAuth")
         } footer: {
-            if slackClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("Für den Login wird mindestens eine Slack Client ID benötigt.")
-            } else {
-                Text("Client-ID/Secret werden in UserDefaults gespeichert (für Development ok).")
-            }
+            Text("Für den Login wird eine gültige Slack Client ID benötigt.")
         }
     }
 

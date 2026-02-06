@@ -1,7 +1,10 @@
 import SwiftUI
 
+// MARK: - MenuBarCommandCenter
+
 struct MenuBarCommandCenter: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         VStack(spacing: 0) {
@@ -9,23 +12,23 @@ struct MenuBarCommandCenter: View {
             CommandCenterHeader()
             
             Divider()
-                .padding(.vertical, 8)
+                .padding(.vertical, Spacing.sm)
             
             // B. Quick Action Grid
             QuickActionGrid()
-                .padding(.bottom, 12)
+                .padding(.bottom, Spacing.md)
             
             Divider()
             
             // C. Insight Stream
             InsightStream()
-                .padding(.vertical, 12)
+                .padding(.vertical, Spacing.md)
             
             Divider()
             
             // D. Quick Capture Input
             QuickCaptureField()
-                .padding(.vertical, 12)
+                .padding(.vertical, Spacing.md)
             
             // Footer (optional version/branding)
             // HStack {
@@ -37,6 +40,10 @@ struct MenuBarCommandCenter: View {
             // .padding(.bottom, 4)
         }
         .frame(width: 320) // Slightly wider than standard to accommodate grid
-        .background(Material.regular) // Or generic background
+        .background(Color.tuiBackground)
+        .onKeyPress(.escape) {
+            dismiss()
+            return .handled
+        }
     }
 }

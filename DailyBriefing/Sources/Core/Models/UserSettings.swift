@@ -19,6 +19,8 @@ struct UserSettings: Codable, Equatable {
     // UI preferences
     var sourceOrder: [String]
     var theme: String
+    var showLeftPanel: Bool
+    var showChatPanel: Bool
 
     // Keyboard Shortcut preferences
     var globalShortcutEnabled: Bool
@@ -41,6 +43,8 @@ struct UserSettings: Codable, Equatable {
         llmProvider: String = "openai",
         sourceOrder: [String] = [],
         theme: String = "system",
+        showLeftPanel: Bool = true,
+        showChatPanel: Bool = false,
         globalShortcutEnabled: Bool = false,
         globalShortcutKeyCode: UInt16 = 0x02,  // D key
         globalShortcutModifiers: UInt64 = 0x180100,  // Cmd + Shift
@@ -58,6 +62,8 @@ struct UserSettings: Codable, Equatable {
         self.llmProvider = llmProvider
         self.sourceOrder = sourceOrder
         self.theme = theme
+        self.showLeftPanel = showLeftPanel
+        self.showChatPanel = showChatPanel
         self.globalShortcutEnabled = globalShortcutEnabled
         self.globalShortcutKeyCode = globalShortcutKeyCode
         self.globalShortcutModifiers = globalShortcutModifiers

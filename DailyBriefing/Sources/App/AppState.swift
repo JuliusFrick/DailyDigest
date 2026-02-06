@@ -62,6 +62,8 @@ final class AppState: ObservableObject {
     private let schedulingService = SchedulingService.shared
     private let shortcutService = GlobalShortcutService.shared
     private let ttsService = TTSService.shared
+    private let appIconService = AppIconService.shared
+    let meetingPresenceService = MeetingPresenceService.shared
     private let networkMonitor = NetworkMonitor.shared
     private let cacheService = BriefingCacheService.shared
     private let recordingService = AudioRecordingService.shared
@@ -280,20 +282,20 @@ final class AppState: ObservableObject {
 
     private func setupRecordingHUDCallbacks() {
         NotificationCenter.default.addObserver(
-            forName: .stopRecordingFromHUD,
+            forName: .recordingConfirmed,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
             guard let self = self else { return }
+            guard let url = notification.userInfo?["url"] as? URL else { return }
+            
             Task { @MainActor in
-                await self.stopRecordingAndProcess()
+                await self.processRecording(url: url)
             }
         }
     }
 
-    private func stopRecordingAndProcess() async {
-        guard let url = recordingService.stopRecording() else { return }
-        
+    private func processRecording(url: URL) async {
         // Show the app and navigate to meetings so user sees transcription
         NSApplication.shared.activate(ignoringOtherApps: true)
         selectedTab = .dashboard

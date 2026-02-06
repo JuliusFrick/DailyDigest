@@ -27,6 +27,7 @@ BUILD_NUMBER="${BUILD_NUMBER:-}"
 
 SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://juliusfrick.github.io/DailyBriefing/appcast.xml}"
 SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-}"
+REQUIRE_SPARKLE_PUBLIC_ED_KEY="${REQUIRE_SPARKLE_PUBLIC_ED_KEY:-}"
 
 SPARKLE_PLIST_KEYS=""
 if [[ -n "${SPARKLE_PUBLIC_ED_KEY}" ]]; then
@@ -42,9 +43,51 @@ if [[ -z "${VERSION}" || -z "${BUILD_NUMBER}" ]]; then
   exit 1
 fi
 
+if [[ -n "${REQUIRE_SPARKLE_PUBLIC_ED_KEY}" && -z "${SPARKLE_PUBLIC_ED_KEY}" ]]; then
+  echo "Error: SPARKLE_PUBLIC_ED_KEY must be provided for Sparkle updates" >&2
+  exit 1
+fi
+
 mkdir -p "${DIST_DIR}"
 
 pushd "${PKG_DIR}" >/dev/null
+
+write_oauth_clients() {
+  local target_path="${RESOURCES_DIR}/oauth_clients.json"
+
+  if [[ -n "${OAUTH_CLIENTS_JSON_PATH:-}" && -f "${OAUTH_CLIENTS_JSON_PATH}" ]]; then
+    cp -f "${OAUTH_CLIENTS_JSON_PATH}" "${target_path}"
+    return
+  fi
+
+  if [[ -n "${OAUTH_CLIENTS_JSON:-}" ]]; then
+    printf '%s' "${OAUTH_CLIENTS_JSON}" > "${target_path}"
+    return
+  fi
+
+  if [[ -z "${OAUTH_GOOGLE_CLIENT_ID:-}" && -z "${OAUTH_GOOGLE_CLIENT_SECRET:-}" \
+     && -z "${OAUTH_SLACK_CLIENT_ID:-}" && -z "${OAUTH_SLACK_CLIENT_SECRET:-}" \
+     && -z "${OAUTH_JIRA_CLIENT_ID:-}" && -z "${OAUTH_JIRA_CLIENT_SECRET:-}" ]]; then
+    return
+  fi
+
+  cat > "${target_path}" <<EOF
+{
+  "google": {
+    "clientId": "${OAUTH_GOOGLE_CLIENT_ID:-}",
+    "clientSecret": "${OAUTH_GOOGLE_CLIENT_SECRET:-}"
+  },
+  "slack": {
+    "clientId": "${OAUTH_SLACK_CLIENT_ID:-}",
+    "clientSecret": "${OAUTH_SLACK_CLIENT_SECRET:-}"
+  },
+  "jira": {
+    "clientId": "${OAUTH_JIRA_CLIENT_ID:-}",
+    "clientSecret": "${OAUTH_JIRA_CLIENT_SECRET:-}"
+  }
+}
+EOF
+}
 
 # Refresh app icons from the latest source images when available.
 mkdir -p "${ASSETS_DIR}"
@@ -97,6 +140,8 @@ if [[ -f "${ICON_ICNS}" ]]; then
   cp -f "${ICON_ICNS}" "${RESOURCES_DIR}/AppIcon.icns"
 fi
 
+write_oauth_clients
+
 cat > "${PLIST_PATH}" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -146,6 +191,8 @@ ${SPARKLE_PLIST_KEYS}
   <string>DailyBriefing benötigt Zugriff auf Erinnerungen, um deine Aufgaben im Briefing anzuzeigen.</string>
   <key>NSAppleEventsUsageDescription</key>
   <string>DailyBriefing benötigt Automation-Zugriff, um Apple Mail auszulesen und E-Mails im Briefing anzuzeigen.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>DailyBriefing benötigt Zugriff auf das Mikrofon, um Meeting-Notizen aufzunehmen.</string>
 </dict>
 </plist>
 PLIST

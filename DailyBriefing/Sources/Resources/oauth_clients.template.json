@@ -1,0 +1,14 @@
+{
+  "google": {
+    "clientId": "",
+    "clientSecret": ""
+  },
+  "slack": {
+    "clientId": "",
+    "clientSecret": ""
+  },
+  "jira": {
+    "clientId": "",
+    "clientSecret": ""
+  }
+}

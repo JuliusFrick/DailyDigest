@@ -14,9 +14,11 @@ final class AudioRecordingService: NSObject, ObservableObject {
     @Published private(set) var isRecording = false
     @Published private(set) var recordingDuration: TimeInterval = 0
     @Published private(set) var hasPermission = false
+    @Published private(set) var audioLevel: Float = 0.0
     
     private var audioRecorder: AVAudioRecorder?
     private var recordingTimer: Timer?
+    private var meteringTimer: Timer?
     private var recordingURL: URL?
     
     private override init() {
@@ -35,6 +37,14 @@ final class AudioRecordingService: NSObject, ObservableObject {
         // iOS/tvOS - AVAudioSession is available
         let status = AVAudioSession.sharedInstance().recordPermission
         hasPermission = status == .granted
+        #endif
+    }
+
+    func isPermissionUndetermined() -> Bool {
+        #if os(macOS)
+        return AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined
+        #else
+        return AVAudioSession.sharedInstance().recordPermission == .undetermined
         #endif
     }
     
@@ -110,16 +120,31 @@ final class AudioRecordingService: NSObject, ObservableObject {
         
         audioRecorder = try AVAudioRecorder(url: recordingURL, settings: settings)
         audioRecorder?.delegate = self
+        audioRecorder?.isMeteringEnabled = true
         audioRecorder?.record()
         
         isRecording = true
         recordingDuration = 0
+        audioLevel = 0.0
         
-        // Start timer
+        // Start duration timer
         recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.recordingDuration += 0.1
+            }
+        }
+        
+        // Start metering timer for audio level updates
+        meteringTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self = self, let recorder = self.audioRecorder else { return }
+                recorder.updateMeters()
+                // Convert decibels (-160 to 0) to normalized level (0 to 1)
+                let db = recorder.averagePower(forChannel: 0)
+                let minDb: Float = -60.0
+                let level = max(0, (db - minDb) / (-minDb))
+                self.audioLevel = level
             }
         }
         
@@ -135,7 +160,11 @@ final class AudioRecordingService: NSObject, ObservableObject {
         recordingTimer?.invalidate()
         recordingTimer = nil
         
+        meteringTimer?.invalidate()
+        meteringTimer = nil
+        
         isRecording = false
+        audioLevel = 0.0
         
         #if !os(macOS)
         // Deactivate audio session (iOS/tvOS only)
@@ -157,8 +186,12 @@ final class AudioRecordingService: NSObject, ObservableObject {
         recordingTimer?.invalidate()
         recordingTimer = nil
         
+        meteringTimer?.invalidate()
+        meteringTimer = nil
+        
         isRecording = false
         recordingDuration = 0
+        audioLevel = 0.0
         
         // Delete file if exists
         if let url = recordingURL {

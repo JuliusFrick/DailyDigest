@@ -22,7 +22,12 @@ let package = Package(
                 "KeychainAccess",
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
-            path: "Sources"
+            path: "Sources",
+            resources: [
+                .process("Resources")
+                // Note: Metal shaders are embedded as source strings in the Swift files
+                // .metal files in UI/Shaders/ are kept as reference only
+            ]
         )
     ]
 )
