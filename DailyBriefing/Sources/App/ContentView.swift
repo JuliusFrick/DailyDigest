@@ -22,9 +22,22 @@ struct MainView: View {
 
     var body: some View {
         ZStack {
-            // Simple dark background
+            // Ambient animated background
             Color.tuiBackground
                 .ignoresSafeArea()
+            
+            // Subtle dithering effect overlay
+            DitheringBackgroundView(
+                shape: .simplex,
+                ditherType: .bayer8x8,
+                colorBack: Color.clear,
+                colorFront: Color.primary.opacity(0.02),
+                pixelSize: 4,
+                speed: 0.1,
+                opacity: 0.5
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
 
             VStack(spacing: 0) {
                 // Top bar

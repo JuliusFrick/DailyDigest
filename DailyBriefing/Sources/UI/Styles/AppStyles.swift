@@ -241,12 +241,9 @@ extension Color {
     /// Creates an adaptive color that switches between light and dark variants
     init(light: Color, dark: Color) {
         self.init(nsColor: NSColor(name: nil) { appearance in
-            switch appearance.bestMatch(from: [.aqua, .darkAqua]) {
-            case .darkAqua:
-                return NSColor(dark)
-            default:
-                return NSColor(light)
-            }
+            let isDark = appearance.name == .darkAqua ||
+                         appearance.name.rawValue.lowercased().contains("dark")
+            return isDark ? NSColor(dark) : NSColor(light)
         })
     }
 }
