@@ -21,6 +21,12 @@ struct MeetingDetailPopup: View {
     @State private var showTranscription = false
     @State private var showActionItems = false
     @State private var extractionError: String?
+    @State private var selectedTab: Tab = .details
+    
+    enum Tab {
+        case details
+        case chat
+    }
 
     init(meeting: BriefingItem, isPresented: Binding<Bool>) {
         self.meeting = meeting
@@ -38,19 +44,16 @@ struct MeetingDetailPopup: View {
             // Popup
             VStack(spacing: 0) {
                 header
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        metaSection
-                        divider
-                        actionsSection
-                        divider
-                        notesSection
-                        if showTranscription {
-                            divider
-                            transcriptionSection
-                        }
+                tabBar
+                
+                // Content
+                Group {
+                    switch selectedTab {
+                    case .details:
+                        detailsContent
+                    case .chat:
+                        chatContent
                     }
-                    .padding(Spacing.md)
                 }
             }
             .frame(width: 480)
@@ -67,6 +70,71 @@ struct MeetingDetailPopup: View {
             close()
             return .handled
         }
+    }
+    
+    // MARK: - Tab Bar
+    
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            tabButton(tab: .details, icon: "doc.text", label: "Details")
+            tabButton(tab: .chat, icon: "message", label: "Chat")
+        }
+        .background(Color.tuiBackground)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.tuiBorder).frame(height: 1)
+        }
+    }
+    
+    private func tabButton(tab: Tab, icon: String, label: String) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                selectedTab = tab
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 12))
+                Text(label)
+                    .font(.tuiMonoTiny)
+            }
+            .foregroundStyle(selectedTab == tab ? .primary : .tertiary)
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
+            .frame(maxWidth: .infinity)
+            .background(selectedTab == tab ? Color.tuiHover.opacity(0.3) : Color.clear)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    // MARK: - Details Content
+    
+    private var detailsContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                metaSection
+                divider
+                actionsSection
+                divider
+                notesSection
+                if showTranscription {
+                    divider
+                    transcriptionSection
+                }
+            }
+            .padding(Spacing.md)
+        }
+    }
+    
+    // MARK: - Chat Content
+    
+    private var chatContent: some View {
+        TranscriptChatView(
+            meetingId: notesService.meetingId(for: meeting),
+            onJumpToTimestamp: { time in
+                // TODO: Implement jump to timestamp in recording playback
+                print("Jump to timestamp: \(time)")
+            }
+        )
     }
 
     // MARK: - Header
@@ -361,8 +429,43 @@ struct MeetingDetailPopup: View {
             let result = try await transcriber.transcribe(audioURL: url)
             transcriptionResult = result
             showTranscription = true
+            
+            // Generate embeddings in background for chat functionality
+            Task {
+                await generateEmbeddings(from: result)
+            }
         } catch {
             print("Transcription error: \(error)")
+        }
+    }
+    
+    private func generateEmbeddings(from transcription: VoxtralTranscriptionResponse) async {
+        let embeddingService = TranscriptEmbeddingService.shared
+        let vectorStore = VectorStore.shared
+        let meetingId = notesService.meetingId(for: meeting)
+        
+        do {
+            // Convert segments to timestamp tuples
+            let timestamps: [(start: TimeInterval, end: TimeInterval, text: String)] = 
+                transcription.segments?.map { segment in
+                    (start: segment.start, end: segment.end, text: segment.text)
+                } ?? []
+            
+            // Chunk the transcript
+            let chunks = embeddingService.chunkTranscript(
+                transcription.text,
+                timestamps: timestamps
+            )
+            
+            // Generate embeddings
+            let embeddedChunks = try await embeddingService.generateEmbeddings(for: chunks)
+            
+            // Store in vector store
+            vectorStore.store(chunks: embeddedChunks, for: meetingId)
+            
+            print("✅ Generated embeddings for \(embeddedChunks.count) chunks")
+        } catch {
+            print("❌ Failed to generate embeddings: \(error)")
         }
     }
 }
