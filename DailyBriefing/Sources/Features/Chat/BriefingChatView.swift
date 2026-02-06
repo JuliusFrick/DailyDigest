@@ -140,16 +140,11 @@ struct BriefingChatView: View {
     }
 
     private var loadingIndicator: some View {
-        HStack(spacing: Spacing.xs) {
-            Text("...")
-                .font(.tuiMonoSmall)
-                .foregroundStyle(.tertiary)
-
-            ProgressView()
-                .scaleEffect(0.5)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Spacing.sm)
+        TypingBubbleView()
+            .transition(.asymmetric(
+                insertion: .scale(scale: 0.8).combined(with: .opacity),
+                removal: .opacity
+            ))
     }
 
     // MARK: - Input Area

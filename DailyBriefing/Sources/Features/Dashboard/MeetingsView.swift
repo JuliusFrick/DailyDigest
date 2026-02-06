@@ -630,12 +630,21 @@ struct MeetingRow: View {
     let item: BriefingItem
     @State private var isHovered = false
     @State private var showMeetingPopup = false
+    
+    private var minutesUntilStart: Int {
+        guard let timestamp = item.timestamp else { return 999 }
+        return Int(timestamp.timeIntervalSinceNow / 60)
+    }
 
     var body: some View {
         Button {
             showMeetingPopup = true
         } label: {
             HStack(spacing: Spacing.sm) {
+                // Urgency indicator
+                MeetingUrgencyIndicator(minutesUntilStart: minutesUntilStart)
+                    .frame(width: 40, alignment: .leading)
+                
                 // Time
                 VStack(alignment: .leading, spacing: 2) {
                     if let subtitle = item.subtitle {
@@ -676,6 +685,7 @@ struct MeetingRow: View {
             .padding(.horizontal, Spacing.md)
             .padding(.vertical, Spacing.sm)
             .background(isHovered ? Color.tuiHover : Color.clear)
+            .urgencyBorder(minutesUntilStart: minutesUntilStart)
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }

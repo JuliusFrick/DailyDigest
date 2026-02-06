@@ -96,15 +96,11 @@ struct TranscriptChatView: View {
                     
                     // Loading indicator
                     if chatService.isGenerating {
-                        HStack(spacing: Spacing.sm) {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                            Text("Generiere Antwort...")
-                                .font(.tuiMonoTiny)
-                                .foregroundStyle(.tertiary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, Spacing.md)
+                        TypingBubbleView()
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.8).combined(with: .opacity),
+                                removal: .opacity
+                            ))
                     }
                 }
                 .padding(Spacing.md)
