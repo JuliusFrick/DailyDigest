@@ -165,8 +165,13 @@ final class LocalTranscriptionService: ObservableObject {
     /// - Parameters:
     ///   - audioURL: URL to the audio file
     ///   - language: Language code (default: "de" for German)
+    ///   - useContextBiasing: Whether to use dictionary words for context biasing
     /// - Returns: Transcription result
-    func transcribe(audioURL: URL, language: String = "de") async throws -> TranscriptionResult {
+    func transcribe(
+        audioURL: URL,
+        language: String = "de",
+        useContextBiasing: Bool = true
+    ) async throws -> TranscriptionResult {
         guard serverStatus == .running else {
             throw LocalTranscriptionError.serverNotRunning
         }
@@ -177,14 +182,23 @@ final class LocalTranscriptionService: ObservableObject {
         // Read audio data
         let audioData = try Data(contentsOf: audioURL)
         
-        // Build request URL with language parameter
-        var components = URLComponents(url: serverURL.appendingPathComponent("transcribe"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [URLQueryItem(name: "language", value: language)]
+        // Get context words from dictionary
+        var contextWords: [String] = []
+        if useContextBiasing {
+            contextWords = await TranscriptionDictionaryService.shared.contextWords()
+        }
         
-        var request = URLRequest(url: components.url!)
+        // Build JSON request body
+        let requestBody: [String: Any] = [
+            "audio": audioData.base64EncodedString(),
+            "language": language,
+            "context_words": contextWords
+        ]
+        
+        var request = URLRequest(url: serverURL.appendingPathComponent("transcribe"))
         request.httpMethod = "POST"
-        request.setValue("audio/wav", forHTTPHeaderField: "Content-Type")
-        request.httpBody = audioData
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         request.timeoutInterval = 300 // 5 minutes for long audio
         
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -201,6 +215,17 @@ final class LocalTranscriptionService: ObservableObject {
         }
         
         let result = try JSONDecoder().decode(TranscriptionResponse.self, from: data)
+        
+        // Record usage of dictionary words that appeared in the transcription
+        if useContextBiasing {
+            let transcribedWords = Set(result.text.components(separatedBy: .whitespaces))
+            let matchedWords = contextWords.filter { word in
+                transcribedWords.contains { $0.localizedCaseInsensitiveContains(word) }
+            }
+            if !matchedWords.isEmpty {
+                await TranscriptionDictionaryService.shared.recordUsage(of: matchedWords)
+            }
+        }
         
         return TranscriptionResult(
             text: result.text,

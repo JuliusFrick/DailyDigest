@@ -63,27 +63,40 @@ def load_model():
     return model, processor
 
 
-def transcribe_audio(audio_path: str, language: str = "de") -> dict:
+def transcribe_audio(audio_path: str, language: str = "de", context_words: list = None) -> dict:
     """
     Transcribe audio file using Voxtral.
+    
+    Args:
+        audio_path: Path to audio file
+        language: Language code (default: "de")
+        context_words: List of words for context biasing (names, brands, etc.)
     
     Returns:
         {
             "text": "transcribed text",
-            "segments": [{"start": 0.0, "end": 1.5, "text": "..."}],
             "language": "de",
-            "duration": 45.2
+            "processing_time": 1.23,
+            "model": "..."
         }
     """
     m, p = load_model()
     
     start_time = time.time()
     
-    # Prepare inputs
-    inputs = p.apply_transcrition_request(
-        language=language,
-        audio=audio_path
-    )
+    # Prepare inputs with optional context biasing
+    request_params = {
+        "language": language,
+        "audio": audio_path
+    }
+    
+    # Add context words if provided (max 100 for Voxtral)
+    if context_words:
+        # Limit to 100 words as per Voxtral spec
+        request_params["context_words"] = context_words[:100]
+        print(f"Using {len(request_params['context_words'])} context words for biasing")
+    
+    inputs = p.apply_transcrition_request(**request_params)
     
     # Generate transcription
     outputs = m.generate(
@@ -104,7 +117,8 @@ def transcribe_audio(audio_path: str, language: str = "de") -> dict:
         "text": text.strip(),
         "language": language,
         "processing_time": processing_time,
-        "model": MODEL_ID
+        "model": MODEL_ID,
+        "context_words_used": len(context_words) if context_words else 0
     }
 
 
@@ -169,6 +183,18 @@ class VoxtralHandler(BaseHTTPRequestHandler):
     def handle_transcribe(self):
         """Handle transcription request."""
         try:
+            # Get content type
+            content_type = self.headers.get("Content-Type", "")
+            
+            # Get language and context words from query params
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            language = params.get("language", ["de"])[0]
+            
+            # Context words can be passed as comma-separated query param
+            context_words_param = params.get("context_words", [""])[0]
+            context_words = [w.strip() for w in context_words_param.split(",") if w.strip()] if context_words_param else None
+            
             # Read request body
             content_length = int(self.headers.get("Content-Length", 0))
             
@@ -176,21 +202,30 @@ class VoxtralHandler(BaseHTTPRequestHandler):
                 self.send_json({"error": "No audio data"}, 400)
                 return
             
-            # Get language from query params
-            parsed = urlparse(self.path)
-            params = parse_qs(parsed.query)
-            language = params.get("language", ["de"])[0]
+            # Check if it's multipart (audio + context words JSON)
+            if "multipart" in content_type:
+                # Handle multipart form data
+                # For now, just use query params for context words
+                audio_data = self.rfile.read(content_length)
+            elif "application/json" in content_type:
+                # JSON request with base64 audio and context words
+                body = json.loads(self.rfile.read(content_length))
+                import base64
+                audio_data = base64.b64decode(body.get("audio", ""))
+                context_words = body.get("context_words", context_words)
+                language = body.get("language", language)
+            else:
+                # Raw audio data
+                audio_data = self.rfile.read(content_length)
             
             # Save audio to temp file
-            audio_data = self.rfile.read(content_length)
-            
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 f.write(audio_data)
                 temp_path = f.name
             
             try:
-                # Transcribe
-                result = transcribe_audio(temp_path, language)
+                # Transcribe with context biasing
+                result = transcribe_audio(temp_path, language, context_words)
                 self.send_json(result)
             finally:
                 # Cleanup temp file
