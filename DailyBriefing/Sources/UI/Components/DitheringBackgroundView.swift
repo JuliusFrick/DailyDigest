@@ -136,14 +136,17 @@ struct DitheringBackgroundMetalView: NSViewRepresentable {
         }
 
         private func loadShaderLibrary(device: MTLDevice) -> MTLLibrary? {
+            // Try default library first (works in Xcode builds with .metal files)
             if let library = device.makeDefaultLibrary(),
                library.functionNames.contains("ditheringFragment") {
                 return library
             }
 
+            // Compile from embedded source (works in SPM builds)
             do {
-                return try device.makeLibrary(source: DitheringMetalView.Coordinator.ditheringShaderSource, options: nil)
+                return try device.makeLibrary(source: ShaderSources.dithering, options: nil)
             } catch {
+                print("Failed to compile dithering shader: \(error)")
                 return nil
             }
         }

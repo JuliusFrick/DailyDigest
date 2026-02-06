@@ -167,30 +167,17 @@ struct DitheringMetalView: NSViewRepresentable {
         }
 
         private func loadShaderLibrary(device: MTLDevice) -> MTLLibrary? {
-            // Try default library first (works in Xcode builds)
-            if let library = device.makeDefaultLibrary() {
-                if library.functionNames.contains("ditheringFragment") {
-                    return library
-                }
+            // Try default library first (works in Xcode builds with .metal files)
+            if let library = device.makeDefaultLibrary(),
+               library.functionNames.contains("ditheringFragment") {
+                return library
             }
 
-            // Try loading from bundle (for SPM resource bundles)
-            if let bundleURL = Bundle.main.url(forResource: "DailyBriefing_DailyBriefing", withExtension: "bundle"),
-               let bundle = Bundle(url: bundleURL),
-               let metalURL = bundle.url(forResource: "DitheringShader", withExtension: "metal"),
-               let shaderSource = try? String(contentsOf: metalURL) {
-                do {
-                    return try device.makeLibrary(source: shaderSource, options: nil)
-                } catch {
-                    print("Failed to compile shader from bundle: \(error)")
-                }
-            }
-
-            // Fallback: compile from embedded source
+            // Compile from embedded source (works in SPM builds)
             do {
-                return try device.makeLibrary(source: Self.ditheringShaderSource, options: nil)
+                return try device.makeLibrary(source: ShaderSources.dithering, options: nil)
             } catch {
-                print("Failed to compile embedded shader: \(error)")
+                print("Failed to compile dithering shader: \(error)")
                 return nil
             }
         }

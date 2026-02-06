@@ -24,8 +24,9 @@ let package = Package(
             ],
             path: "Sources",
             resources: [
-                .process("Resources"),
-                .process("UI/Shaders")
+                .process("Resources")
+                // Note: Metal shaders are embedded as source strings in the Swift files
+                // .metal files in UI/Shaders/ are kept as reference only
             ]
         )
     ]
