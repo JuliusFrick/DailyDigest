@@ -43,7 +43,10 @@ final class LocalTranscriptionService: ObservableObject {
     }
     
     deinit {
-        stopServer()
+        // Note: Can't call MainActor-isolated stopServer() from deinit
+        // Server cleanup handled by process termination
+        healthCheckTimer?.invalidate()
+        serverProcess?.terminate()
     }
     
     // MARK: - Server Management
@@ -289,7 +292,8 @@ final class LocalTranscriptionService: ObservableObject {
     
     private func startHealthCheckTimer() {
         healthCheckTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            guard let self = self else { return }
+            Task { @MainActor [weak self] in
                 await self?.checkServerHealth()
             }
         }

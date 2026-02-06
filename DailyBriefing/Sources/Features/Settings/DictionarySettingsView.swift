@@ -112,11 +112,11 @@ struct DictionarySettingsView: View {
             // Stats
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(dictionary.entries.count) Einträge")
-                    .font(.tuiCaption)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                 
                 Text("Max. 100 für Voxtral")
-                    .font(.tuiCaption)
+                    .font(.caption)
                     .foregroundStyle(.tertiary)
             }
             .padding(Spacing.sm)
@@ -140,7 +140,7 @@ struct DictionarySettingsView: View {
                 Text(title)
                 Spacer()
                 Text("\(count)")
-                    .font(.tuiCaption)
+                    .font(.caption)
                     .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, Spacing.sm)
@@ -191,11 +191,11 @@ struct DictionarySettingsView: View {
                 .foregroundStyle(.tertiary)
             
             Text("Noch keine Einträge")
-                .font(.tuiBody)
+                .font(.body)
                 .foregroundStyle(.secondary)
             
             Text("Füge Namen, Firmen oder Fachbegriffe hinzu,\ndie korrekt transkribiert werden sollen.")
-                .font(.tuiCaption)
+                .font(.caption)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
             
@@ -228,12 +228,12 @@ struct DictionaryEntryRow: View {
             // Word
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.word)
-                    .font(.tuiBody)
+                    .font(.body)
                     .fontWeight(.medium)
                 
                 if let notes = entry.notes, !notes.isEmpty {
                     Text(notes)
-                        .font(.tuiCaption)
+                        .font(.caption)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
@@ -244,13 +244,13 @@ struct DictionaryEntryRow: View {
             // Usage count
             if entry.usageCount > 0 {
                 Text("\(entry.usageCount)×")
-                    .font(.tuiCaption)
+                    .font(.caption)
                     .foregroundStyle(.tertiary)
             }
             
             // Category badge
             Text(entry.category.displayName)
-                .font(.tuiCaption)
+                .font(.caption)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(Color.tuiHover)

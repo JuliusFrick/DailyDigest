@@ -131,7 +131,7 @@ struct LiveTranscriptionView: View {
                         // Current partial transcription
                         if !viewModel.currentPartial.isEmpty {
                             Text(viewModel.currentPartial)
-                                .font(.tuiBody)
+                                .font(.body)
                                 .foregroundStyle(.secondary)
                                 .italic()
                                 .padding(.horizontal, Spacing.sm)
@@ -181,7 +181,7 @@ struct LiveTranscriptionView: View {
                 VStack {
                     Spacer()
                     Text("Action Items werden automatisch erkannt...")
-                        .font(.tuiCaption)
+                        .font(.caption)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
                         .padding()
@@ -211,7 +211,7 @@ struct LiveTranscriptionView: View {
                     .frame(width: 6, height: 6)
                 
                 Text(viewModel.voxtralStatus == .running ? "Voxtral On-Device" : "Cloud Fallback")
-                    .font(.tuiCaption)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             
@@ -272,7 +272,7 @@ struct TranscriptionSegmentRow: View {
             
             // Text
             Text(segment.text)
-                .font(.tuiBody)
+                .font(.body)
                 .foregroundStyle(.primary)
                 .textSelection(.enabled)
         }
@@ -291,7 +291,7 @@ struct LiveActionItemRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(item.title)
-                .font(.tuiSmall)
+                .font(.caption)
                 .fontWeight(.medium)
             
             if let assignee = item.assignee {
@@ -299,13 +299,13 @@ struct LiveActionItemRow: View {
                     Image(systemName: "person")
                         .font(.system(size: 10))
                     Text(assignee)
-                        .font(.tuiCaption)
+                        .font(.caption)
                 }
                 .foregroundStyle(.secondary)
             }
             
             Text(item.formattedTimestamp)
-                .font(.tuiCaption)
+                .font(.caption)
                 .foregroundStyle(.tertiary)
         }
         .padding(Spacing.sm)
