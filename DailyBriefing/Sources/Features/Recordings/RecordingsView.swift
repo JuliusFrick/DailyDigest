@@ -404,19 +404,34 @@ struct QuickRecordSheet: View {
                     }
                     
                     // Record button
-                    Button {
-                        Task { await toggleRecording() }
-                    } label: {
-                        HStack(spacing: Spacing.sm) {
-                            Text(recorder.isRecording ? "⏹" : "●")
-                                .font(.tuiMonoSmall)
-                                .foregroundStyle(recorder.isRecording ? .primary : .red)
-                            Text(recorder.isRecording ? "Aufnahme stoppen" : "Aufnahme starten")
-                                .font(.tuiMonoSmall)
+                    if recorder.isRecording {
+                        Button {
+                            Task { await toggleRecording() }
+                        } label: {
+                            HStack(spacing: Spacing.sm) {
+                                Text("⏹")
+                                    .font(.tuiMonoSmall)
+                                Text("Aufnahme stoppen")
+                                    .font(.tuiMonoSmall)
+                            }
+                            .frame(maxWidth: .infinity)
                         }
-                        .frame(maxWidth: .infinity)
+                        .buttonStyle(.tuiPrimary)
+                    } else {
+                        Button {
+                            Task { await toggleRecording() }
+                        } label: {
+                            HStack(spacing: Spacing.sm) {
+                                Text("●")
+                                    .font(.tuiMonoSmall)
+                                    .foregroundStyle(Color.red)
+                                Text("Aufnahme starten")
+                                    .font(.tuiMonoSmall)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.tui)
                     }
-                    .buttonStyle(recorder.isRecording ? .tuiPrimary : .tui)
                 }
                 
                 // Transcription status
