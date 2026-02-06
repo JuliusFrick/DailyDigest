@@ -160,6 +160,14 @@ final class AppleCalendarSource: BriefingSource, ObservableObject {
                     priority = .urgent
                 }
                 
+                // Parse attendees from EventKit
+                let attendees = self.parseAttendees(from: event)
+                
+                // Meetings with attendees get higher priority
+                if attendees.others.count > 0 {
+                    priority = max(priority, .high)
+                }
+                
                 // Format time subtitle
                 let formatter = DateFormatter()
                 formatter.locale = Locale(identifier: "de_DE")
@@ -172,6 +180,11 @@ final class AppleCalendarSource: BriefingSource, ObservableObject {
                     subtitle += " · \(formatter.string(from: event.startDate)) - \(formatter.string(from: event.endDate))"
                 }
                 
+                // Add attendee count to subtitle if it's a meeting
+                if !attendees.others.isEmpty {
+                    subtitle += " · 👥 \(attendees.others.count)"
+                }
+                
                 return BriefingItem(
                     title: event.title,
                     subtitle: subtitle,
@@ -182,8 +195,10 @@ final class AppleCalendarSource: BriefingSource, ObservableObject {
                     metadata: [
                         "calendarId": event.calendar.calendarIdentifier,
                         "location": event.location ?? "",
-                        "organizer": event.organizer?.name ?? ""
-                    ]
+                        "organizer": event.organizer?.name ?? "",
+                        "eventId": event.eventIdentifier
+                    ],
+                    attendees: attendees
                 )
             }
             
@@ -196,4 +211,53 @@ struct AppleCalendar: Identifiable, Equatable {
     let id: String
     let title: String
     let color: Color
+}
+
+// MARK: - Attendee Parsing
+
+extension AppleCalendarSource {
+    /// Parse attendees from an EventKit event
+    func parseAttendees(from event: EKEvent) -> [Attendee] {
+        guard let ekAttendees = event.attendees else {
+            return []
+        }
+        
+        return ekAttendees.map { participant in
+            Attendee(
+                email: extractEmail(from: participant),
+                name: participant.name,
+                status: mapParticipantStatus(participant.participantStatus),
+                isOrganizer: participant.participantRole == .chair,
+                isCurrentUser: participant.isCurrentUser
+            )
+        }
+    }
+    
+    /// Extract email from EKParticipant URL
+    /// EKParticipant stores email as URL like "mailto:email@example.com"
+    private func extractEmail(from participant: EKParticipant) -> String? {
+        let urlString = participant.url.absoluteString
+        if urlString.hasPrefix("mailto:") {
+            return String(urlString.dropFirst(7))
+        }
+        return urlString
+    }
+    
+    /// Map EventKit participant status to our Attendee.ResponseStatus
+    private func mapParticipantStatus(_ status: EKParticipantStatus) -> Attendee.ResponseStatus {
+        switch status {
+        case .accepted:
+            return .accepted
+        case .declined:
+            return .declined
+        case .tentative:
+            return .tentative
+        case .pending:
+            return .pending
+        case .unknown, .completed, .delegated, .inProcess:
+            return .unknown
+        @unknown default:
+            return .unknown
+        }
+    }
 }
