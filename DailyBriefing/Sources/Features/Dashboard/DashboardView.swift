@@ -5,6 +5,7 @@ import SwiftUI
 struct TUIDashboardView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var connectionManager = ServiceConnectionManager.shared
+    @StateObject private var actionItemStore = ActionItemStore.shared
     @State private var selectedDetailLevel: Briefing.DetailLevel = .quick
     @State private var selectedSection: Int = 0
     @State private var showChat: Bool = false
@@ -97,6 +98,15 @@ struct TUIDashboardView: View {
             // Next meeting widget (when no briefing)
             if appState.currentBriefing == nil && !upcomingMeetings.isEmpty {
                 nextMeetingWidget
+                    .padding(Spacing.md)
+                
+                Divider()
+                    .background(Color.tuiBorder)
+            }
+            
+            // Action Items widget (when there are open items)
+            if appState.currentBriefing == nil && actionItemStore.openItemsCount > 0 {
+                actionItemsWidget
                     .padding(Spacing.md)
                 
                 Divider()
@@ -296,6 +306,55 @@ struct TUIDashboardView: View {
             
             if let nextMeeting = upcomingMeetings.first {
                 NextMeetingCard(meeting: nextMeeting)
+            }
+        }
+    }
+    
+    // MARK: - Action Items Widget
+    
+    private var actionItemsWidget: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack {
+                Text("ACTION ITEMS")
+                    .font(.tuiMonoTiny)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.tertiary)
+                
+                Spacer()
+                
+                if actionItemStore.overdueItemsCount > 0 {
+                    Text("\(actionItemStore.overdueItemsCount) overdue")
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(Color.red.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                }
+            }
+            
+            VStack(spacing: Spacing.xs) {
+                ForEach(actionItemStore.openItems().prefix(5)) { item in
+                    ActionItemCompactRow(item: item)
+                }
+            }
+            
+            if actionItemStore.openItemsCount > 5 {
+                NavigationLink {
+                    ActionItemsView()
+                } label: {
+                    HStack {
+                        Text("view all (\(actionItemStore.openItemsCount))")
+                            .font(.tuiMonoTiny)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("→")
+                            .font(.tuiMonoTiny)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.top, Spacing.xs)
             }
         }
     }
