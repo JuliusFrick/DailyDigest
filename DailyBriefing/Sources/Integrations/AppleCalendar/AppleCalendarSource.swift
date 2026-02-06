@@ -25,6 +25,7 @@ final class AppleCalendarSource: BriefingSource, ObservableObject {
     // MARK: - Private Properties
     
     private let eventStore = EKEventStore()
+    private static let eventIdentifierURLAllowedCharacters = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))
     
     // MARK: - Initialization
     
@@ -109,6 +110,16 @@ final class AppleCalendarSource: BriefingSource, ObservableObject {
             return try await eventStore.requestAccess(to: .event)
         }
     }
+
+    private static func calendarLink(for eventId: String?) -> String? {
+        guard let eventId, !eventId.isEmpty else {
+            return nil
+        }
+        guard let encodedEventId = eventId.addingPercentEncoding(withAllowedCharacters: eventIdentifierURLAllowedCharacters) else {
+            return nil
+        }
+        return "x-apple-calendars://event/\(encodedEventId)"
+    }
     
     func fetchAvailableCalendars() async {
         let calendars = eventStore.calendars(for: .event)
@@ -185,19 +196,30 @@ final class AppleCalendarSource: BriefingSource, ObservableObject {
                     subtitle += " · 👥 \(attendees.others.count)"
                 }
                 
+                let eventId = event.eventIdentifier
+                let calendarLink = Self.calendarLink(for: eventId)
+                let deepLink: URL? = calendarLink.flatMap { URL(string: $0) }
+
+                var metadata: [String: String] = [
+                    "calendarId": event.calendar.calendarIdentifier,
+                    "location": event.location ?? "",
+                    "organizer": event.organizer?.name ?? ""
+                ]
+                if let eventId {
+                    metadata["eventId"] = eventId
+                }
+                if let calendarLink {
+                    metadata["calendarLink"] = calendarLink
+                }
+
                 return BriefingItem(
                     title: event.title,
                     subtitle: subtitle,
                     body: event.notes,
                     timestamp: event.startDate,
-                    deepLink: URL(string: "ical://"), // Opens Calendar app
+                    deepLink: deepLink,
                     priority: priority,
-                    metadata: [
-                        "calendarId": event.calendar.calendarIdentifier,
-                        "location": event.location ?? "",
-                        "organizer": event.organizer?.name ?? "",
-                        "eventId": event.eventIdentifier
-                    ],
+                    metadata: metadata,
                     attendees: attendees
                 )
             }

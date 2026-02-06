@@ -1144,6 +1144,10 @@ struct TUIItemRow: View {
         item.timestamp != nil || item.metadata["meetingLink"] != nil
     }
 
+    private var hasMeetingOrCalendarLink: Bool {
+        !(item.metadata["meetingLink"]?.isEmpty ?? true) || !(item.metadata["calendarLink"]?.isEmpty ?? true)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Main row (clickable)
@@ -1333,7 +1337,7 @@ struct TUIItemRow: View {
 
             // Deep link to calendar
             if let deepLink = item.deepLink,
-               item.metadata["meetingLink"] != nil {
+               hasMeetingOrCalendarLink {
                 Button {
                     NSWorkspace.shared.open(deepLink)
                 } label: {
