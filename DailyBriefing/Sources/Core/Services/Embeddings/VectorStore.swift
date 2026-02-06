@@ -1,8 +1,9 @@
 import Foundation
+import Combine
 
 /// Simple in-memory vector store for transcript chunks
 /// Future: Migrate to CoreData or SQLite for persistence
-final class VectorStore {
+final class VectorStore: ObservableObject {
     
     // MARK: - Singleton
     

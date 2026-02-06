@@ -439,22 +439,16 @@ struct MeetingDetailPopup: View {
         }
     }
     
-    private func generateEmbeddings(from transcription: VoxtralTranscriptionResponse) async {
+    private func generateEmbeddings(from transcriptionText: String) async {
         let embeddingService = TranscriptEmbeddingService.shared
         let vectorStore = VectorStore.shared
         let meetingId = notesService.meetingId(for: meeting)
         
         do {
-            // Convert segments to timestamp tuples
-            let timestamps: [(start: TimeInterval, end: TimeInterval, text: String)] = 
-                transcription.segments?.map { segment in
-                    (start: segment.start, end: segment.end, text: segment.text)
-                } ?? []
-            
-            // Chunk the transcript
+            // Chunk the transcript (no timestamps available from simple transcription)
             let chunks = embeddingService.chunkTranscript(
-                transcription.text,
-                timestamps: timestamps
+                transcriptionText,
+                timestamps: []
             )
             
             // Generate embeddings

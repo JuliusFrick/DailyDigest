@@ -62,9 +62,9 @@ struct ChatMessageRow: View {
     private var messageBackground: Color {
         switch message.role {
         case .user:
-            return Color.tuiAccent.opacity(0.1)
+            return Color.primary.opacity(0.1)
         case .assistant:
-            return Color.tuiInputBackground
+            return Color.tuiHover
         case .system:
             return Color.tuiBackground
         }
@@ -137,12 +137,12 @@ struct TimestampButton: View {
                 Text("\(label) \(formatTime(time))")
                     .font(.tuiMonoTiny)
             }
-            .foregroundStyle(.tuiAccent)
+            .foregroundStyle(.primary)
             .padding(.horizontal, Spacing.xs)
             .padding(.vertical, 4)
             .background(
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.tuiAccent.opacity(isHovering ? 0.2 : 0.1))
+                    .fill(Color.primary.opacity(isHovering ? 0.2 : 0.1))
             )
         }
         .buttonStyle(.plain)

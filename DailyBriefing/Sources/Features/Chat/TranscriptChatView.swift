@@ -152,7 +152,7 @@ struct TranscriptChatView: View {
                                 .foregroundStyle(.secondary)
                                 .padding(.horizontal, Spacing.sm)
                                 .padding(.vertical, Spacing.xs)
-                                .background(Color.tuiAccent.opacity(0.1))
+                                .background(Color.primary.opacity(0.1))
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
                         }
                         .buttonStyle(.plain)
@@ -182,7 +182,7 @@ struct TranscriptChatView: View {
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 20))
-                    .foregroundStyle(inputText.isEmpty ? .tertiary : .tuiAccent)
+                    .foregroundStyle(inputText.isEmpty ? .tertiary : .primary)
             }
             .buttonStyle(.plain)
             .disabled(inputText.isEmpty || chatService.isGenerating)
@@ -200,7 +200,7 @@ struct TranscriptChatView: View {
             }
         }
         .padding(Spacing.sm)
-        .background(Color.tuiInputBackground)
+        .background(Color.tuiHover)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .padding(Spacing.md)
     }
