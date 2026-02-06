@@ -200,6 +200,16 @@ extension KeychainService {
     func setMistralKey(_ key: String) throws {
         try saveLLMAPIKey(key, for: "mistral")
     }
+    
+    /// Get Groq API key
+    func getGroqKey() -> String? {
+        loadLLMAPIKey(for: "groq")
+    }
+    
+    /// Get Google AI API key
+    func getGoogleAIKey() -> String? {
+        loadLLMAPIKey(for: "google")
+    }
 }
 
 // MARK: - Delete All Credentials
