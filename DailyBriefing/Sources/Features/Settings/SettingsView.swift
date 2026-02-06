@@ -167,9 +167,9 @@ struct SettingsView: View {
                 icon: "brain"
             )
         } header: {
-            Text("Model Configuration")
+            Text("KI-Modelle")
         } footer: {
-            Text("🏠 On-Device Modelle laufen lokal und sind kostenlos. ☁️ Cloud-Modelle benötigen API-Keys.")
+            Text("🏠 Lokal = kostenlos, läuft auf deinem Mac. ☁️ Cloud = schneller, braucht API-Key.")
         }
     }
 
@@ -199,7 +199,7 @@ struct SettingsView: View {
         } header: {
             Text("Meeting-Transkription")
         } footer: {
-            Text("Wähle den Dienst für die Umwandlung von Sprache in Text.")
+            Text("Wandelt deine Meeting-Aufnahmen in Text um.")
         }
     }
 
@@ -222,7 +222,7 @@ struct SettingsView: View {
         } header: {
             Text("Audio-Briefing")
         } footer: {
-            Text("Konfiguriere die Text-to-Speech Engine, Stimme und Wiedergabegeschwindigkeit.")
+            Text("Wähle wie dein Briefing vorgelesen wird - Stimme und Geschwindigkeit.")
         }
     }
 
@@ -263,7 +263,7 @@ struct SettingsView: View {
         } header: {
             Text("Zeitplan")
         } footer: {
-            Text("Das Briefing wird automatisch zur eingestellten Zeit generiert und eine Benachrichtigung erscheint.")
+            Text("Dein Briefing wird automatisch zur gewählten Zeit erstellt.")
         }
     }
 
