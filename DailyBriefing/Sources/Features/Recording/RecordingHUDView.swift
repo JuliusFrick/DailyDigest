@@ -96,7 +96,9 @@ struct VisualEffectView: NSViewRepresentable {
     }
 }
 
-#Preview {
-    RecordingHUDView()
-        .padding()
+struct RecordingHUDView_Previews: PreviewProvider {
+    static var previews: some View {
+        RecordingHUDView()
+            .padding()
+    }
 }
