@@ -350,7 +350,9 @@ struct DitheringMetalView: NSViewRepresentable {
                 float mid = smoothstep(0.0, 1.0, pow(l, twist));
                 shape = mix(0.0, fract(offset), mid);
             } else {
-                float2 sphereUv = shape_uv * 2.0;
+                float minBubbleScale = 0.82;
+                float bubblePulse = mix(1.0, minBubbleScale, clamp(audioLevel, 0.0, 1.0));
+                float2 sphereUv = shape_uv * 2.0 * bubblePulse;
                 float d = 1.0 - pow(length(sphereUv), 2.0);
                 float3 pos = float3(sphereUv, sqrt(max(d, 0.0)));
                 float3 lightPos = normalize(float3(cos(1.5 * t), 0.8, sin(1.25 * t)));

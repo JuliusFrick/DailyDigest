@@ -541,10 +541,6 @@ struct QuickRecordSheet: View {
     }
     
     private func close() {
-        // Stop recording if still running
-        if recorder.isRecording {
-            _ = recorder.stopRecording()
-        }
         isPresented = false
     }
 }

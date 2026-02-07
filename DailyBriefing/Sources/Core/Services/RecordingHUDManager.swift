@@ -90,7 +90,7 @@ final class RecordingHUDManager: NSObject, ObservableObject {
         
         let panel = NSPanel(
             contentRect: hostingView.frame,
-            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
+            styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
         )
