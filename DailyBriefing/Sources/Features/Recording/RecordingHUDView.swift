@@ -11,14 +11,14 @@ struct RecordingHUDView: View {
             ZStack {
                 // Dithering shader orb with audio reactivity
                 DitheringOrbView(
-                    shape: recordingService.isRecording ? .swirl : .ripple,
+                    shape: recordingService.isRecording ? .sphere : .ripple,
                     ditherType: .bayer4x4,
                     colorBack: recordingService.isRecording
-                        ? Color.tuiBackground
+                        ? Color.recordingActive.opacity(0.2)
                         : Color(red: 0.03, green: 0.02, blue: 0.06),
                     colorFront: recordingService.isRecording ? Color.recordingActive : Color.recordingIdle,
                     pixelSize: 2.5,
-                    speed: recordingService.isRecording ? 2.5 : 0.6,
+                    speed: recordingService.isRecording ? 1.2 : 0.6,
                     audioLevel: CGFloat(recordingService.audioLevel),
                     size: 50
                 )
