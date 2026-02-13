@@ -19,6 +19,8 @@ struct ActionItemRow: View {
                     .foregroundColor(statusColor)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(item.status == .completed ? "Mark as incomplete" : "Mark as complete")
+            .accessibilityHint("Toggle the completion status of this action item")
             
             // Content
             VStack(alignment: .leading, spacing: 6) {

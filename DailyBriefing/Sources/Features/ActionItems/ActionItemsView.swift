@@ -92,6 +92,8 @@ struct ActionItemsView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .accessibilityLabel("More actions")
+                .accessibilityHint("Export action items or delete completed items")
             }
         }
         .sheet(item: $selectedItem) { item in
