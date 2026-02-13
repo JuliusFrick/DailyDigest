@@ -180,7 +180,8 @@ final class SlackSource: BriefingSource, ObservableObject {
         do {
             try await oauthService.logout()
         } catch {
-            print("Slack logout error: \(error)")
+            // Log to console - cleanup operation
+            print("Slack logout warning: \(error.localizedDescription)")
         }
         isAuthenticated = false
         connectionStatus = .disconnected

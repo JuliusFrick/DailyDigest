@@ -75,7 +75,8 @@ final class GoogleCalendarSource: BriefingSource, ObservableObject {
         do {
             try await oauthService.logout()
         } catch {
-            print("Logout error: \(error)")
+            // Log to console - cleanup operation
+            print("Google Calendar logout warning: \(error.localizedDescription)")
         }
         isAuthenticated = false
         connectionStatus = .disconnected

@@ -116,7 +116,8 @@ final class JiraSource: BriefingSource, ObservableObject {
                 try keychain.delete(for: Self.jiraApiTokenKey)
             }
         } catch {
-            print("Jira logout error: \(error)")
+            // Log to console - cleanup operation
+            print("Jira logout warning: \(error.localizedDescription)")
         }
         isAuthenticated = false
         connectionStatus = .disconnected
