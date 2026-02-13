@@ -5,7 +5,7 @@ import SwiftUI
 /// Compact row for displaying action items in the dashboard widget
 struct ActionItemCompactRow: View {
     let item: ActionItem
-    @StateObject var store = ActionItemStore.shared
+    @ObservedObject var store = ActionItemStore.shared
     
     var body: some View {
         HStack(spacing: Spacing.xs) {

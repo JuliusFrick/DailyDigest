@@ -5,7 +5,7 @@ import SwiftUI
 /// Row component for displaying a single action item
 struct ActionItemRow: View {
     let item: ActionItem
-    @StateObject var store = ActionItemStore.shared
+    @ObservedObject var store = ActionItemStore.shared
     @State private var showExportMenu = false
     
     var body: some View {

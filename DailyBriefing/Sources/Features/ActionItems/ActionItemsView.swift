@@ -4,8 +4,8 @@ import SwiftUI
 
 /// Main view for displaying and managing action items
 struct ActionItemsView: View {
-    @StateObject var store = ActionItemStore.shared
-    @StateObject var notificationService = ActionItemNotificationService.shared
+    @ObservedObject var store = ActionItemStore.shared
+    @ObservedObject var notificationService = ActionItemNotificationService.shared
     @State private var filter: Filter = .all
     @State private var showExportMenu = false
     @State private var showError: String?
