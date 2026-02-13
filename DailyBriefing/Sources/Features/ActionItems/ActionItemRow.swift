@@ -6,6 +6,7 @@ import SwiftUI
 struct ActionItemRow: View {
     let item: ActionItem
     @StateObject var store = ActionItemStore.shared
+    @StateObject private var playbackService = RecordingPlaybackService.shared
     @State private var showExportMenu = false
     
     var body: some View {
@@ -74,18 +75,23 @@ struct ActionItemRow: View {
             // Timestamp badge
             if let timestamp = item.timestamp {
                 Button {
-                    // TODO: Jump to recording at timestamp
-                    print("Jump to \(formatTimestamp(timestamp))")
+                    // Jump to recording at timestamp
+                    playbackService.jumpToTimestamp(timestamp)
                 } label: {
-                    Text(formatTimestamp(timestamp))
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.blue.opacity(0.1))
-                        .foregroundColor(.blue)
-                        .cornerRadius(4)
+                    HStack(spacing: 4) {
+                        Image(systemName: "play.fill")
+                            .font(.caption2)
+                        Text(formatTimestamp(timestamp))
+                            .font(.caption2)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.blue.opacity(0.1))
+                    .foregroundColor(.blue)
+                    .cornerRadius(4)
                 }
                 .buttonStyle(.plain)
+                .help("Jump to this timestamp in the recording")
             }
         }
         .padding()

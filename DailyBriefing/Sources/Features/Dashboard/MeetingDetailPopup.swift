@@ -13,6 +13,7 @@ struct MeetingDetailPopup: View {
     @StateObject private var notesService = MeetingNotesService.shared
     @StateObject private var actionItemStore = ActionItemStore.shared
     @StateObject private var actionItemExtractor = ActionItemExtractionService.shared
+    @StateObject private var playbackService = RecordingPlaybackService.shared
 
     @State private var notes: String
     @State private var isEditingNotes = false
@@ -131,8 +132,11 @@ struct MeetingDetailPopup: View {
         TranscriptChatView(
             meetingId: notesService.meetingId(for: meeting),
             onJumpToTimestamp: { time in
-                // TODO: Implement jump to timestamp in recording playback
-                print("Jump to timestamp: \(time)")
+                // Jump to timestamp in recording playback
+                if let url = recordingURL {
+                    playbackService.play(url: url)
+                    playbackService.jumpToTimestamp(time)
+                }
             }
         )
     }
