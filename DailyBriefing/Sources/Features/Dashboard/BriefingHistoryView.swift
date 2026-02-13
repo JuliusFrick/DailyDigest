@@ -5,10 +5,12 @@ import SwiftUI
 struct TUIHistoryView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var cacheService = BriefingCacheService.shared
+    @StateObject private var errorService = ErrorDisplayService.shared
 
     @State private var cachedBriefings: [Briefing] = []
     @State private var selectedBriefing: Briefing?
     @State private var selectedIndex: Int = 0
+    @State private var isLoading: Bool = false
 
     var body: some View {
         HStack(spacing: 0) {
