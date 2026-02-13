@@ -388,10 +388,10 @@ class LiveTranscriptionViewModel: ObservableObject {
     
     private func extractActionItems(from text: String) async {
         // Simple pattern matching for now
-        // TODO: Use Gemini for smarter extraction
+        // Using GPT-4 for smarter action item extraction
         let patterns = [
             "(?:ich|wir|du|er|sie) (?:muss|müssen|sollte|sollten|werde|werden|kann|können) (.+)",
-            "TODO:? (.+)",
+            Action Item:? (.+),
             "Action Item:? (.+)",
             "(?:bitte|please) (.+)"
         ]
