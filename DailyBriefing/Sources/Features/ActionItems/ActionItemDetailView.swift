@@ -6,7 +6,7 @@ import SwiftUI
 struct ActionItemDetailView: View {
     @Binding var item: ActionItem
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var store = ActionItemStore.shared
+    @ObservedObject var store = ActionItemStore.shared
     
     @State private var editedTitle: String = ""
     @State private var editedDescription: String = ""
