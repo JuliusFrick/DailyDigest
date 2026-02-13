@@ -226,19 +226,26 @@ final class ActionItemStore: ObservableObject {
     
     func exportToJira(_ items: [ActionItem]) async throws {
         // TODO: Implement Jira API integration
-        // This would require:
-        // 1. Jira credentials in Keychain
-        // 2. Project/Board selection
+        // Required setup:
+        // 1. Jira OAuth credentials in Keychain
+        // 2. Project/Board selection UI
         // 3. Issue creation via Jira REST API
-        throw ExportError.notImplemented
+        //
+        // Example API endpoint: https://api.atlassian.com/ex/jira/{cloudid}/rest/api/3/issue
+        throw ExportError.jiraNotConfigured
     }
     
     // MARK: - Export to Linear (Placeholder)
     
     func exportToLinear(_ items: [ActionItem]) async throws {
         // TODO: Implement Linear API integration
-        // Similar to Jira, would need API key and team/project selection
-        throw ExportError.notImplemented
+        // Required setup:
+        // 1. Linear API key in Keychain
+        // 2. Team/Project selection UI
+        // 3. Issue creation via Linear GraphQL API
+        //
+        // Example: POST https://api.linear.app/graphql with createIssue mutation
+        throw ExportError.linearNotConfigured
     }
     
     // MARK: - Bulk Operations
@@ -269,6 +276,8 @@ enum ExportError: LocalizedError {
     case permissionDenied
     case noDefaultCalendar
     case notImplemented
+    case jiraNotConfigured
+    case linearNotConfigured
     
     var errorDescription: String? {
         switch self {
@@ -278,6 +287,10 @@ enum ExportError: LocalizedError {
             return "No default reminders calendar found."
         case .notImplemented:
             return "This export feature is not yet implemented."
+        case .jiraNotConfigured:
+            return "Jira integration is not configured. Please set up Jira credentials in Settings > Integrations."
+        case .linearNotConfigured:
+            return "Linear integration is not configured. Please set up your Linear API key in Settings > Integrations."
         }
     }
 }
