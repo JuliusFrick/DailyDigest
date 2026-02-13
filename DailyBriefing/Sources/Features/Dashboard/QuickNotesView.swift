@@ -12,9 +12,9 @@ struct QuickNotesView: View {
     @State private var showExtractedItems = false
     @State private var errorMessage: String?
     
-    @StateObject private var notesService = MeetingNotesService.shared
-    @StateObject private var extractionService = ActionItemExtractionService.shared
-    @StateObject private var actionItemStore = ActionItemStore.shared
+    @ObservedObject var notesService = MeetingNotesService.shared
+    @ObservedObject var extractionService = ActionItemExtractionService.shared
+    @ObservedObject var actionItemStore = ActionItemStore.shared
     
     @FocusState private var isTextFieldFocused: Bool
     
