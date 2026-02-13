@@ -42,6 +42,29 @@ struct GoogleCalendarConfigView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    
+                    // Show loading state
+                    if source.isLoading {
+                        HStack(spacing: 4) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Verbinde...")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    // Show error with retry option
+                    if let error = source.lastError {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                                .font(.caption2)
+                            Text(error.localizedDescription)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
 
                 Spacer()
@@ -55,23 +78,25 @@ struct GoogleCalendarConfigView: View {
                     .buttonStyle(.tui)
                     .tint(.red)
                 } else {
-                    Button("Verbinden") {
+                    Button {
                         Task {
-                            try? await source.authenticate()
+                            do {
+                                try await source.authenticate()
+                            } catch {
+                                // Error handled in source.lastError
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            if source.isLoading {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            }
+                            Text("Verbinden")
                         }
                     }
                     .buttonStyle(.tuiPrimary)
                     .disabled(source.isLoading || !isConfigured)
-                }
-            }
-
-            if let error = source.lastError {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                    Text(error.localizedDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
         } header: {
