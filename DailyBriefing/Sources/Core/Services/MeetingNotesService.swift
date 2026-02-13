@@ -152,4 +152,24 @@ final class MeetingNotesService: ObservableObject {
         guard let data = try? JSONEncoder().encode(adHocMeetings) else { return }
         userDefaults.set(data, forKey: adHocMeetingsKey)
     }
+    
+    // MARK: - Query All Notes
+    
+    /// Get all meeting IDs that have notes stored
+    /// Returns an array of meeting IDs with saved notes
+    func allMeetingIdsWithNotes() -> [String] {
+        let prefix = notesKeyPrefix
+        return userDefaults.dictionaryRepresentation()
+            .keys
+            .filter { $0.hasPrefix(prefix) }
+            .map { String($0.dropFirst(prefix.count)) }
+    }
+    
+    /// Check if a meeting has notes stored
+    /// - Parameter meetingId: The meeting ID to check
+    /// - Returns: true if notes exist for this meeting
+    func hasNotes(for meetingId: String) -> Bool {
+        let key = notesKeyPrefix + meetingId
+        return userDefaults.string(forKey: key) != nil
+    }
 }

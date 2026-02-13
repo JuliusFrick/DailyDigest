@@ -15,6 +15,13 @@ struct RecordingsView: View {
     @State private var isLoadingCalendarMeetings = false
     @State private var calendarMeetingsWithNotes: [BriefingItem] = []
     
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.dateFormat = "d. MMM"
+        return formatter
+    }()
+    
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -180,9 +187,47 @@ struct RecordingsView: View {
     // MARK: - Load Calendar Meetings
     
     private func loadCalendarMeetingsWithNotes() async {
-        // This would ideally query stored notes and match them to calendar events
-        // For now, we'll leave this empty - the calendar integration handles its own notes
-        // TODO: Implement proper querying of all meetings that have notes stored
+        // Get all meeting IDs that have notes stored
+        let meetingIdsWithNotes = notesService.allMeetingIdsWithNotes()
+        
+        // If no notes exist, return early
+        guard !meetingIdsWithNotes.isEmpty else {
+            calendarMeetingsWithNotes = []
+            return
+        }
+        
+        // Fetch recent calendar events (last 30 days)
+        let calendar = Calendar.current
+        let startDate = calendar.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+        
+        // Get events from all connected calendar sources
+        var allEvents: [BriefingItem] = []
+        
+        // Apple Calendar
+        if let appleSource = ServiceConnectionManager.shared.source(for: .appleCalendar) as? AppleCalendarSource {
+            do {
+                let events = try await appleSource.fetchEvents(from: startDate, to: Date())
+                allEvents.append(contentsOf: events)
+            } catch {
+                print("Failed to fetch Apple Calendar events: \(error)")
+            }
+        }
+        
+        // Google Calendar
+        if let googleSource = ServiceConnectionManager.shared.source(for: .googleCalendar) as? GoogleCalendarSource {
+            do {
+                let events = try await googleSource.fetchEvents(from: startDate, to: Date())
+                allEvents.append(contentsOf: events)
+            } catch {
+                print("Failed to fetch Google Calendar events: \(error)")
+            }
+        }
+        
+        // Match events with notes
+        calendarMeetingsWithNotes = allEvents.filter { item in
+            let meetingId = notesService.meetingId(for: item)
+            return meetingIdsWithNotes.contains(meetingId)
+        }
     }
 }
 
