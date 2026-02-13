@@ -31,10 +31,10 @@ struct MainView: View {
                 shape: .simplex,
                 ditherType: .bayer8x8,
                 colorBack: Color.clear,
-                colorFront: Color.primary.opacity(0.02),
+                colorFront: Color.primary.opacity(0.08),
                 pixelSize: 4,
                 speed: 0.1,
-                opacity: 0.5
+                opacity: 1.0
             )
             .ignoresSafeArea()
             .allowsHitTesting(false)
