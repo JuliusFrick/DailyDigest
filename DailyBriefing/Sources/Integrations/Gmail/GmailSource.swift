@@ -67,6 +67,7 @@ final class GmailSource: BriefingSource, ObservableObject {
         } catch {
             lastError = error
             connectionStatus = .error
+            ErrorDisplayService.shared.showError(error, title: "Gmail Authentication Failed")
             throw error
         }
     }
@@ -75,7 +76,8 @@ final class GmailSource: BriefingSource, ObservableObject {
         do {
             try await oauthService.logout()
         } catch {
-            print("Gmail logout error: \(error)")
+            // Log to console - this is a cleanup operation
+            print("Gmail logout warning: \(error.localizedDescription)")
         }
         isAuthenticated = false
         connectionStatus = .disconnected
