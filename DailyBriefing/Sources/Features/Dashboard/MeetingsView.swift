@@ -4,7 +4,7 @@ import SwiftUI
 
 struct MeetingsView: View {
     @EnvironmentObject private var appState: AppState
-    @StateObject private var connectionManager = ServiceConnectionManager.shared
+    @ObservedObject private var connectionManager = ServiceConnectionManager.shared
     
     // State for calendar navigation and data
     @State private var selectedDate: Date = Date()
@@ -151,7 +151,7 @@ struct MeetingsView: View {
 // MARK: - Calendar Config Banner
 
 struct CalendarConfigBanner: View {
-    @StateObject private var connectionManager = ServiceConnectionManager.shared
+    @ObservedObject private var connectionManager = ServiceConnectionManager.shared
     
     var body: some View {
         VStack(spacing: Spacing.md) {
@@ -201,7 +201,7 @@ struct CalendarConfigBanner: View {
 // MARK: - Calendar Connect Popup
 
 struct CalendarConnectPopup: View {
-    @StateObject private var connectionManager = ServiceConnectionManager.shared
+    @ObservedObject private var connectionManager = ServiceConnectionManager.shared
     @Binding var showPopup: Bool
     @State private var isHovered = false
     

@@ -5,7 +5,7 @@ struct TranscriptChatView: View {
     let meetingId: String
     let onJumpToTimestamp: ((TimeInterval) -> Void)?
     
-    @StateObject private var chatService = TranscriptChatService.shared
+    @ObservedObject private var chatService = TranscriptChatService.shared
     @StateObject private var vectorStore = VectorStore.shared
     
     @State private var inputText = ""

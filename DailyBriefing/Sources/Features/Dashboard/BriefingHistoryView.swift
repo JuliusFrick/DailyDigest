@@ -4,8 +4,8 @@ import SwiftUI
 
 struct TUIHistoryView: View {
     @EnvironmentObject private var appState: AppState
-    @StateObject private var cacheService = BriefingCacheService.shared
-    @StateObject private var errorService = ErrorDisplayService.shared
+    @ObservedObject private var cacheService = BriefingCacheService.shared
+    @ObservedObject private var errorService = ErrorDisplayService.shared
 
     @State private var cachedBriefings: [Briefing] = []
     @State private var selectedBriefing: Briefing?

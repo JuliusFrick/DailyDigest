@@ -8,12 +8,12 @@ struct MeetingDetailPopup: View {
     let meeting: BriefingItem
     @Binding var isPresented: Bool
 
-    @StateObject private var recorder = AudioRecordingService.shared
-    @StateObject private var transcriber = TranscriptionService.shared
-    @StateObject private var notesService = MeetingNotesService.shared
-    @StateObject private var actionItemStore = ActionItemStore.shared
-    @StateObject private var actionItemExtractor = ActionItemExtractionService.shared
-    @StateObject private var playbackService = RecordingPlaybackService.shared
+    @ObservedObject private var recorder = AudioRecordingService.shared
+    @ObservedObject private var transcriber = TranscriptionService.shared
+    @ObservedObject private var notesService = MeetingNotesService.shared
+    @ObservedObject private var actionItemStore = ActionItemStore.shared
+    @ObservedObject private var actionItemExtractor = ActionItemExtractionService.shared
+    @ObservedObject private var playbackService = RecordingPlaybackService.shared
 
     @State private var notes: String
     @State private var isEditingNotes = false

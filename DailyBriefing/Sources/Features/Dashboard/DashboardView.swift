@@ -5,8 +5,8 @@ import SwiftUI
 struct TUIDashboardView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var settingsStore: UserSettingsStore
-    @StateObject private var connectionManager = ServiceConnectionManager.shared
-    @StateObject private var actionItemStore = ActionItemStore.shared
+    @ObservedObject private var connectionManager = ServiceConnectionManager.shared
+    @ObservedObject private var actionItemStore = ActionItemStore.shared
     @State private var selectedDetailLevel: Briefing.DetailLevel = .quick
     @State private var selectedSection: Int = 0
     @State private var showChat: Bool = false
@@ -1154,7 +1154,7 @@ struct TUIItemRow: View {
     @State private var isHovered = false
     @State private var isExpanded = false
     @State private var showMeetingPopup = false
-    @StateObject private var notesService = MeetingNotesService.shared
+    @ObservedObject private var notesService = MeetingNotesService.shared
     @State private var meetingNotes: String?
 
     /// Kalender-Events öffnen das Popup; andere Items bleiben wie vorher
