@@ -71,7 +71,15 @@ final class TranscriptionDictionaryService: ObservableObject {
     private let maxContextWords = 100  // Voxtral limit
     
     private init() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            // Fallback to documents directory
+            let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            let appDir = documents?.appendingPathComponent("DailyBriefing", isDirectory: true) ?? URL(fileURLWithPath: "/tmp/DailyBriefing")
+            fileURL = appDir.appendingPathComponent("transcription_dictionary.json")
+            loadEntries()
+            return
+        }
+        
         let appDir = appSupport.appendingPathComponent("DailyBriefing", isDirectory: true)
         
         try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)

@@ -110,7 +110,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     }
 
     var defaultModel: LLMModel {
-        availableModels.first!
+        availableModels.first ?? .gpt4o
     }
 
     var apiKeyPlaceholder: String {

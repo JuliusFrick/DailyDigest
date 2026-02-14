@@ -254,7 +254,7 @@ struct LLMSettingsView: View {
                 await MainActor.run {
                     ollamaModels = models
                     if !models.isEmpty && !models.contains(selectedModelId) {
-                        selectedModelId = models.first!
+                        selectedModelId = models.first ?? LLMModel.gpt4o.rawValue
                     }
                     isFetchingOllamaModels = false
                 }
