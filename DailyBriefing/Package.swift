@@ -23,6 +23,10 @@ let package = Package(
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
             path: "Sources",
+            exclude: [
+                "Core/Services/ModelSelection/README.md",
+                "Core/Services/ModelSelection/INTEGRATION.md",
+            ],
             resources: [
                 .process("Resources")
                 // Note: Metal shaders are embedded as source strings in the Swift files
