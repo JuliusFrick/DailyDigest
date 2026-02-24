@@ -133,8 +133,8 @@ final class ErrorDisplayService: ObservableObject {
             }
         }
         
-        if error is URLError {
-            switch (error as? URLError)?.code {
+        if let urlError = error as? URLError {
+            switch urlError.code {
             case .notConnectedToInternet, .networkConnectionLost:
                 return .warning
             case .timedOut:

@@ -95,7 +95,8 @@ final class RecordingPlaybackService: NSObject, ObservableObject {
     private func startPlaybackTimer() {
         playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.currentTime = self?.audioPlayer?.currentTime ?? 0
+                guard let self else { return }
+                self.currentTime = self.audioPlayer?.currentTime ?? 0
             }
         }
     }
@@ -134,7 +135,7 @@ extension RecordingPlaybackService {
     /// - Parameter timestamp: The timestamp in seconds (from ActionItem.timestamp)
     func jumpToActionItemTimestamp(_ timestamp: TimeInterval?) {
         guard let ts = timestamp else { return }
-        guard let url = currentURL else {
+        guard currentURL != nil else {
             // If no recording is loaded, we need to find the recording URL for this meeting
             // This should be handled by the calling view
             print("No recording loaded - cannot jump to timestamp")
