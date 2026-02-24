@@ -21,6 +21,7 @@ final class BriefingGenerationService: ObservableObject {
     private let connectionManager = ServiceConnectionManager.shared
     private let keychain = KeychainService.shared
     private let cacheService = BriefingCacheService.shared
+    private let userSettingsStore = UserSettingsStore.shared
 
     // MARK: - Initialization
 
@@ -90,7 +91,9 @@ final class BriefingGenerationService: ObservableObject {
 
     /// Fetch items from all connected sources in parallel
     private func fetchFromAllSources() async throws -> [SourceFetchResult] {
-        let sources = connectionManager.connectedSources
+        let sources = connectionManager.connectedSources.filter { source in
+            userSettingsStore.settings.dailyDigestSourceToggles?[source.id] ?? true
+        }
 
         guard !sources.isEmpty else {
             throw BriefingGenerationError.noSourcesConnected
@@ -239,7 +242,9 @@ final class BriefingGenerationService: ObservableObject {
             provider: config.provider,
             apiKey: apiKey,
             modelId: config.modelId,
-            ollamaBaseURL: config.ollamaBaseURL
+            ollamaBaseURL: config.ollamaBaseURL,
+            openClawBaseURL: config.openClawBaseURL,
+            openClawAgentId: config.openClawAgentId
         )
 
         // Build the prompt

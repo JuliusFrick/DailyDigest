@@ -14,6 +14,7 @@ let package = Package(
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", from: "4.2.2"),
         // In-app updates
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.0.0"),
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm", from: "1.11.2"),
     ],
     targets: [
         .executableTarget(
@@ -21,6 +22,7 @@ let package = Package(
             dependencies: [
                 "KeychainAccess",
                 .product(name: "Sparkle", package: "Sparkle"),
+                .product(name: "SwiftTerm", package: "SwiftTerm"),
             ],
             path: "Sources",
             exclude: [

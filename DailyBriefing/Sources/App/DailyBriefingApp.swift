@@ -90,7 +90,7 @@ struct DailyBriefingApp: App {
     private func setupNotificationHandling() {
         // Set up callback for when user taps notification to open dashboard
         notificationService.onOpenDashboardRequested = { [weak appState] in
-            appState?.selectedTab = .dashboard
+            appState?.selectedPanel = .dashboard
         }
     }
 

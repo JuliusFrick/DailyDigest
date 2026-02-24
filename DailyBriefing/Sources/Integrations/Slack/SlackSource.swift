@@ -29,6 +29,11 @@ final class SlackSource: BriefingSource, ObservableObject {
     @Published var includeDMs: Bool = true
     @Published var includeChannels: Bool = true
     @Published var includeMentions: Bool = true
+    @Published var includeStarredMessages: Bool {
+        didSet {
+            UserDefaults.standard.set(includeStarredMessages, forKey: Self.includeStarredMessagesKey)
+        }
+    }
 
     /// IDs of channels that are selected for inclusion in the briefing
     @Published var selectedChannelIds: Set<String> {
@@ -74,6 +79,7 @@ final class SlackSource: BriefingSource, ObservableObject {
     private static let includeUserMentionsKey = "slack_include_user_mentions"
     private static let includeReactionsKey = "slack_include_reactions_on_own"
     private static let includeRemindersKey = "slack_include_reminders"
+    private static let includeStarredMessagesKey = "slack_include_starred_messages"
 
     // MARK: - Initialization
 
@@ -89,6 +95,7 @@ final class SlackSource: BriefingSource, ObservableObject {
         // Load content type settings from UserDefaults (default to true for all)
         let defaults = UserDefaults.standard
         includeUnreadDMs = defaults.object(forKey: Self.includeUnreadDMsKey) as? Bool ?? true
+        includeStarredMessages = defaults.object(forKey: Self.includeStarredMessagesKey) as? Bool ?? true
         includeUserMentions = defaults.object(forKey: Self.includeUserMentionsKey) as? Bool ?? true
         includeReactionsOnOwnMessages = defaults.object(forKey: Self.includeReactionsKey) as? Bool ?? true
         includeSlackReminders = defaults.object(forKey: Self.includeRemindersKey) as? Bool ?? true
@@ -209,8 +216,9 @@ final class SlackSource: BriefingSource, ObservableObject {
 
         // Fetch recent messages from each conversation
         for conversation in conversations {
+            let isDirectMessage = conversation.isIm || (conversation.isMpim ?? false)
             let shouldFetch: Bool
-            if conversation.isIm {
+            if isDirectMessage {
                 // DMs: check includeDMs AND includeUnreadDMs settings
                 shouldFetch = includeDMs && includeUnreadDMs
             } else {
@@ -226,11 +234,26 @@ final class SlackSource: BriefingSource, ObservableObject {
                     since: since,
                     accessToken: tokens.accessToken,
                     currentUserId: currentUserId,
-                    filterMentions: includeUserMentions,
-                    filterReactions: includeReactionsOnOwnMessages
+                    isDirectMessage: isDirectMessage,
+                    filterMentionsOnly: includeMentions,
+                    includeUserMentions: includeUserMentions,
+                    filterReactions: includeReactionsOnOwnMessages,
+                    filterStarred: includeStarredMessages
                 )
                 items.append(contentsOf: messages)
             }
+        }
+
+        if includeStarredMessages {
+            let starredItems = try await fetchStarredMessages(
+                since: since,
+                accessToken: tokens.accessToken,
+                currentUserId: currentUserId,
+                filterMentionsOnly: includeMentions,
+                    includeUserMentions: includeUserMentions,
+                filterReactions: includeReactionsOnOwnMessages
+            )
+            items.append(contentsOf: starredItems)
         }
 
         // Fetch Slack reminders if enabled
@@ -363,8 +386,11 @@ final class SlackSource: BriefingSource, ObservableObject {
         since: Date,
         accessToken: String,
         currentUserId: String?,
-        filterMentions: Bool,
-        filterReactions: Bool
+        isDirectMessage: Bool,
+        filterMentionsOnly: Bool,
+        includeUserMentions: Bool,
+        filterReactions: Bool,
+        filterStarred: Bool
     ) async throws -> [BriefingItem] {
         var components = URLComponents(string: "\(baseURL)/conversations.history")!
         components.queryItems = [
@@ -389,49 +415,256 @@ final class SlackSource: BriefingSource, ObservableObject {
             return []
         }
 
-        return (historyResponse.messages ?? []).compactMap { message in
-            guard let text = message.text, !text.isEmpty else { return nil }
+        var items: [BriefingItem] = []
 
-            // Filter by mentions if enabled: check if message contains @user mention
-            if filterMentions, let userId = currentUserId {
-                let containsMention = text.contains("<@\(userId)>")
-                // If filterMentions is enabled but message doesn't mention user, skip it
-                // unless it has reactions on user's own message
-                if !containsMention && !filterReactions {
-                    return nil
-                }
+        for message in historyResponse.messages ?? [] {
+            if let item = createBriefingItem(
+                from: message,
+                conversationId: conversationId,
+                currentUserId: currentUserId,
+                isDirectMessage: isDirectMessage,
+                filterMentionsOnly: filterMentionsOnly,
+                includeUserMentions: includeUserMentions,
+                filterReactions: filterReactions,
+                filterStarred: filterStarred,
+                isThreadReply: false
+            ) {
+                items.append(item)
             }
 
-            // Filter by reactions on own messages
-            if filterReactions, let userId = currentUserId {
-                let isOwnMessage = message.user == userId
-                let hasReactions = message.reactions?.isEmpty == false
-                // Include if it's own message with reactions
-                if isOwnMessage && hasReactions {
-                    // Include this message
-                } else if filterMentions {
-                    // Already handled by mentions filter above
-                } else if !filterMentions && filterReactions && !isOwnMessage {
-                    return nil
-                }
+            if let threadTs = message.threadTs, threadTs == message.ts {
+                let replyItems = try await fetchThreadReplies(
+                    conversationId: conversationId,
+                    threadTs: threadTs,
+                    accessToken: accessToken,
+                    since: since,
+                    currentUserId: currentUserId,
+                    isDirectMessage: isDirectMessage,
+                    filterMentionsOnly: filterMentionsOnly,
+                    includeUserMentions: includeUserMentions,
+                    filterReactions: filterReactions,
+                    filterStarred: filterStarred
+                )
+                items.append(contentsOf: replyItems)
             }
+        }
 
-            let timestamp = message.ts.flatMap { Double($0) }.map { Date(timeIntervalSince1970: $0) }
+        return items
+    }
 
-            return BriefingItem(
-                title: formatMessagePreview(text),
-                subtitle: "Slack",
-                body: text,
-                timestamp: timestamp,
-                deepLink: buildSlackDeepLink(conversationId: conversationId, messageTs: message.ts),
-                priority: determinePriority(text: text),
-                metadata: [
-                    "conversationId": conversationId,
-                    "userId": message.user ?? "",
-                    "ts": message.ts ?? ""
-                ]
+    private func fetchThreadReplies(
+        conversationId: String,
+        threadTs: String,
+        accessToken: String,
+        since: Date,
+        currentUserId: String?,
+        isDirectMessage: Bool,
+        filterMentionsOnly: Bool,
+        includeUserMentions: Bool,
+        filterReactions: Bool,
+        filterStarred: Bool
+    ) async throws -> [BriefingItem] {
+        var components = URLComponents(string: "\(baseURL)/conversations.replies")!
+        components.queryItems = [
+            URLQueryItem(name: "channel", value: conversationId),
+            URLQueryItem(name: "thread_ts", value: threadTs),
+            URLQueryItem(name: "limit", value: "20")
+        ]
+
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            return []
+        }
+
+        let repliesResponse = try JSONDecoder().decode(SlackRepliesResponse.self, from: data)
+        guard repliesResponse.ok else { return [] }
+
+        return (repliesResponse.messages ?? []).enumerated().compactMap { index, reply in
+            // Skip the parent message itself; it is already present in conversations.history
+            if index == 0 { return nil }
+
+            guard let ts = reply.ts else { return nil }
+            let replyDate = Date(timeIntervalSince1970: TimeInterval(Double(ts) ?? 0))
+            guard replyDate >= since else { return nil }
+
+            return createBriefingItem(
+                from: reply,
+                conversationId: conversationId,
+                currentUserId: currentUserId,
+                isDirectMessage: isDirectMessage,
+                filterMentionsOnly: filterMentionsOnly,
+                includeUserMentions: includeUserMentions,
+                filterReactions: filterReactions,
+                filterStarred: filterStarred,
+                isThreadReply: true
             )
         }
+    }
+
+    private func fetchStarredMessages(
+        since: Date,
+        accessToken: String,
+        currentUserId: String?,
+        filterMentionsOnly: Bool,
+        includeUserMentions: Bool,
+        filterReactions: Bool
+    ) async throws -> [BriefingItem] {
+        var components = URLComponents(string: "\(baseURL)/stars.list")!
+        components.queryItems = [
+            URLQueryItem(name: "count", value: "200")
+        ]
+
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            return []
+        }
+
+        let starsResponse = try JSONDecoder().decode(SlackStarsResponse.self, from: data)
+        guard starsResponse.ok else {
+            return []
+        }
+
+        return (starsResponse.items ?? []).compactMap { item in
+            guard item.type == "message",
+                  let channelId = item.channel,
+                  let message = item.message else {
+                return nil
+            }
+
+            guard let ts = message.ts else { return nil }
+            let messageDate = Date(timeIntervalSince1970: TimeInterval(Double(ts) ?? 0))
+            guard messageDate >= since else { return nil }
+
+            return createBriefingItem(
+                from: message,
+                conversationId: channelId,
+                currentUserId: currentUserId,
+                isDirectMessage: false,
+                filterMentionsOnly: filterMentionsOnly,
+                includeUserMentions: includeUserMentions,
+                filterReactions: filterReactions,
+                filterStarred: true,
+                isThreadReply: false,
+                forceInclude: true
+            )
+        }
+    }
+
+    private func createBriefingItem(
+        from message: SlackMessage,
+        conversationId: String,
+        currentUserId: String?,
+        isDirectMessage: Bool,
+        filterMentionsOnly: Bool,
+        includeUserMentions: Bool,
+        filterReactions: Bool,
+        filterStarred: Bool,
+        isThreadReply: Bool,
+        forceInclude: Bool = false
+    ) -> BriefingItem? {
+        guard let text = message.text, !text.isEmpty else { return nil }
+
+        guard shouldIncludeMessage(
+            message,
+            currentUserId: currentUserId,
+            isDirectMessage: isDirectMessage,
+            filterMentionsOnly: filterMentionsOnly,
+            includeUserMentions: includeUserMentions,
+            filterReactions: filterReactions,
+            filterStarred: filterStarred,
+            forceInclude: forceInclude
+        ) else {
+            return nil
+        }
+
+        let timestamp = message.ts.flatMap { Double($0) }.map { Date(timeIntervalSince1970: $0) }
+
+        var metadata: [String: String] = [
+            "conversationId": conversationId,
+            "userId": message.user ?? "",
+            "ts": message.ts ?? "",
+            "isThreadReply": isThreadReply ? "true" : "false"
+        ]
+
+        if let threadTs = message.threadTs {
+            metadata["threadTs"] = threadTs
+        }
+
+        return BriefingItem(
+            title: formatMessagePreview(isThreadReply ? "↳ \(text)" : text),
+            subtitle: isThreadReply ? "Slack Thread" : "Slack",
+            body: text,
+            timestamp: timestamp,
+            deepLink: buildSlackDeepLink(conversationId: conversationId, messageTs: message.ts),
+            priority: determinePriority(text: text),
+            metadata: metadata
+        )
+    }
+
+    private func shouldIncludeMessage(
+        _ message: SlackMessage,
+        currentUserId: String?,
+        isDirectMessage: Bool,
+        filterMentionsOnly: Bool,
+        includeUserMentions: Bool,
+        filterReactions: Bool,
+        filterStarred: Bool,
+        forceInclude: Bool
+    ) -> Bool {
+        if forceInclude {
+            return true
+        }
+
+        if isDirectMessage {
+            return true
+        }
+
+        if !filterMentionsOnly {
+            return true
+        }
+
+        if filterStarred && (message.isStarred ?? false) {
+            return true
+        }
+
+        if includeUserMentions,
+           let userId = currentUserId,
+           mentionsCurrentUser(message.text ?? "", userId: userId) {
+            return true
+        }
+
+        if filterReactions,
+           let userId = currentUserId {
+            let isOwnMessage = message.user == userId
+            let hasReactions = message.reactions?.isEmpty == false
+            if isOwnMessage && hasReactions {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func mentionsCurrentUser(_ text: String, userId: String) -> Bool {
+        if text.contains("<@\(userId)>") || text.contains("<@\(userId)|") {
+            return true
+        }
+
+        if text.contains("<!channel>") || text.contains("<!here>") || text.contains("<!everyone>") {
+            return true
+        }
+
+        return false
     }
 
     /// Fetch current user ID from Slack API
@@ -590,6 +823,18 @@ struct SlackHistoryResponse: Codable {
     let error: String?
 }
 
+struct SlackRepliesResponse: Codable {
+    let ok: Bool
+    let messages: [SlackMessage]?
+    let error: String?
+}
+
+struct SlackStarsResponse: Codable {
+    let ok: Bool
+    let items: [SlackStarItem]?
+    let error: String?
+}
+
 struct SlackMessage: Codable {
     let type: String?
     let user: String?
@@ -597,10 +842,12 @@ struct SlackMessage: Codable {
     let ts: String?
     let threadTs: String?
     let reactions: [SlackReaction]?
+    let isStarred: Bool?
 
     enum CodingKeys: String, CodingKey {
         case type, user, text, ts, reactions
         case threadTs = "thread_ts"
+        case isStarred = "is_starred"
     }
 }
 
@@ -608,6 +855,12 @@ struct SlackReaction: Codable {
     let name: String
     let users: [String]
     let count: Int
+}
+
+struct SlackStarItem: Codable {
+    let type: String?
+    let channel: String?
+    let message: SlackMessage?
 }
 
 struct SlackWorkspace: Identifiable, Equatable {

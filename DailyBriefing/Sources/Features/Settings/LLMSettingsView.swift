@@ -9,11 +9,16 @@ struct LLMSettingsView: View {
     @State private var apiKey: String = ""
     @State private var ollamaURL: String = "http://localhost:11434"
     @State private var ollamaModels: [String] = []
+    @State private var openClawBaseURL: String = "http://100.0.0.1:18789"
+    @State private var openClawAgentId: String = "default"
 
     @State private var isTestingConnection = false
     @State private var testResult: LLMConnectionTestResult?
     @State private var showTestResult = false
     @State private var isFetchingOllamaModels = false
+
+    private let llmConfigurationStorageKey = "llm_configuration"
+    private let legacyLLMConfigurationStorageKey = "llmConfiguration"
 
     private let keychain = KeychainService.shared
 
@@ -32,7 +37,15 @@ struct LLMSettingsView: View {
         .onAppear(perform: loadSettings)
         .onChange(of: selectedProvider) { _, newProvider in
             loadAPIKey(for: newProvider)
-            selectedModelId = newProvider.defaultModel.id
+            if newProvider == .openClaw {
+                let normalizedBaseURL = openClawBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                openClawBaseURL = normalizedBaseURL.isEmpty ? "http://100.0.0.1:18789" : normalizedBaseURL
+                let normalizedAgentId = openClawAgentId.trimmingCharacters(in: .whitespacesAndNewlines)
+                openClawAgentId = normalizedAgentId.isEmpty ? "default" : normalizedAgentId
+                selectedModelId = openClawAgentId.isEmpty ? "default" : openClawAgentId
+            } else {
+                selectedModelId = newProvider.defaultModel.id
+            }
             saveSettings()
             testResult = nil
 
@@ -41,6 +54,10 @@ struct LLMSettingsView: View {
             }
         }
         .onChange(of: selectedModelId) { _, _ in
+            if selectedProvider == .openClaw {
+                let normalizedAgentId = selectedModelId.trimmingCharacters(in: .whitespacesAndNewlines)
+                openClawAgentId = normalizedAgentId.isEmpty ? "default" : normalizedAgentId
+            }
             saveSettings()
             testResult = nil
         }
@@ -74,6 +91,15 @@ struct LLMSettingsView: View {
         Section {
             if selectedProvider == .ollama {
                 ollamaModelPicker
+            } else if selectedProvider == .openClaw {
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("OpenClaw Agent ID", text: $selectedModelId, prompt: Text("default"))
+                        .textFieldStyle(.roundedBorder)
+                    
+                    Text("Der Agent wird als `openclaw:<Agent-ID>` an den VPS weitergeleitet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 Picker("Modell", selection: $selectedModelId) {
                     ForEach(selectedProvider.availableModels) { model in
@@ -142,6 +168,15 @@ struct LLMSettingsView: View {
 
     private var credentialsSection: some View {
         Section {
+            if selectedProvider == .openClaw {
+                TextField("OpenClaw Base URL", text: $openClawBaseURL, prompt: Text("http://100.0.0.1:18789"))
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: openClawBaseURL) { _, _ in
+                        saveSettings()
+                        testResult = nil
+                    }
+            }
+
             if selectedProvider.requiresAPIKey {
                 SecureField("API-Schlüssel", text: $apiKey, prompt: Text(selectedProvider.apiKeyPlaceholder))
                     .textFieldStyle(.roundedBorder)
@@ -210,9 +245,14 @@ struct LLMSettingsView: View {
 
     private var canTestConnection: Bool {
         if selectedProvider.requiresAPIKey {
-            return !apiKey.isEmpty
+            if selectedProvider == .openClaw {
+                return !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                    !openClawBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                    !selectedModelId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            return !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
-        return !ollamaURL.isEmpty
+        return !ollamaURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // MARK: - Actions
@@ -222,11 +262,22 @@ struct LLMSettingsView: View {
         testResult = nil
 
         Task {
+            let normalizedModelId = selectedModelId.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedOllamaURL = ollamaURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedOpenClawBaseURL = openClawBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedOpenClawAgentId = openClawAgentId.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resolvedOpenClawModel = selectedProvider == .openClaw
+                ? (normalizedOpenClawAgentId.isEmpty ? "default" : normalizedOpenClawAgentId)
+                : normalizedModelId
+
             let service = LLMServiceFactory.create(
                 provider: selectedProvider,
-                apiKey: apiKey,
-                modelId: selectedModelId,
-                ollamaBaseURL: ollamaURL
+                apiKey: normalizedAPIKey,
+                modelId: resolvedOpenClawModel,
+                ollamaBaseURL: normalizedOllamaURL,
+                openClawBaseURL: normalizedOpenClawBaseURL,
+                openClawAgentId: resolvedOpenClawModel
             )
 
             do {
@@ -276,12 +327,17 @@ struct LLMSettingsView: View {
         }
 
         // Load LLM configuration from UserDefaults for model and URL
-        if let data = UserDefaults.standard.data(forKey: "llmConfiguration"),
-           let config = try? JSONDecoder().decode(LLMConfiguration.self, from: data) {
-            selectedModelId = config.modelId
-            ollamaURL = config.ollamaBaseURL
+        if let config = loadLLMConfiguration(),
+           config.provider == selectedProvider {
+            applyConfiguration(config)
         } else {
             selectedModelId = selectedProvider.defaultModel.id
+            ollamaURL = "http://localhost:11434"
+            openClawBaseURL = "http://100.0.0.1:18789"
+            openClawAgentId = "default"
+            if selectedProvider == .openClaw {
+                selectedModelId = openClawAgentId
+            }
         }
 
         if selectedProvider == .ollama {
@@ -313,14 +369,60 @@ struct LLMSettingsView: View {
             s.llmProvider = selectedProvider.rawValue
         }
 
-        // Save configuration to UserDefaults
+        let normalizedModelId = selectedModelId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedOpenClawAgentId = openClawAgentId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveOpenClawAgentId = selectedProvider == .openClaw
+            ? (normalizedOpenClawAgentId.isEmpty ? "default" : normalizedOpenClawAgentId)
+            : normalizedOpenClawAgentId
+        let effectiveModelId = selectedProvider == .openClaw
+            ? effectiveOpenClawAgentId
+            : normalizedModelId.isEmpty
+            ? selectedProvider.defaultModel.id
+            : normalizedModelId
+
+        if selectedProvider == .openClaw {
+            openClawAgentId = effectiveOpenClawAgentId
+            selectedModelId = effectiveModelId
+        }
+        let normalizedOllamaURL = ollamaURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedOpenClawBaseURL = openClawBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+
         let config = LLMConfiguration(
             provider: selectedProvider,
-            modelId: selectedModelId,
-            ollamaBaseURL: ollamaURL
+            modelId: effectiveModelId,
+            ollamaBaseURL: normalizedOllamaURL.isEmpty ? "http://localhost:11434" : normalizedOllamaURL,
+            openClawBaseURL: normalizedOpenClawBaseURL.isEmpty ? "http://100.0.0.1:18789" : normalizedOpenClawBaseURL,
+            openClawAgentId: effectiveOpenClawAgentId
         )
         if let data = try? JSONEncoder().encode(config) {
-            UserDefaults.standard.set(data, forKey: "llmConfiguration")
+            UserDefaults.standard.set(data, forKey: llmConfigurationStorageKey)
+            UserDefaults.standard.set(data, forKey: legacyLLMConfigurationStorageKey)
+        }
+    }
+
+    private func loadLLMConfiguration() -> LLMConfiguration? {
+        if let data = UserDefaults.standard.data(forKey: llmConfigurationStorageKey),
+           let config = try? JSONDecoder().decode(LLMConfiguration.self, from: data) {
+            return config
+        }
+
+        if let data = UserDefaults.standard.data(forKey: legacyLLMConfigurationStorageKey),
+           let config = try? JSONDecoder().decode(LLMConfiguration.self, from: data) {
+            UserDefaults.standard.set(data, forKey: llmConfigurationStorageKey)
+            return config
+        }
+
+        return nil
+    }
+
+    private func applyConfiguration(_ config: LLMConfiguration) {
+        selectedModelId = config.modelId
+        ollamaURL = config.ollamaBaseURL
+        openClawBaseURL = config.openClawBaseURL
+        openClawAgentId = config.openClawAgentId.isEmpty ? "default" : config.openClawAgentId
+
+        if selectedProvider == .openClaw {
+            selectedModelId = openClawAgentId
         }
     }
 }
@@ -380,6 +482,8 @@ private struct ProviderRow: View {
             return "Mistral Large, Codestral"
         case .ollama:
             return "Lokal, Datenschutz-freundlich"
+        case .openClaw:
+            return "VPS-gebundener Claude-Agent"
         }
     }
 }

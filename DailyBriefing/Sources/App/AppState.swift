@@ -8,34 +8,44 @@ final class AppState: ObservableObject {
 
     // MARK: - Navigation
 
-    enum Tab: String, CaseIterable, Identifiable {
+    enum AppPanel: String, CaseIterable, Identifiable, Hashable {
         case dashboard
-        case history
-        case sources
+        case claudeChat
+        case slack
+        case jira
+        case mail
+        case terminals
         case settings
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
-            case .dashboard: return "Briefing"
-            case .history: return "Verlauf"
-            case .sources: return "Quellen"
-            case .settings: return "Einstellungen"
+            case .dashboard: return "Dashboard"
+            case .claudeChat: return "Claude Chat"
+            case .slack: return "Slack"
+            case .jira: return "Jira"
+            case .mail: return "Mail"
+            case .terminals: return "Terminals"
+            case .settings: return "Settings"
             }
         }
 
         var icon: String {
             switch self {
-            case .dashboard: return "sun.horizon.fill"
-            case .history: return "clock.arrow.circlepath"
-            case .sources: return "square.stack.3d.up.fill"
+            case .dashboard: return "chart.bar.fill"
+            case .claudeChat: return "brain.head.profile"
+            case .slack: return "bubble.left.and.bubble.right.fill"
+            case .jira: return "list.bullet.rectangle"
+            case .mail: return "envelope.fill"
+            case .terminals: return "terminal.fill"
             case .settings: return "gearshape.fill"
             }
         }
     }
 
-    @Published var selectedTab: Tab = .dashboard
+    @Published var selectedPanel: AppPanel = .dashboard
+    @Published var selectedTab: TUIDashboardView.DashboardTab = .briefing
     @Published var showOnboarding: Bool = false
 
     // MARK: - Briefing State
@@ -298,7 +308,8 @@ final class AppState: ObservableObject {
     private func processRecording(url: URL) async {
         // Show the app and navigate to meetings so user sees transcription
         NSApplication.shared.activate(ignoringOtherApps: true)
-        selectedTab = .dashboard
+        selectedPanel = .dashboard
+        selectedTab = .briefing
         // We can't easily trigger the local state of MeetingsView from here
         // without a more centralized recording state manager.
         // For now, let's just make sure it's processed.

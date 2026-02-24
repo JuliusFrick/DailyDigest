@@ -259,6 +259,7 @@ struct SlackConfigView: View {
         Section {
             Toggle("Ungelesene DMs einbeziehen", isOn: $source.includeUnreadDMs)
             Toggle("Mentions (@user) einbeziehen", isOn: $source.includeUserMentions)
+            Toggle("Starred Messages einbeziehen", isOn: $source.includeStarredMessages)
             Toggle("Reactions auf eigene Nachrichten", isOn: $source.includeReactionsOnOwnMessages)
             Toggle("Slack Reminders einbeziehen", isOn: $source.includeSlackReminders)
         } header: {

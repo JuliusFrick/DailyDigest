@@ -1,23 +1,24 @@
 import SwiftUI
 
-/// Chat view for interacting with the briefing
+/// Chat view for interacting with Claude with thread-based sessions.
 struct BriefingChatView: View {
-    @EnvironmentObject private var appState: AppState
-    @StateObject private var chatService = BriefingChatService.shared
+    @StateObject private var chatService = ClaudeChatService.shared
     @State private var inputText = ""
-    @State private var isInputFocused = false
     @FocusState private var textFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            chatHeader
+            VStack(spacing: 0) {
+                chatHeader
+                threadTabs
+                contextHeader
+            }
+            .background(Color.tuiPanel.opacity(0.5))
 
             Divider()
                 .background(Color.tuiBorder)
 
-            // Messages
-            if chatService.messages.isEmpty {
+            if chatService.activeMessages.isEmpty {
                 emptyState
             } else {
                 messagesList
@@ -26,15 +27,14 @@ struct BriefingChatView: View {
             Divider()
                 .background(Color.tuiBorder)
 
-            // Input
             inputArea
         }
         .background(Color.tuiBackground)
-        .onChange(of: appState.currentBriefing?.id) { _, _ in
-            chatService.setBriefingContext(appState.currentBriefing)
-        }
         .onAppear {
-            chatService.setBriefingContext(appState.currentBriefing)
+            if chatService.activeThread == nil {
+                chatService.createThread(title: "Neuer Thread")
+            }
+            chatService.lastError = nil
         }
     }
 
@@ -42,39 +42,103 @@ struct BriefingChatView: View {
 
     private var chatHeader: some View {
         HStack {
-            Text("CHAT")
+            Text("CLAUDE CHAT")
                 .font(.tuiMonoTiny)
                 .fontWeight(.bold)
                 .foregroundStyle(.tertiary)
 
             Spacer()
 
-            if !chatService.messages.isEmpty {
+            if !chatService.activeMessages.isEmpty {
                 Button {
-                    chatService.clearChat()
+                    chatService.clearMessages()
                 } label: {
-                    Text("clear")
-                        .font(.tuiMonoTiny)
-                        .foregroundStyle(.tertiary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "trash")
+                        Text("clear")
+                    }
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
-                .onHover { isHovered in
-                    if isHovered {
-                        NSCursor.pointingHand.push()
-                    } else {
-                        NSCursor.pop()
-                    }
-                }
+                .help("Aktuellen Thread leeren")
             }
         }
-        .padding(Spacing.md)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+    }
+
+    // MARK: - Thread Tabs
+
+    private var threadTabs: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Spacing.xs) {
+                ForEach(chatService.threads) { thread in
+                    ThreadTab(
+                        thread: thread,
+                        isActive: thread.id == chatService.activeThreadID,
+                        onSelect: {
+                            chatService.selectThread(thread.id)
+                        },
+                        onClose: {
+                            chatService.closeThread(thread.id)
+                        }
+                    )
+                }
+
+                Button {
+                    chatService.createThread(title: "Neuer Thread")
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 10))
+                        Text("Thread")
+                    }
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.tui)
+                .help("Neuen Thread erstellen")
+            }
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.xs)
+        }
+        .frame(height: 36)
+    }
+
+    private var contextHeader: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            if let context = chatService.activeThread?.context {
+                HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+                    Text("Kontext")
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.quaternary)
+                    Text("•")
+                        .foregroundStyle(.tertiary)
+                    Text(context.source)
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(context.title)
+                    .font(.tuiMonoSmall)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            } else {
+                Text("Kein Kontext gesetzt")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.quaternary)
+            }
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.xs)
     }
 
     // MARK: - Empty State
 
     private var emptyState: some View {
         VStack(spacing: Spacing.md) {
-            Text("Frag mich etwas zum Briefing")
+            Text("Frag mich zu einem beliebigen Thema oder nutze einen Context.")
                 .font(.tuiMonoSmall)
                 .foregroundStyle(.tertiary)
 
@@ -83,7 +147,9 @@ struct BriefingChatView: View {
                 suggestionButton("Welche Meetings habe ich?")
                 suggestionButton("Was ist am wichtigsten?")
                 suggestionButton("Fasse die E-Mails zusammen")
+                suggestionButton("Nächste Schritte?")
             }
+            .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(Spacing.md)
@@ -93,7 +159,7 @@ struct BriefingChatView: View {
         Button {
             inputText = text
             Task {
-                await sendMessage()
+                await sendMessage(using: chatService.activeThread)
             }
         } label: {
             HStack {
@@ -118,7 +184,7 @@ struct BriefingChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: Spacing.sm) {
-                    ForEach(chatService.messages) { message in
+                    ForEach(chatService.activeMessages) { message in
                         BriefingChatMessageRow(message: message)
                             .id(message.id)
                     }
@@ -129,11 +195,16 @@ struct BriefingChatView: View {
                 }
                 .padding(Spacing.md)
             }
-            .onChange(of: chatService.messages.count) { _, _ in
-                if let lastMessage = chatService.messages.last {
+            .onChange(of: chatService.activeMessages.count) { _, _ in
+                if let lastMessage = chatService.activeMessages.last {
                     withAnimation(.tuiSmooth) {
                         proxy.scrollTo(lastMessage.id, anchor: .bottom)
                     }
+                }
+            }
+            .onAppear {
+                if let lastMessage = chatService.activeMessages.last {
+                    proxy.scrollTo(lastMessage.id, anchor: .bottom)
                 }
             }
         }
@@ -150,45 +221,101 @@ struct BriefingChatView: View {
     // MARK: - Input Area
 
     private var inputArea: some View {
-        HStack(spacing: Spacing.sm) {
-            TextField("Nachricht eingeben...", text: $inputText)
-                .textFieldStyle(.plain)
-                .font(.tuiMonoSmall)
-                .focused($textFieldFocused)
-                .onSubmit {
-                    Task {
-                        await sendMessage()
-                    }
-                }
-                .disabled(appState.currentBriefing == nil || chatService.isLoading)
-
-            Button {
-                Task {
-                    await sendMessage()
-                }
-            } label: {
-                Text(">")
-                    .font(.tuiMonoSmall)
-                    .fontWeight(.bold)
+        VStack(spacing: Spacing.xs) {
+            if let error = chatService.lastError {
+                Text(error.localizedDescription)
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+                    .padding(.horizontal, Spacing.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.tuiPrimary)
-            .disabled(inputText.isEmpty || chatService.isLoading || appState.currentBriefing == nil)
+
+            HStack(spacing: Spacing.sm) {
+                TextField("Nachricht eingeben...", text: $inputText)
+                    .textFieldStyle(.plain)
+                    .font(.tuiMonoSmall)
+                    .focused($textFieldFocused)
+                    .onSubmit {
+                        Task {
+                            await sendMessage(using: chatService.activeThread)
+                        }
+                    }
+                    .disabled(chatService.isLoading)
+
+                Button {
+                    Task {
+                        await sendMessage(using: chatService.activeThread)
+                    }
+                } label: {
+                    Text(">")
+                        .font(.tuiMonoSmall)
+                        .fontWeight(.bold)
+                }
+                .buttonStyle(.tuiPrimary)
+                .disabled(
+                    inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || chatService.isLoading
+                )
+            }
+            .padding(Spacing.md)
         }
-        .padding(Spacing.md)
     }
 
     // MARK: - Actions
 
-    private func sendMessage() async {
+    private func sendMessage(using thread: ClaudeChatThread?) async {
         let message = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !message.isEmpty else { return }
 
         inputText = ""
+        textFieldFocused = true
+        chatService.lastError = nil
 
         do {
-            try await chatService.sendMessage(message)
+            let targetID = thread?.id
+            try await chatService.sendMessage(message, threadID: targetID)
         } catch {
-            // Error is handled by the service
+            // Error is already surfaced through chatService.lastError.
+        }
+    }
+}
+
+// MARK: - Thread Tab
+
+private struct ThreadTab: View {
+    let thread: ClaudeChatThread
+    let isActive: Bool
+    let onSelect: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        HStack(spacing: Spacing.xs) {
+            Image(systemName: thread.context == nil ? "bubble.left" : "link")
+                .font(.system(size: 11))
+                .foregroundStyle(isActive ? Color.primary : .secondary)
+
+            Text(thread.title)
+                .font(.tuiMonoTiny)
+                .lineLimit(1)
+                .foregroundStyle(isActive ? Color.primary : .secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(isActive ? Color.primary.opacity(0.16) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isActive ? Color.primary.opacity(0.35) : Color.secondary.opacity(0.2), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { onSelect() }
+        .contextMenu {
+            Button("Thread aktivieren") {
+                onSelect()
+            }
+            Button("Thread schließen", role: .destructive) {
+                onClose()
+            }
         }
     }
 }
@@ -227,7 +354,7 @@ struct BriefingChatMessageRow: View {
     private var rolePrefix: String {
         switch message.role {
         case .user: return "Du:"
-        case .assistant: return "AI:"
+        case .assistant: return "Claude:"
         case .system: return "SYS:"
         }
     }
@@ -246,4 +373,3 @@ struct BriefingChatMessageRow: View {
         return formatter.string(from: date)
     }
 }
-

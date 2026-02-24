@@ -3,6 +3,8 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var settingsStore: UserSettingsStore
+    @StateObject private var errorDisplayService = ErrorDisplayService.shared
+    @StateObject private var connectionManager = ServiceConnectionManager.shared
 
     @State private var selectedLanguage = "de"
     @State private var autoRefreshEnabled = false
@@ -25,6 +27,7 @@ struct SettingsView: View {
         Form {
             briefingSection
             integrationsSection
+            dailyDigestSection
             llmNavigationSection
             modelConfigurationSection
             transcriptionSection
@@ -33,6 +36,7 @@ struct SettingsView: View {
             notificationSection
             shortcutSection
             siriSection
+            loggingSection
             generalSection
             updatesSection
             privacySection
@@ -89,6 +93,27 @@ struct SettingsView: View {
             Text("Datenquellen")
         } footer: {
             Text("Verbinde deine Produktivitäts-Tools um Daten für dein Briefing abzurufen.")
+        }
+    }
+
+    // MARK: - Daily Digest Source Section
+
+    private var dailyDigestSection: some View {
+        Section {
+            ForEach(ServiceType.allCases, id: \.self) { serviceType in
+                Toggle(
+                    serviceType.displayName,
+                    isOn: Binding(
+                        get: { isDigestSourceEnabled(serviceType) },
+                        set: { setDigestSource(serviceType, enabled: $0) }
+                    )
+                )
+                .disabled(!connectionManager.isConnected(serviceType))
+            }
+        } header: {
+            Text("Daily-Digest")
+        } footer: {
+            Text("Wähle hier, welche verknüpften Quellen im täglichen Briefing berücksichtigt werden.")
         }
     }
 
@@ -458,6 +483,31 @@ struct SettingsView: View {
 
     // MARK: - General Section
 
+    private var loggingSection: some View {
+        Section {
+            NavigationLink {
+                SettingsSubView(title: "Logging & Fehler") {
+                    ErrorLoggingView()
+                }
+            } label: {
+                HStack {
+                    Label("Logging", systemImage: "doc.text")
+                    Spacer()
+                    Text("\(loggingErrorCount)")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("Logging & Fehler")
+        } footer: {
+            Text("Zeigt aktuelle und kürzlich aufgetretene Fehlermeldungen an.")
+        }
+    }
+
+    private var loggingErrorCount: Int {
+        errorDisplayService.errorQueue.count + (errorDisplayService.currentError == nil ? 0 : 1)
+    }
+
     private var generalSection: some View {
         Section {
             Toggle("Bei Anmeldung starten", isOn: Binding(
@@ -553,6 +603,18 @@ struct SettingsView: View {
             }
         } header: {
             Text("Über")
+        }
+    }
+
+    private func isDigestSourceEnabled(_ serviceType: ServiceType) -> Bool {
+        settingsStore.settings.dailyDigestSourceToggles?[serviceType.rawValue] ?? true
+    }
+
+    private func setDigestSource(_ serviceType: ServiceType, enabled: Bool) {
+        settingsStore.update { next in
+            var toggles = next.dailyDigestSourceToggles ?? [:]
+            toggles[serviceType.rawValue] = enabled
+            next.dailyDigestSourceToggles = toggles
         }
     }
 

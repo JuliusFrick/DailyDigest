@@ -8,6 +8,9 @@ struct UserSettings: Codable, Equatable {
     var autoRefreshTime: Date?
     var autoRefreshEnabled: Bool
 
+    // Daily digest source selection
+    var dailyDigestSourceToggles: [String: Bool]?
+
     // Audio preferences
     var ttsProvider: String
     var ttsVoiceId: String?
@@ -37,6 +40,7 @@ struct UserSettings: Codable, Equatable {
         preferredLanguage: String = "de",
         autoRefreshTime: Date? = nil,
         autoRefreshEnabled: Bool = false,
+        dailyDigestSourceToggles: [String: Bool]? = nil,
         ttsProvider: String = "apple",
         ttsVoiceId: String? = nil,
         playbackSpeed: Double = 1.0,
@@ -56,6 +60,7 @@ struct UserSettings: Codable, Equatable {
         self.preferredLanguage = preferredLanguage
         self.autoRefreshTime = autoRefreshTime
         self.autoRefreshEnabled = autoRefreshEnabled
+        self.dailyDigestSourceToggles = dailyDigestSourceToggles
         self.ttsProvider = ttsProvider
         self.ttsVoiceId = ttsVoiceId
         self.playbackSpeed = playbackSpeed

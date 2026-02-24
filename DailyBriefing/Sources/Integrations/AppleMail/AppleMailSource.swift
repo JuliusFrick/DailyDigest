@@ -18,13 +18,49 @@ final class AppleMailSource: BriefingSource, ObservableObject {
 
     // MARK: - Configuration
 
-    @Published var fetchUnreadOnly: Bool = true
-    @Published var maxEmailsToFetch: Int = 20
-    @Published var selectedMailboxes: Set<String> = ["INBOX"]
+    @Published var fetchUnreadOnly: Bool = true {
+        didSet {
+            UserDefaults.standard.set(fetchUnreadOnly, forKey: Self.fetchUnreadOnlyKey)
+        }
+    }
+    @Published var includeStarredOnly: Bool = false {
+        didSet {
+            UserDefaults.standard.set(includeStarredOnly, forKey: Self.includeStarredOnlyKey)
+        }
+    }
+    @Published var includeImportantOnly: Bool = false {
+        didSet {
+            UserDefaults.standard.set(includeImportantOnly, forKey: Self.includeImportantOnlyKey)
+        }
+    }
+    @Published var maxEmailsToFetch: Int = 20 {
+        didSet {
+            UserDefaults.standard.set(maxEmailsToFetch, forKey: Self.maxEmailsToFetchKey)
+        }
+    }
+    @Published var selectedMailboxes: Set<String> = ["INBOX"] {
+        didSet {
+            UserDefaults.standard.set(Array(selectedMailboxes), forKey: Self.selectedMailboxesKey)
+        }
+    }
+
+    private static let fetchUnreadOnlyKey = "applemail_fetch_unread_only"
+    private static let includeStarredOnlyKey = "applemail_include_starred_only"
+    private static let includeImportantOnlyKey = "applemail_include_important_only"
+    private static let maxEmailsToFetchKey = "applemail_max_emails_to_fetch"
+    private static let selectedMailboxesKey = "applemail_selected_mailboxes"
 
     // MARK: - Initialization
 
     init() {
+        let defaults = UserDefaults.standard
+        fetchUnreadOnly = defaults.object(forKey: Self.fetchUnreadOnlyKey) as? Bool ?? true
+        includeStarredOnly = defaults.object(forKey: Self.includeStarredOnlyKey) as? Bool ?? false
+        includeImportantOnly = defaults.object(forKey: Self.includeImportantOnlyKey) as? Bool ?? false
+        maxEmailsToFetch = defaults.object(forKey: Self.maxEmailsToFetchKey) as? Int ?? 20
+        if let savedMailboxes = defaults.array(forKey: Self.selectedMailboxesKey) as? [String], !savedMailboxes.isEmpty {
+            selectedMailboxes = Set(savedMailboxes)
+        }
         checkMailAccess()
     }
 
@@ -132,41 +168,96 @@ final class AppleMailSource: BriefingSource, ObservableObject {
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let sinceString = dateFormatter.string(from: since)
 
-        let unreadFilter = fetchUnreadOnly ? "whose read status is false" : ""
+        let mailboxList = selectedMailboxes.sorted().map { "\"\($0.replacingOccurrences(of: "\"", with: "\\\""))\"" }
+        let mailboxExpression = mailboxList.isEmpty ? "\"INBOX\"" : mailboxList.joined(separator: ", ")
 
         let script = """
+        on sanitizeField(theText)
+            try
+                set theText to theText as text
+                set AppleScript's text item delimiters to {"\\r", "\\n", "\\t", "|||"}
+                set theText to every text item of theText
+                set AppleScript's text item delimiters to " "
+                set theText to theText as text
+                set AppleScript's text item delimiters to ""
+                return theText
+            on error
+                return ""
+            end try
+        end sanitizeField
+
         tell application "Mail"
-            set resultList to {}
+            set resultText to ""
+            set resultCount to 0
+            set maxResults to \(maxEmailsToFetch)
+            set shouldFetchUnreadOnly to \(fetchUnreadOnly ? "true" : "false")
+            set shouldFetchStarredOnly to \(includeStarredOnly ? "true" : "false")
+            set shouldFetchImportantOnly to \(includeImportantOnly ? "true" : "false")
+            set selectedMailboxNames to {\(mailboxExpression)}
             set cutoffDate to date "\(sinceString)"
 
             repeat with acc in accounts
-                try
-                    set inboxMailbox to mailbox "INBOX" of acc
-                    set msgs to (messages of inboxMailbox \(unreadFilter))
+                repeat with mb in mailboxes of acc
+                    set mailboxName to name of mb
 
-                    repeat with msg in msgs
-                        try
-                            if date received of msg > cutoffDate then
-                                set msgData to {¬
-                                    subject:(subject of msg), ¬
-                                    sender:(sender of msg), ¬
-                                    dateReceived:(date received of msg as string), ¬
-                                    messageId:(message id of msg), ¬
-                                    isRead:(read status of msg), ¬
-                                    preview:(content of msg) ¬
-                                }
-                                set end of resultList to msgData
+                    if mailboxName is in selectedMailboxNames then
+                        set msgs to messages of mb
+                        repeat with msg in msgs
+                            if resultCount ≥ maxResults then
+                                exit repeat
                             end if
-                        end try
 
-                        if (count of resultList) ≥ \(maxEmailsToFetch) then exit repeat
-                    end repeat
-                end try
+                            try
+                                if date received of msg > cutoffDate then
+                                    set shouldInclude to true
 
-                if (count of resultList) ≥ \(maxEmailsToFetch) then exit repeat
+                                    if shouldFetchUnreadOnly and (read status of msg) then
+                                        set shouldInclude to false
+                                    end if
+
+                                    if shouldFetchStarredOnly and not (flagged status of msg) then
+                                        set shouldInclude to false
+                                    end if
+
+                                    if shouldFetchImportantOnly and ((priority of msg) is not 1) then
+                                        set shouldInclude to false
+                                    end if
+
+                                    if shouldInclude then
+                                        set msgSubject to sanitizeField(subject of msg)
+                                        set msgSender to sanitizeField(sender of msg as text)
+                                        set msgDate to date received of msg as string
+                                        set msgId to message id of msg as text
+                                        set msgRead to (read status of msg) as text
+                                        set msgStarred to (flagged status of msg) as text
+                                        set msgPriority to (priority of msg) as text
+                                        set msgMailbox to sanitizeField(mailboxName)
+                                        set msgPreview to sanitizeField(content of msg)
+
+                                        set msgLine to msgSubject & "|||" & msgSender & "|||" & msgDate & "|||" & msgId & "|||" & msgRead & "|||" & msgStarred & "|||" & msgPriority & "|||" & msgMailbox & "|||" & msgPreview
+                                        if resultText is "" then
+                                            set resultText to msgLine
+                                        else
+                                            set resultText to resultText & linefeed & msgLine
+                                        end if
+                                        set resultCount to resultCount + 1
+                                    end if
+                                end if
+                            end try
+                        end repeat
+                    end if
+
+                    if resultCount ≥ maxResults then
+                        exit repeat
+                    end if
+                end repeat
+
+                if resultCount ≥ maxResults then
+                    exit repeat
+                end if
             end repeat
 
-            return resultList
+            return resultText
         end tell
         """
 
@@ -194,12 +285,56 @@ final class AppleMailSource: BriefingSource, ObservableObject {
     }
 
     private func parseAppleScriptResult(_ result: String) -> [AppleMailMessage] {
-        // AppleScript returns a list of records, parse them
-        // This is a simplified parser - in production you'd want more robust parsing
-        // For now, return empty array if parsing fails
-        // In a real implementation, you would parse the AppleScript record format
+        let trimmedResult = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedResult.isEmpty else { return [] }
 
-        return []
+        return trimmedResult
+            .components(separatedBy: CharacterSet.newlines)
+            .compactMap { line in
+                let parts = line.components(separatedBy: "|||")
+                guard parts.count >= 8 else { return nil }
+
+                return AppleMailMessage(
+                    subject: parts[0],
+                    sender: parts[1],
+                    date: parseAppleScriptDate(parts[2]),
+                    messageId: parts[3],
+                    isRead: parts[4] == "true",
+                    preview: parts[7],
+                    mailbox: parts[6]
+                )
+            }
+    }
+
+    private func parseAppleScriptDate(_ value: String) -> Date {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return Date() }
+
+        let formats = [
+            "EEEE, MMM d, yyyy 'at' h:mm:ss a",
+            "EEEE, MMM d, yyyy 'at' h:mm:ss",
+            "EEEE, MMM d, yyyy 'at' h:mm a",
+            "MMMM d, yyyy 'at' h:mm:ss a",
+            "yyyy-MM-dd",
+            "EEE MMM d HH:mm:ss yyyy",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy/MM/dd HH:mm:ss"
+        ]
+
+        for format in formats {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = format
+            if let date = formatter.date(from: trimmed) {
+                return date
+            }
+        }
+
+        if let cased = DateFormatter().date(from: trimmed) {
+            return cased
+        }
+
+        return Date()
     }
 }
 

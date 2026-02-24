@@ -76,6 +76,21 @@ struct AppleMailConfigView: View {
     private var filterSection: some View {
         Section {
             Toggle("Nur ungelesene E-Mails", isOn: $source.fetchUnreadOnly)
+            Toggle("Nur markierte E-Mails", isOn: $source.includeStarredOnly)
+            Toggle("Nur wichtige E-Mails", isOn: $source.includeImportantOnly)
+            TextField(
+                "Mailboxnamen (Komma getrennt)",
+                text: Binding(
+                    get: { source.selectedMailboxes.sorted().joined(separator: ", ") },
+                    set: { rawValue in
+                        let values = rawValue
+                            .split(separator: ",")
+                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                            .filter { !$0.isEmpty }
+                        source.selectedMailboxes = Set(values)
+                    }
+                )
+            )
 
             Stepper(
                 "Maximale Anzahl: \(source.maxEmailsToFetch)",

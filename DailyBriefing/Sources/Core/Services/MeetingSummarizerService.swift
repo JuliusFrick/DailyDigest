@@ -28,18 +28,23 @@ final class MeetingSummarizerService: ObservableObject {
         // Load configuration from UserDefaults
         var modelId = provider.defaultModel.id
         var ollamaURL = "http://localhost:11434"
+        var openClawBaseURL = "http://100.0.0.1:18789"
+        var openClawAgentId = "default"
         
-        if let data = UserDefaults.standard.data(forKey: "llmConfiguration"),
-           let config = try? JSONDecoder().decode(LLMConfiguration.self, from: data) {
+        if let config = loadLLMConfiguration() {
             modelId = config.modelId
             ollamaURL = config.ollamaBaseURL
+            openClawBaseURL = config.openClawBaseURL
+            openClawAgentId = config.openClawAgentId.isEmpty ? "default" : config.openClawAgentId
         }
         
         let service = LLMServiceFactory.create(
             provider: provider,
             apiKey: apiKey,
             modelId: modelId,
-            ollamaBaseURL: ollamaURL
+            ollamaBaseURL: ollamaURL,
+            openClawBaseURL: openClawBaseURL,
+            openClawAgentId: openClawAgentId
         )
         
         let prompt = """
@@ -53,5 +58,19 @@ final class MeetingSummarizerService: ObservableObject {
         let systemPrompt = "Du bist ein hilfreicher Assistent, der Meeting-Transkripte zusammenfasst."
         
         return try await service.complete(prompt: prompt, systemPrompt: systemPrompt)
+    }
+
+    private func loadLLMConfiguration() -> LLMConfiguration? {
+        if let data = UserDefaults.standard.data(forKey: "llm_configuration"),
+           let config = try? JSONDecoder().decode(LLMConfiguration.self, from: data) {
+            return config
+        }
+        
+        if let data = UserDefaults.standard.data(forKey: "llmConfiguration"),
+           let config = try? JSONDecoder().decode(LLMConfiguration.self, from: data) {
+            return config
+        }
+        
+        return nil
     }
 }

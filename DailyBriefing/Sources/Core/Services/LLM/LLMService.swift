@@ -79,7 +79,9 @@ enum LLMServiceFactory {
         provider: LLMProvider,
         apiKey: String?,
         modelId: String,
-        ollamaBaseURL: String = "http://localhost:11434"
+        ollamaBaseURL: String = "http://localhost:11434",
+        openClawBaseURL: String = "http://100.0.0.1:18789",
+        openClawAgentId: String = "default"
     ) -> LLMService {
         switch provider {
         case .openai:
@@ -92,6 +94,12 @@ enum LLMServiceFactory {
             return AnthropicService(apiKey: apiKey ?? "", modelId: modelId)
         case .google:
             return GoogleService(apiKey: apiKey ?? "", modelId: modelId)
+        case .openClaw:
+            return OpenClawService(
+                baseURL: openClawBaseURL,
+                authToken: apiKey ?? "",
+                agentId: openClawAgentId
+            )
         case .ollama:
             return OllamaService(baseURL: ollamaBaseURL, modelId: modelId)
         }

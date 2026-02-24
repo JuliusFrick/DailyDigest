@@ -308,9 +308,7 @@ struct TUIDashboardView: View {
             LeftPanelToggleButton(showLeftPanel: $showLeftPanel)
 
             // Chat toggle button
-            if appState.currentBriefing != nil {
-                ChatToggleButton(showChat: $showChat)
-            }
+            ChatToggleButton(showChat: $showChat)
         }
     }
 
@@ -449,7 +447,7 @@ struct TUIDashboardView: View {
                             .font(.tuiMonoSmall)
                             .foregroundStyle(.tertiary)
                         
-                        Text("press ⌘3 to add sources")
+                        Text("press ⌘3 for Slack")
                             .font(.tuiMonoTiny)
                             .foregroundStyle(.quaternary)
                     }
@@ -1250,6 +1248,14 @@ struct TUIItemRow: View {
             .buttonStyle(.plain)
             .onHover { isHovered = $0 }
             .animation(.tuiFast, value: isHovered)
+            .contextMenu {
+                Button("An Claude senden") {
+                    _ = ClaudeChatService.shared.openThread(for: item)
+                }
+                Button("Im Terminal öffnen") {
+                    _ = TerminalSessionManager.shared.openSession(for: item)
+                }
+            }
             .onAppear {
                 loadMeetingNotes()
             }
@@ -1367,6 +1373,28 @@ struct TUIItemRow: View {
                 }
                 .buttonStyle(.tui)
             }
+
+            Button {
+                _ = ClaudeChatService.shared.openThread(for: item)
+            } label: {
+                HStack(spacing: Spacing.xs) {
+                    Text("🤖")
+                    Text("An Claude senden")
+                        .font(.tuiMonoTiny)
+                }
+            }
+            .buttonStyle(.tui)
+
+            Button {
+                _ = TerminalSessionManager.shared.openSession(for: item)
+            } label: {
+                HStack(spacing: Spacing.xs) {
+                    Text("💻")
+                    Text("Im Terminal öffnen")
+                        .font(.tuiMonoTiny)
+                }
+            }
+            .buttonStyle(.tui)
         }
         .padding(.horizontal, Spacing.md)
         .padding(.leading, Spacing.lg + 12 + Spacing.sm)

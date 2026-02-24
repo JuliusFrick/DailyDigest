@@ -8,6 +8,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     case anthropic = "anthropic"
     case google = "google"
     case mistral = "mistral"
+    case openClaw = "openclaw"
     case ollama = "ollama"
 
     var id: String { rawValue }
@@ -19,6 +20,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         case .anthropic: return "Anthropic"
         case .google: return "Google"
         case .mistral: return "Mistral"
+        case .openClaw: return "OpenClaw (VPS)"
         case .ollama: return "Ollama (Lokal)"
         }
     }
@@ -30,6 +32,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         case .anthropic: return "sparkles"
         case .google: return "g.circle.fill"
         case .mistral: return "wind"
+        case .openClaw: return "server.rack"
         case .ollama: return "desktopcomputer"
         }
     }
@@ -41,6 +44,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         case .anthropic: return Color(red: 0.85, green: 0.55, blue: 0.35)
         case .google: return Color(red: 0.26, green: 0.52, blue: 0.96)
         case .mistral: return Color(red: 1.0, green: 0.45, blue: 0.0) // Mistral Orange
+        case .openClaw: return Color(red: 0.0, green: 0.74, blue: 0.82)
         case .ollama: return Color(red: 0.5, green: 0.5, blue: 0.5)
         }
     }
@@ -48,6 +52,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
     var requiresAPIKey: Bool {
         switch self {
         case .openai, .groq, .anthropic, .google, .mistral: return true
+        case .openClaw: return true
         case .ollama: return false
         }
     }
@@ -56,6 +61,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .openai, .groq: return true
         case .anthropic, .google, .mistral, .ollama: return false
+        case .openClaw: return false
         }
     }
 
@@ -96,6 +102,10 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
                 LLMModel(id: "open-mistral-nemo", name: "Mistral Nemo", description: "Open-Source 12B Modell"),
                 LLMModel(id: "codestral-latest", name: "Codestral", description: "Spezialisiert auf Code-Generierung")
             ]
+        case .openClaw:
+            return [
+                LLMModel(id: "default", name: "Standard-Agent", description: "Agent-ID aus den Einstellungen verwenden")
+            ]
         case .ollama:
             return [
                 LLMModel(id: "llama3.2", name: "Llama 3.2", description: "Metas neuestes Open-Source Modell"),
@@ -120,6 +130,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         case .anthropic: return "sk-ant-..."
         case .google: return "AIza..."
         case .mistral: return ""
+        case .openClaw: return "OpenClaw Token"
         case .ollama: return ""
         }
     }
@@ -131,6 +142,7 @@ enum LLMProvider: String, CaseIterable, Identifiable, Codable {
         case .anthropic: return URL(string: "https://console.anthropic.com/settings/keys")
         case .google: return URL(string: "https://aistudio.google.com/apikey")
         case .mistral: return URL(string: "https://console.mistral.ai/api-keys")
+        case .openClaw: return nil
         case .ollama: return URL(string: "https://ollama.com/download")
         }
     }
@@ -148,15 +160,21 @@ struct LLMConfiguration: Codable {
     var provider: LLMProvider
     var modelId: String
     var ollamaBaseURL: String
+    var openClawBaseURL: String
+    var openClawAgentId: String
 
     init(
         provider: LLMProvider = .openai,
         modelId: String? = nil,
-        ollamaBaseURL: String = "http://localhost:11434"
+        ollamaBaseURL: String = "http://localhost:11434",
+        openClawBaseURL: String = "http://100.0.0.1:18789",
+        openClawAgentId: String = "default"
     ) {
         self.provider = provider
         self.modelId = modelId ?? provider.defaultModel.id
         self.ollamaBaseURL = ollamaBaseURL
+        self.openClawBaseURL = openClawBaseURL
+        self.openClawAgentId = openClawAgentId
     }
 
     var selectedModel: LLMModel? {

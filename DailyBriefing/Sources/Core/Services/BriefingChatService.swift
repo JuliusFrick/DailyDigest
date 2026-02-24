@@ -110,12 +110,16 @@ final class BriefingChatService: ObservableObject {
             throw ChatError.llmNotConfigured
         }
 
+        let config = loadLLMConfiguration()
+
         // Create LLM service
         let llmService = LLMServiceFactory.create(
             provider: llmProvider,
             apiKey: apiKey,
             modelId: modelId,
-            ollamaBaseURL: "http://localhost:11434"
+            ollamaBaseURL: "http://localhost:11434",
+            openClawBaseURL: config.openClawBaseURL,
+            openClawAgentId: config.openClawAgentId
         )
 
         let systemPrompt = buildSystemPrompt()
@@ -206,11 +210,17 @@ final class BriefingChatService: ObservableObject {
         return prompt
     }
 
-    private func loadLLMConfiguration() -> LLMConfiguration? {
+    private func loadLLMConfiguration() -> LLMConfiguration {
         if let data = UserDefaults.standard.data(forKey: "llm_configuration"),
            let config = try? JSONDecoder().decode(LLMConfiguration.self, from: data) {
             return config
         }
+        
+        if let data = UserDefaults.standard.data(forKey: "llmConfiguration"),
+           let config = try? JSONDecoder().decode(LLMConfiguration.self, from: data) {
+            return config
+        }
+
         return LLMConfiguration()
     }
 
