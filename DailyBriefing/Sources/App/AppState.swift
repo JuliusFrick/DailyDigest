@@ -8,34 +8,40 @@ final class AppState: ObservableObject {
 
     // MARK: - Navigation
 
-    enum Tab: String, CaseIterable, Identifiable {
+    enum AppPanel: String, CaseIterable, Identifiable {
         case dashboard
-        case history
-        case sources
-        case settings
+        case claudeChat
+        case slack
+        case jira
+        case mail
+        case terminals
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
-            case .dashboard: return "Briefing"
-            case .history: return "Verlauf"
-            case .sources: return "Quellen"
-            case .settings: return "Einstellungen"
+            case .dashboard: return "Dashboard"
+            case .claudeChat: return "Claude Chat"
+            case .slack: return "Slack"
+            case .jira: return "Jira"
+            case .mail: return "Mail"
+            case .terminals: return "Terminals"
             }
         }
 
         var icon: String {
             switch self {
-            case .dashboard: return "sun.horizon.fill"
-            case .history: return "clock.arrow.circlepath"
-            case .sources: return "square.stack.3d.up.fill"
-            case .settings: return "gearshape.fill"
+            case .dashboard: return "house"
+            case .claudeChat: return "message"
+            case .slack: return "bubble.left"
+            case .jira: return "list.bullet"
+            case .mail: return "envelope"
+            case .terminals: return "terminal"
             }
         }
     }
 
-    @Published var selectedTab: Tab = .dashboard
+    @Published var selectedPanel: AppPanel = .dashboard
     @Published var showOnboarding: Bool = false
 
     // MARK: - Briefing State
@@ -298,7 +304,7 @@ final class AppState: ObservableObject {
     private func processRecording(url: URL) async {
         // Show the app and navigate to meetings so user sees transcription
         NSApplication.shared.activate(ignoringOtherApps: true)
-        selectedTab = .dashboard
+        selectedPanel = .dashboard
         // We can't easily trigger the local state of MeetingsView from here
         // without a more centralized recording state manager.
         // For now, let's just make sure it's processed.

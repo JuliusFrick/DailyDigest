@@ -16,17 +16,15 @@ struct ContentView: View {
 }
 
 struct MainView: View {
+    @EnvironmentObject private var appState: AppState
     @State private var showSettings = false
     @State private var showSources = false
     @State private var selectedDashboardTab: TUIDashboardView.DashboardTab = .briefing
 
     var body: some View {
         ZStack {
-            // Ambient animated background
             Color.tuiBackground
                 .ignoresSafeArea()
-            
-            // Subtle dithering effect overlay
             DitheringBackgroundView(
                 shape: .simplex,
                 ditherType: .bayer8x8,
@@ -39,21 +37,48 @@ struct MainView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            VStack(spacing: 0) {
-                // Top bar
-                TopBar(
-                    showSettings: $showSettings,
-                    showSources: $showSources,
-                    selectedTab: $selectedDashboardTab
+            NavigationSplitView {
+                WorkspaceSidebar(
+                    selectedPanel: $appState.selectedPanel,
+                    openSources: {
+                        showSources = true
+                        showSettings = false
+                    },
+                    openSettings: {
+                        showSettings = true
+                        showSources = false
+                    }
                 )
+            } detail: {
+                VStack(spacing: 0) {
+                    HStack(spacing: Spacing.md) {
+                        Text("DAILY BRIEFING")
+                            .font(.system(.caption, design: .monospaced))
+                            .fontWeight(.bold)
+                            .foregroundStyle(.secondary)
 
-                // Main content
-                TUIDashboardView(selectedTab: $selectedDashboardTab)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        Spacer()
 
-                // Bottom status bar
-                StatusBar()
+                        Text(appState.selectedPanel.title.uppercased())
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.quaternary)
+                    }
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.sm)
+                    .background(Color.tuiBackground.opacity(0.9))
+                    .overlay(alignment: .bottom) {
+                        Rectangle()
+                            .fill(Color.tuiBorder)
+                            .frame(height: 1)
+                    }
+
+                    panelContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    StatusBar()
+                }
             }
+            .navigationSplitViewStyle(.balanced)
 
             // Modal overlays
             if showSettings {
@@ -85,9 +110,32 @@ struct MainView: View {
                 ))
             }
 
+            if appState.selectedPanel == .dashboard && !showSettings && !showSources {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Text("Dashboard und neue Bereiche lassen sich auch über das Seitenmenü wechseln.")
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.quaternary.opacity(0.9))
+                            .padding(Spacing.sm)
+                            .background(Color.tuiPanel.opacity(0.4))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .allowsHitTesting(false)
+            }
+
         }
         .animation(.tuiSnappy, value: showSettings)
         .animation(.tuiSnappy, value: showSources)
+        .modifier(MainViewKeyboardModifier(
+            showSettings: $showSettings,
+            showSources: $showSources,
+            selectedPanel: $appState.selectedPanel
+        ))
         .onKeyPress(.escape) {
             if showSettings || showSources {
                 showSettings = false
@@ -96,99 +144,151 @@ struct MainView: View {
             }
             return .ignored
         }
-        .modifier(ContentViewKeyboardModifier(
-            showSettings: $showSettings,
-            showSources: $showSources,
-            selectedTab: $selectedDashboardTab
-        ))
     }
-}
 
-// MARK: - Top Bar
-
-struct TopBar: View {
-    @Binding var showSettings: Bool
-    @Binding var showSources: Bool
-    @Binding var selectedTab: TUIDashboardView.DashboardTab
-
-    var body: some View {
-        HStack(spacing: 0) {
-            // Logo/Title
-            Text("DAILY BRIEFING")
-                .font(.system(.caption, design: .monospaced))
-                .fontWeight(.bold)
-                .foregroundStyle(.primary)
-
-            Spacer()
-
-            // Nav items
-            HStack(spacing: 2) {
-                NavButton(label: "1", title: "Home", isActive: selectedTab == .briefing && !showSources && !showSettings) {
-                    selectedTab = .briefing
-                    showSources = false
-                    showSettings = false
-                }
-                NavButton(label: "2", title: "History", isActive: selectedTab == .history && !showSources && !showSettings) {
-                    selectedTab = .history
-                    showSources = false
-                    showSettings = false
-                }
-                NavButton(label: "3", title: "Sources", isActive: showSources) {
-                    showSources.toggle()
-                    showSettings = false
-                }
-                NavButton(label: "4", title: "Meetings", isActive: selectedTab == .calendar && !showSources && !showSettings) {
-                    selectedTab = .calendar
-                    showSources = false
-                    showSettings = false
-                }
-                NavButton(label: ",", title: "Settings", isActive: showSettings) {
-                    showSettings.toggle()
-                    showSources = false
-                }
-            }
-        }
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.sm)
-        .background(Color.tuiBackground.opacity(0.9))
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Color.tuiBorder)
-                .frame(height: 1)
-        }
-    }
-}
-
-struct NavButton: View {
-    let label: String
-    let title: String
-    let isActive: Bool
-    let action: () -> Void
-
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Text("⌘\(label)")
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-
-                Text(title)
-                    .font(.system(.caption, design: .monospaced))
-            }
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.xs)
-            .background(
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(isActive ? Color.tuiHighlight : (isHovered ? Color.tuiHover : Color.clear))
+    @ViewBuilder
+    private var panelContent: some View {
+        switch appState.selectedPanel {
+        case .dashboard:
+            TUIDashboardView(selectedTab: $selectedDashboardTab)
+        case .claudeChat:
+            PanelPlaceholderView(
+                title: "CLAUDE CHAT",
+                subtitle: "Der dedizierte Claude-Bereich wird in der nächsten Phase ergänzt."
             )
-            .foregroundStyle(isActive ? .primary : .secondary)
+        case .slack:
+            PanelPlaceholderView(
+                title: "SLACK",
+                subtitle: "Das Slack-Panel mit mentions/starred und Thread-Kontext folgt in Phase 4a."
+            )
+        case .jira:
+            PanelPlaceholderView(
+                title: "JIRA",
+                subtitle: "Die Jira-Übersicht mit Filter/Detailansicht folgt in Phase 4b."
+            )
+        case .mail:
+            PanelPlaceholderView(
+                title: "MAIL",
+                subtitle: "Das Mail-Inbox-Panel folgt in Phase 4c."
+            )
+        case .terminals:
+            PanelPlaceholderView(
+                title: "TERMINALS",
+                subtitle: "Die integrierten Terminals folgen in Phase 5."
+            )
         }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .animation(.tuiFast, value: isActive)
-        .animation(.tuiFast, value: isHovered)
+    }
+}
+
+// MARK: - Workspace Sidebar
+
+struct WorkspaceSidebar: View {
+    @Binding var selectedPanel: AppState.AppPanel
+    let openSources: () -> Void
+    let openSettings: () -> Void
+
+    var body: some View {
+        List {
+            Section("HUB") {
+                ForEach(AppState.AppPanel.allCases) { panel in
+                    Button {
+                        selectedPanel = panel
+                    } label: {
+                        Label {
+                            Text(panel.title)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(selectedPanel == panel ? .primary : .secondary)
+                                .fontWeight(selectedPanel == panel ? .semibold : .regular)
+                        } icon: {
+                            Image(systemName: panel.icon)
+                                .font(.system(size: 12))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(
+                        selectedPanel == panel
+                        ? Color.tuiHighlight.opacity(0.25)
+                        : Color.clear
+                    )
+                }
+            }
+
+            Section("SYSTEM") {
+                Button {
+                    openSources()
+                } label: {
+                    Label {
+                        Text("Quellen")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    } icon: {
+                        Image(systemName: "square.stack.3d.up.fill")
+                            .font(.system(size: 12))
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    openSettings()
+                } label: {
+                    Label {
+                        Text("Einstellungen")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    } icon: {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 12))
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationTitle("Daily Briefing")
+    }
+}
+
+struct PanelPlaceholderView: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        ZStack {
+            Color.tuiPanel
+                .opacity(0.2)
+                .ignoresSafeArea()
+
+            VStack(spacing: Spacing.md) {
+                Text(title)
+                    .font(.tuiMonoSmall)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, Spacing.xl)
+
+                Text(subtitle)
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.quaternary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Spacing.lg)
+
+                HStack(spacing: Spacing.sm) {
+                    Text("Shortcut")
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.tertiary)
+                    Text("⌘1-⌘6")
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, Spacing.md)
+            }
+            .frame(maxWidth: 520)
+            .padding(Spacing.xl)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.tuiBorder, lineWidth: 1)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.tuiBackground.opacity(0.8)))
+            )
+            .padding()
+        }
     }
 }
 
@@ -259,12 +359,12 @@ struct KeyHint: View {
     }
 }
 
-// MARK: - Content View Keyboard Modifier
+// MARK: - Main View Keyboard Modifier
 
-struct ContentViewKeyboardModifier: ViewModifier {
+struct MainViewKeyboardModifier: ViewModifier {
     @Binding var showSettings: Bool
     @Binding var showSources: Bool
-    @Binding var selectedTab: TUIDashboardView.DashboardTab
+    @Binding var selectedPanel: AppState.AppPanel
 
     func body(content: Content) -> some View {
         content
@@ -277,25 +377,43 @@ struct ContentViewKeyboardModifier: ViewModifier {
                 return .ignored
             }
             .onKeyPress("1", modifiers: .command) {
-                selectedTab = .briefing
-                showSources = false
+                selectedPanel = .dashboard
                 showSettings = false
+                showSources = false
                 return .handled
             }
             .onKeyPress("2", modifiers: .command) {
-                selectedTab = .history
-                showSources = false
+                selectedPanel = .claudeChat
                 showSettings = false
+                showSources = false
                 return .handled
             }
             .onKeyPress("3", modifiers: .command) {
-                showSources.toggle()
+                selectedPanel = .slack
                 showSettings = false
+                showSources = false
                 return .handled
             }
             .onKeyPress("4", modifiers: .command) {
-                selectedTab = .calendar
+                selectedPanel = .jira
+                showSettings = false
                 showSources = false
+                return .handled
+            }
+            .onKeyPress("5", modifiers: .command) {
+                selectedPanel = .mail
+                showSettings = false
+                showSources = false
+                return .handled
+            }
+            .onKeyPress("6", modifiers: .command) {
+                selectedPanel = .terminals
+                showSettings = false
+                showSources = false
+                return .handled
+            }
+            .onKeyPress("s", modifiers: .command) {
+                showSources.toggle()
                 showSettings = false
                 return .handled
             }
