@@ -16,6 +16,21 @@ This script:
 - wraps the debug executable into a minimal `DailyBriefing.app`
 - launches it via `open` so macOS treats it as a real app bundle
 
+### Pre-commit: Release-Build-Check
+
+Vor dem Commit wird der Release-Build lokal getestet (verhindert CI-Fehler):
+
+```bash
+./scripts/install-hooks.sh   # einmalig: Hook installieren
+```
+
+Danach läuft bei jedem Commit automatisch `./scripts/pre-commit-check.sh`. Manuell testen:
+
+```bash
+./scripts/pre-commit-check.sh        # Build + App-Bundle + DMG
+./scripts/pre-commit-check.sh --no-dmg   # schneller, ohne DMG
+```
+
 ### Release packaging (unsigned)
 
 Create a release-style `.app` bundle and a zip in `./dist`:

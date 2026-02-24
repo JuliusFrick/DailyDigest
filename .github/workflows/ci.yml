@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'release/*' ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'release/*' ]
 
 env:
   APP_NAME: DailyBriefing
@@ -132,3 +132,23 @@ jobs:
         run: |
           cd DailyBriefing
           swift package show-dependencies
+
+  release-check:
+    name: Release Build Check
+    runs-on: macos-14
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v1
+        with:
+          swift-version: '5.9'
+
+      - name: Run release pipeline check
+        run: |
+          # Same steps as Release workflow - catch failures before tagging
+          ./scripts/pre-commit-check.sh --no-dmg

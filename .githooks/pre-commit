@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Pre-commit hook: Run release build check before allowing commit.
+# Install with: ./scripts/install-hooks.sh
+
+set -e
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# Only run on Swift/script changes (skip for docs, etc.)
+CHANGED=$(git diff --cached --name-only)
+if echo "$CHANGED" | grep -qE '\.(swift|sh)$|Package\.swift|\.yml$'; then
+  echo "Running pre-commit check (release build)..."
+  if ! "$ROOT/scripts/pre-commit-check.sh" --no-dmg; then
+    echo ""
+    echo "❌ Pre-commit check failed. Fix the errors above before committing."
+    echo "   To skip this check: git commit --no-verify"
+    exit 1
+  fi
+fi
+exit 0
