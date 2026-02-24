@@ -101,9 +101,16 @@ fi
 
 swift build -c release
 
-BIN_PATH="${PKG_DIR}/.build/release/${APP_NAME}"
-if [[ ! -f "${BIN_PATH}" ]]; then
-  echo "Expected build product not found at: ${BIN_PATH}" >&2
+# SwiftPM puts binaries in .build/<triple>/release/ (e.g. arm64-apple-macosx or x86_64-apple-macosx)
+BIN_PATH=""
+for candidate in "${PKG_DIR}"/.build/*/release/"${APP_NAME}"; do
+  if [[ -f "${candidate}" ]]; then
+    BIN_PATH="${candidate}"
+    break
+  fi
+done
+if [[ -z "${BIN_PATH}" || ! -f "${BIN_PATH}" ]]; then
+  echo "Expected build product not found. Searched: ${PKG_DIR}/.build/*/release/${APP_NAME}" >&2
   exit 1
 fi
 
