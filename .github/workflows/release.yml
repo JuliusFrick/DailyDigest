@@ -71,9 +71,9 @@ jobs:
 
       - name: Package app bundle
         run: |
+          # SPARKLE_PUBLIC_ED_KEY optional - build succeeds without it (updates won't verify until configured)
           VERSION="${{ steps.version.outputs.version }}" \
           BUILD_NUMBER="${{ steps.version.outputs.build_number }}" \
-          REQUIRE_SPARKLE_PUBLIC_ED_KEY="1" \
           SPARKLE_PUBLIC_ED_KEY="${{ secrets.SPARKLE_PUBLIC_ED_KEY }}" \
           ./scripts/package-release.sh
 
