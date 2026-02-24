@@ -139,7 +139,8 @@ final class ClaudeChatService: ObservableObject {
         }
 
         do {
-            let response = try await generateResponse(for: threads[threadIndex])
+            let thread = threads[threadIndex]
+            let response = try await generateResponse(for: thread)
             threads[threadIndex].messages.append(ChatMessage(role: .assistant, content: response))
             threads[threadIndex].updatedAt = Date()
         } catch {
