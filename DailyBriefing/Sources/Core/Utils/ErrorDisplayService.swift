@@ -266,7 +266,7 @@ struct ErrorBannerView: View {
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.secondary)
                         .frame(width: 24, height: 24)
-                        .background(Color.tertiary.opacity(0.5))
+                        .background(Color.tuiTextTertiary.opacity(0.5))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)

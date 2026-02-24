@@ -36,7 +36,7 @@ actor RetryUtility {
                 lastError = error
             } catch let error {
                 // Check if error type should be retried
-                if let retryTypes = retryOn {
+                if let retryTypes = errorTypes {
                     let shouldRetry = retryTypes.contains { type(of: error) == $0 }
                     if !shouldRetry {
                         throw error
@@ -57,6 +57,18 @@ actor RetryUtility {
         }
         
         throw RetryError.exhausted(maxAttempts: maxAttempts, lastError: lastError)
+    }
+    
+    /// Retry an async operation using a RetryPolicy
+    func retry<T>(with policy: RetryPolicy, operation: () async throws -> T) async throws -> T {
+        try await retry(
+            maxAttempts: policy.maxAttempts,
+            initialDelay: policy.initialDelay,
+            maxDelay: policy.maxDelay,
+            backoffMultiplier: policy.backoffMultiplier,
+            retryOn: policy.retryOn.isEmpty ? nil : policy.retryOn,
+            operation: operation
+        )
     }
     
     /// Retry a synchronous operation with exponential backoff
@@ -181,7 +193,7 @@ extension RetryUtility {
         from url: URL,
         policy: RetryPolicy = .default
     ) async throws -> Data {
-        let (data, response) = try await retry(with: policy) {
+        return try await retry(with: policy) {
             let (fetchedData, fetchedResponse) = try await URLSession.shared.data(from: url)
             
             guard let httpResponse = fetchedResponse as? HTTPURLResponse else {
@@ -200,11 +212,9 @@ extension RetryUtility {
             case 503:
                 throw RetryableError.serviceUnavailable
             default:
-                throw URLError(.badServerResponse, userInfo: [NSURLErrorStatusCodeKey: httpResponse.statusCode])
+                throw RetryableError.serverError(statusCode: httpResponse.statusCode)
             }
         }
-        
-        return data
     }
     
     /// Perform a URLRequest with automatic retry

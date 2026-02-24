@@ -26,9 +26,11 @@ final class RecordingPlaybackService: NSObject, ObservableObject {
         stop()
         
         do {
-            // Configure audio session for playback
+            #if !os(macOS)
+            // Configure audio session for playback (iOS/tvOS only - AVAudioSession unavailable on macOS)
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
             try AVAudioSession.sharedInstance().setActive(true)
+            #endif
             
             audioPlayer = try AVAudioPlayer(contentsOf: url)
             audioPlayer?.delegate = self

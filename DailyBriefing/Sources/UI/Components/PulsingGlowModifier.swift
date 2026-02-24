@@ -141,18 +141,20 @@ extension View {
     }
 }
 
-#Preview {
-    VStack(spacing: 20) {
-        MeetingUrgencyIndicator(minutesUntilStart: -5)
-        MeetingUrgencyIndicator(minutesUntilStart: 3)
-        MeetingUrgencyIndicator(minutesUntilStart: 10)
-        MeetingUrgencyIndicator(minutesUntilStart: 25)
-        
-        Text("Meeting Card")
-            .padding()
-            .background(Color.tuiPanel)
-            .urgencyBorder(minutesUntilStart: 3)
+struct PulsingGlowModifier_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(spacing: 20) {
+            MeetingUrgencyIndicator(minutesUntilStart: -5)
+            MeetingUrgencyIndicator(minutesUntilStart: 3)
+            MeetingUrgencyIndicator(minutesUntilStart: 10)
+            MeetingUrgencyIndicator(minutesUntilStart: 25)
+            
+            Text("Meeting Card")
+                .padding()
+                .background(Color.tuiPanel)
+                .urgencyBorder(minutesUntilStart: 3)
+        }
+        .padding()
+        .background(Color.tuiBackground)
     }
-    .padding()
-    .background(Color.tuiBackground)
 }

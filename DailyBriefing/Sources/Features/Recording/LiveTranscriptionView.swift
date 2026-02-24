@@ -391,7 +391,6 @@ class LiveTranscriptionViewModel: ObservableObject {
         // Using GPT-4 for smarter action item extraction
         let patterns = [
             "(?:ich|wir|du|er|sie) (?:muss|müssen|sollte|sollten|werde|werden|kann|können) (.+)",
-            Action Item:? (.+),
             "Action Item:? (.+)",
             "(?:bitte|please) (.+)"
         ]
@@ -403,7 +402,7 @@ class LiveTranscriptionViewModel: ObservableObject {
                     if let taskRange = Range(match.range(at: 1), in: text) {
                         let task = String(text[taskRange])
                         let item = LiveActionItem(
-                            title: task.trimmingCharacters(in: .whitespaces),
+                            title: task.trimmingCharacters(in: CharacterSet.whitespaces),
                             timestamp: Date().timeIntervalSince(sessionStartTime ?? Date()),
                             assignee: nil
                         )
@@ -453,9 +452,11 @@ struct LiveActionItem: Identifiable {
 
 // MARK: - Preview
 
-#Preview {
-    LiveTranscriptionView(
-        meetingTitle: "Standup Meeting",
-        isPresented: .constant(true)
-    )
+struct LiveTranscriptionView_Previews: PreviewProvider {
+    static var previews: some View {
+        LiveTranscriptionView(
+            meetingTitle: "Standup Meeting",
+            isPresented: .constant(true)
+        )
+    }
 }

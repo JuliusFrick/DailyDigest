@@ -67,11 +67,13 @@ struct TypingBubbleView: View {
     }
 }
 
-#Preview {
-    VStack(spacing: 20) {
-        TypingIndicatorView()
-        TypingBubbleView()
+struct TypingIndicatorView_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(spacing: 20) {
+            TypingIndicatorView()
+            TypingBubbleView()
+        }
+        .padding()
+        .background(Color.tuiBackground)
     }
-    .padding()
-    .background(Color.tuiBackground)
 }

@@ -786,7 +786,9 @@ struct AdHocMeetingDetailPopup: View {
 
 // MARK: - Preview
 
-#Preview {
-    RecordingsView()
-        .frame(width: 600, height: 500)
+struct RecordingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        RecordingsView()
+            .frame(width: 600, height: 500)
+    }
 }

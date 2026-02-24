@@ -242,10 +242,12 @@ struct QuickNotesView: View {
 
 // MARK: - Preview
 
-#Preview {
-    QuickNotesView(
-        meetingId: "preview-123",
-        meetingTitle: "Weekly Team Standup",
-        onDismiss: {}
-    )
+struct QuickNotesView_Previews: PreviewProvider {
+    static var previews: some View {
+        QuickNotesView(
+            meetingId: "preview-123",
+            meetingTitle: "Weekly Team Standup",
+            onDismiss: {}
+        )
+    }
 }

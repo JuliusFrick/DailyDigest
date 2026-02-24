@@ -6,6 +6,7 @@ import SwiftUI
 struct ActionItemRow: View {
     let item: ActionItem
     @ObservedObject var store = ActionItemStore.shared
+    @ObservedObject private var playbackService = RecordingPlaybackService.shared
     @State private var showExportMenu = false
     
     var body: some View {

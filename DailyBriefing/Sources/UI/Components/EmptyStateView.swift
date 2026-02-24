@@ -193,17 +193,19 @@ struct LoadingStateView: View {
     }
 }
 
-#Preview {
-    ScrollView {
-        VStack(spacing: 40) {
-            EmptyStateView.noMeetings(onConnect: {})
-            EmptyStateView.noBriefing(onGenerate: {})
-            EmptyStateView.noActionItems()
-            EmptyStateView.noChat()
-            LoadingStateView()
-            LoadingStateView(message: "Briefing wird generiert...", style: .compact)
+struct EmptyStateView_Previews: PreviewProvider {
+    static var previews: some View {
+        ScrollView {
+            VStack(spacing: 40) {
+                EmptyStateView.noMeetings(onConnect: {})
+                EmptyStateView.noBriefing(onGenerate: {})
+                EmptyStateView.noActionItems()
+                EmptyStateView.noChat()
+                LoadingStateView()
+                LoadingStateView(message: "Briefing wird generiert...", style: .compact)
+            }
+            .padding()
         }
-        .padding()
+        .background(Color.tuiBackground)
     }
-    .background(Color.tuiBackground)
 }

@@ -82,6 +82,14 @@ final class MeetingNotesService: ObservableObject {
         userDefaults.removeObject(forKey: key)
     }
     
+    /// Get all meeting IDs that have notes stored (calendar meetings only; ad-hoc are in adHocMeetings)
+    func allMeetingIdsWithNotes() -> [String] {
+        let allKeys = userDefaults.dictionaryRepresentation().keys
+        return allKeys
+            .filter { $0.hasPrefix(notesKeyPrefix) }
+            .map { String($0.dropFirst(notesKeyPrefix.count)) }
+    }
+    
     /// Generate a meeting ID from a BriefingItem
     /// Prefer stable event identifiers when available
     func meetingId(for item: BriefingItem) -> String {

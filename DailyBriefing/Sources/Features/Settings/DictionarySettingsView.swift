@@ -419,6 +419,8 @@ struct EditDictionaryEntrySheet: View {
 
 // MARK: - Preview
 
-#Preview {
-    DictionarySettingsView()
+struct DictionarySettingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        DictionarySettingsView()
+    }
 }

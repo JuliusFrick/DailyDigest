@@ -231,7 +231,9 @@ struct TranscriptChatView: View {
 
 // MARK: - Preview
 
-#Preview {
-    TranscriptChatView(meetingId: "preview-meeting-id")
-        .frame(width: 400, height: 500)
+struct TranscriptChatView_Previews: PreviewProvider {
+    static var previews: some View {
+        TranscriptChatView(meetingId: "preview-meeting-id")
+            .frame(width: 400, height: 500)
+    }
 }

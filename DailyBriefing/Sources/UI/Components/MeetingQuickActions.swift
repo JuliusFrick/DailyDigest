@@ -153,20 +153,22 @@ extension View {
     }
 }
 
-#Preview {
-    VStack {
-        Text("Hover over me")
-            .padding()
-            .background(Color.tuiPanel)
-            .meetingQuickActions(
-                for: BriefingItem(
-                    title: "Team Standup",
-                    metadata: ["meetingLink": "https://meet.google.com/abc"]
-                ),
-                onJoin: { print("Join") },
-                onRecord: { print("Record") }
-            )
+struct MeetingQuickActions_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack {
+            Text("Hover over me")
+                .padding()
+                .background(Color.tuiPanel)
+                .meetingQuickActions(
+                    for: BriefingItem(
+                        title: "Team Standup",
+                        metadata: ["meetingLink": "https://meet.google.com/abc"]
+                    ),
+                    onJoin: { print("Join") },
+                    onRecord: { print("Record") }
+                )
+        }
+        .padding(50)
+        .background(Color.tuiBackground)
     }
-    .padding(50)
-    .background(Color.tuiBackground)
 }

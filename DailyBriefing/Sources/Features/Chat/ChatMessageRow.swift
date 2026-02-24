@@ -166,40 +166,44 @@ struct TimestampButton: View {
 
 // MARK: - Preview
 
-#Preview("User Message") {
-    ChatMessageRow(
-        message: TranscriptChatMessage(
-            role: .user,
-            content: "Was waren die wichtigsten Entscheidungen?"
-        ),
-        onJumpToTimestamp: nil
-    )
-    .padding()
-    .background(Color.tuiBackground)
-}
-
-#Preview("Assistant Message with Citations") {
-    ChatMessageRow(
-        message: TranscriptChatMessage(
-            role: .assistant,
-            content: "Die wichtigsten Entscheidungen waren: 1) Wir implementieren das neue Feature bis Ende des Monats. 2) Das Team wird um zwei Entwickler erweitert.",
-            relatedChunks: [
-                TranscriptChunk(
-                    text: "Okay, ich denke wir sollten das Feature bis Ende des Monats fertig haben...",
-                    startTime: 125.0,
-                    endTime: 140.0
+struct ChatMessageRow_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            ChatMessageRow(
+                message: TranscriptChatMessage(
+                    role: .user,
+                    content: "Was waren die wichtigsten Entscheidungen?"
                 ),
-                TranscriptChunk(
-                    text: "Wir brauchen definitiv mehr Leute im Team. Ich schlage vor, zwei weitere Entwickler einzustellen.",
-                    startTime: 245.0,
-                    endTime: 260.0
-                )
-            ]
-        ),
-        onJumpToTimestamp: { time in
-            print("Jump to \(time)")
+                onJumpToTimestamp: nil
+            )
+            .padding()
+            .background(Color.tuiBackground)
+            .previewDisplayName("User Message")
+
+            ChatMessageRow(
+                message: TranscriptChatMessage(
+                    role: .assistant,
+                    content: "Die wichtigsten Entscheidungen waren: 1) Wir implementieren das neue Feature bis Ende des Monats. 2) Das Team wird um zwei Entwickler erweitert.",
+                    relatedChunks: [
+                        TranscriptChunk(
+                            text: "Okay, ich denke wir sollten das Feature bis Ende des Monats fertig haben...",
+                            startTime: 125.0,
+                            endTime: 140.0
+                        ),
+                        TranscriptChunk(
+                            text: "Wir brauchen definitiv mehr Leute im Team. Ich schlage vor, zwei weitere Entwickler einzustellen.",
+                            startTime: 245.0,
+                            endTime: 260.0
+                        )
+                    ]
+                ),
+                onJumpToTimestamp: { time in
+                    print("Jump to \(time)")
+                }
+            )
+            .padding()
+            .background(Color.tuiBackground)
+            .previewDisplayName("Assistant Message with Citations")
         }
-    )
-    .padding()
-    .background(Color.tuiBackground)
+    }
 }

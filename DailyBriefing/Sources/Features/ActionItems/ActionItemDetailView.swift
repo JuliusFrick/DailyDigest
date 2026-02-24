@@ -166,16 +166,18 @@ struct ActionItemDetailView: View {
 
 // MARK: - Preview
 
-#Preview {
-    NavigationStack {
-        ActionItemDetailView(item: .constant(ActionItem(
-            title: "Review quarterly report",
-            description: "Go through the Q4 numbers and prepare summary",
-            assignee: "John",
-            dueDate: Date().addingTimeInterval(86400 * 3),
-            meetingId: "meeting-123",
-            timestamp: 125.5,
-            status: .inProgress
-        )))
+struct ActionItemDetailView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationStack {
+            ActionItemDetailView(item: .constant(ActionItem(
+                title: "Review quarterly report",
+                description: "Go through the Q4 numbers and prepare summary",
+                assignee: "John",
+                dueDate: Date().addingTimeInterval(86400 * 3),
+                meetingId: "meeting-123",
+                timestamp: 125.5,
+                status: .inProgress
+            )))
+        }
     }
 }
