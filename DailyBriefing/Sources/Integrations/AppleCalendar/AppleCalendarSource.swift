@@ -89,6 +89,9 @@ final class AppleCalendarSource: BriefingSource, ObservableObject {
             Task {
                 await fetchAvailableCalendars()
             }
+        case .writeOnly:
+            isAuthenticated = false
+            connectionStatus = .disconnected
         case .denied, .restricted:
             isAuthenticated = false
             connectionStatus = .disconnected

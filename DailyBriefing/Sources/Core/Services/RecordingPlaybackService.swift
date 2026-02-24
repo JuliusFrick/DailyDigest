@@ -95,8 +95,8 @@ final class RecordingPlaybackService: NSObject, ObservableObject {
     private func startPlaybackTimer() {
         playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self else { return }
-                self.currentTime = self.audioPlayer?.currentTime ?? 0
+                guard let service = self else { return }
+                service.currentTime = service.audioPlayer?.currentTime ?? 0
             }
         }
     }
