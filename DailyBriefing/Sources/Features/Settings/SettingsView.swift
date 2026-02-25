@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject private var settingsStore: UserSettingsStore
     @StateObject private var errorDisplayService = ErrorDisplayService.shared
     @StateObject private var connectionManager = ServiceConnectionManager.shared
+    @StateObject private var bridgeService = ExternalBridgeService.shared
 
     @State private var selectedLanguage = "de"
     @State private var autoRefreshEnabled = false
@@ -29,6 +30,7 @@ struct SettingsView: View {
             integrationsSection
             dailyDigestSection
             llmNavigationSection
+            openClawBridgeSection
             modelConfigurationSection
             transcriptionSection
             audioSection
@@ -156,6 +158,31 @@ struct SettingsView: View {
         } footer: {
             Text("Die KI generiert eine Zusammenfassung deiner Briefing-Daten.")
         }
+    }
+    
+    private var openClawBridgeSection: some View {
+        Section {
+            NavigationLink {
+                SettingsSubView(title: "OpenClaw Bridge") {
+                    ExternalBridgeSettingsView()
+                }
+            } label: {
+                HStack {
+                    Label("OpenClaw Bridge", systemImage: "link.circle")
+                    Spacer()
+                    Text(bridgeStatusText)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("OpenClaw Bridge")
+        } footer: {
+            Text("Schaltet einen lokalen Read-only Endpoint für OpenClaw-Zugriff auf freigegebene App-Daten frei.")
+        }
+    }
+
+    private var bridgeStatusText: String {
+        bridgeService.configuration.isEnabled ? "Aktiv" : "Aus"
     }
     
     // MARK: - Model Configuration Section

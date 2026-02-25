@@ -3,10 +3,14 @@ import SwiftUI
 // MARK: - TUI Dashboard View
 
 struct TUIDashboardView: View {
+    private static let workspaceLayoutsStorageKey = "dashboard.workspaceLayouts.v1"
+    private static let legacyWorkspaceModulesStorageKey = "dashboard.workspaceModules.v1"
+
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var settingsStore: UserSettingsStore
     @ObservedObject private var connectionManager = ServiceConnectionManager.shared
     @ObservedObject private var actionItemStore = ActionItemStore.shared
+    @ObservedObject private var terminalSessionManager = TerminalSessionManager.shared
     @State private var selectedDetailLevel: Briefing.DetailLevel = .quick
     @State private var selectedSection: Int = 0
     @State private var showChat: Bool = false
@@ -15,9 +19,15 @@ struct TUIDashboardView: View {
     @State private var isLoadingMeetings: Bool = false
     @State private var historicalBriefings: [Briefing] = []
     @State private var isLoadingHistory: Bool = false
+    @State private var workspaceSetups: [WorkspaceTaskSetup] = []
+    @State private var selectedWorkspaceSetupID: UUID?
+    @State private var didLoadWorkspaceSetups = false
+    @State private var showSetupWizard = false
     @Binding var selectedTab: DashboardTab
 
     enum DashboardTab: String, CaseIterable, Identifiable {
+        case cockpit = "Cockpit"
+        case workspace = "Aufgaben"
         case briefing = "Briefing"
         case history = "History"
         case calendar = "Kalender"
@@ -33,6 +43,13 @@ struct TUIDashboardView: View {
                 // Load panel states from user settings
                 showChat = settingsStore.settings.showChatPanel
                 showLeftPanel = settingsStore.settings.showLeftPanel
+                if !didLoadWorkspaceSetups {
+                    let store = loadWorkspaceLayoutStore()
+                    workspaceSetups = store.setups
+                    selectedWorkspaceSetupID = store.selectedSetupID ?? store.setups.first?.id
+                    didLoadWorkspaceSetups = true
+                    syncSelectedWorkspaceSession()
+                }
             }
             .onChange(of: showChat) { _, newValue in
                 // Save chat panel state to user settings
@@ -44,6 +61,15 @@ struct TUIDashboardView: View {
                 // Save left panel state to user settings
                 settingsStore.update { settings in
                     settings.showLeftPanel = newValue
+                }
+            }
+            .onChange(of: workspaceSetups) { _, _ in
+                saveWorkspaceLayoutStore()
+            }
+            .onChange(of: selectedWorkspaceSetupID) { _, newValue in
+                saveWorkspaceLayoutStore()
+                if newValue != nil {
+                    syncSelectedWorkspaceSession()
                 }
             }
             .modifier(KeyboardHandlersModifier(
@@ -59,56 +85,684 @@ struct TUIDashboardView: View {
             .task {
                 await loadUpcomingMeetings()
             }
+            .sheet(isPresented: $showSetupWizard) {
+                IntegrationSetupWizardView()
+            }
     }
 
     private var mainContent: some View {
-        HStack(spacing: 1) {
-            // Left panel - Controls & Summary (collapsable)
-            if showLeftPanel {
-                leftPanel
-                    .frame(width: 280)
-                    .background(Color.tuiPanel.opacity(0.3))
+        VStack(spacing: Spacing.lg) {
+            VStack(spacing: Spacing.md) {
+                // Header (Date & Controls)
+                HStack(alignment: .top) {
+                    dateHeader
+                    Spacer()
+                    controlsSection
+                        .frame(maxWidth: 320)
+                }
 
-                // Divider
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.secondary.opacity(0.3), Color.primary.opacity(0.1)],
-                            startPoint: .top,
-                            endPoint: .bottom
+                dashboardTabBar
+
+                if selectedTab == .workspace || selectedTab == .cockpit {
+                    workspaceSetupTabs
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .padding(Spacing.lg)
+            .background(Color.tuiPanel.opacity(0.3))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.tuiBorder, lineWidth: 1))
+            .padding(.horizontal, Spacing.xl)
+            .padding(.top, Spacing.xl)
+
+            dashboardTabContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, Spacing.xl)
+                .padding(.bottom, 100) // Space for the dock
+        }
+    }
+
+    private var dashboardTabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(DashboardTab.allCases) { tab in
+                Button {
+                    withAnimation(.tuiSnappy) {
+                        selectedTab = tab
+                    }
+                } label: {
+                    VStack(spacing: 0) {
+                        HStack(spacing: 4) {
+                            if selectedTab == tab {
+                                Circle()
+                                    .fill(Color.tuiAccent)
+                                    .frame(width: 6, height: 6)
+                            }
+
+                            Text(tab.rawValue.uppercased())
+                                .font(.tuiMonoSmall)
+                                .fontWeight(selectedTab == tab ? .bold : .regular)
+                        }
+                        .foregroundStyle(selectedTab == tab ? Color.primary : Color.secondary.opacity(0.6))
+                        .padding(.vertical, Spacing.sm)
+                        .padding(.horizontal, Spacing.md)
+                        .background(
+                            selectedTab == tab
+                                ? Color.tuiAccent.opacity(0.1)
+                                : Color.clear
                         )
-                    )
-                    .frame(width: 1)
-            } else {
-                // Collapsed left panel - just show toggle button
-                collapsedLeftPanel
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                        Rectangle()
+                            .fill(selectedTab == tab ? Color.tuiAccent : Color.clear)
+                            .frame(height: 2)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
             }
 
-            // Center panel - Sections
-            rightPanel
-                .frame(maxWidth: .infinity)
+            Spacer()
 
-            // Chat panel (conditional)
-            if showChat {
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.primary.opacity(0.2), Color.secondary.opacity(0.1)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(width: 1)
-
-                chatPanel
-                    .frame(width: 320)
-                    .background(Color.tuiPanel.opacity(0.3))
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .trailing).combined(with: .opacity)
-                    ))
+            switch selectedTab {
+            case .cockpit:
+                Text("Work + Meeting · \(selectedWorkspaceSetup?.name ?? "Aufgaben")")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(Color.secondary.opacity(0.7))
+            case .workspace:
+                Text(selectedWorkspaceSetup?.name ?? "Aufgaben")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(Color.secondary.opacity(0.7))
+            case .briefing:
+                if let briefing = appState.currentBriefing {
+                    Text("\(briefing.sections.count) sources")
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(Color.secondary.opacity(0.7))
+                }
+            case .history, .calendar, .recordings:
+                EmptyView()
             }
         }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.xs)
+        .background(Color.tuiPanel.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private var dashboardTabContent: some View {
+        switch selectedTab {
+        case .cockpit:
+            CockpitView(
+                workspaceSetupID: selectedWorkspaceSetup?.id,
+                workspaceName: selectedWorkspaceSetup?.name,
+                workspaceTerminalSessionIDs: selectedWorkspaceTerminalSessionIDs,
+                onCreateWorkspaceTerminalSession: addWorkspaceTerminalSessionFromCockpit
+            )
+        case .workspace:
+            workspaceModules
+        case .briefing:
+            briefingOverview
+        case .history:
+            TUIHistoryView()
+        case .calendar:
+            MeetingsView(showHeader: true)
+        case .recordings:
+            RecordingsView()
+        }
+    }
+
+    private var briefingOverview: some View {
+        ScrollView {
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: Spacing.xl),
+                GridItem(.flexible(), spacing: Spacing.xl)
+            ], spacing: Spacing.xl) {
+                VStack(spacing: Spacing.xl) {
+                    BentoCard(title: "Overview", icon: "newspaper.fill") {
+                        if appState.currentBriefing != nil {
+                            summarySection
+                        } else {
+                            sourcesOverview
+                        }
+                    }
+
+                    if appState.currentBriefing != nil {
+                        BentoCard(title: "Briefing Details", icon: "list.bullet.rectangle.portrait") {
+                            briefingContent
+                                .frame(minHeight: 400)
+                        }
+                    }
+
+                    if actionItemStore.openItemsCount > 0 {
+                        BentoCard(title: "Action Items", icon: "checklist") {
+                            actionItemsWidget
+                        }
+                    }
+                }
+
+                VStack(spacing: Spacing.xl) {
+                    if !upcomingMeetings.isEmpty {
+                        BentoCard(title: "Upcoming Meetings", icon: "calendar") {
+                            nextMeetingWidget
+                        }
+                    }
+
+                    if showChat {
+                        BentoCard(title: "Assistant", icon: "sparkles") {
+                            chatPanel
+                                .frame(minHeight: 400)
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, Spacing.md)
+        }
+    }
+
+    private var workspaceModules: some View {
+        VStack(spacing: Spacing.md) {
+            HStack {
+                Text(selectedWorkspaceSetup?.name ?? "Konfiguration")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.tertiary)
+
+                Spacer()
+
+                Menu {
+                    ForEach(availableWorkspacePanels) { panel in
+                        Button {
+                            addWorkspaceModule(for: panel)
+                        } label: {
+                            Label(panel.title, systemImage: panel.icon)
+                        }
+                    }
+                } label: {
+                    Label("Modul hinzufügen", systemImage: "plus")
+                        .font(.tuiMonoTiny)
+                }
+                .menuStyle(.borderlessButton)
+            }
+
+            if currentWorkspaceModules.isEmpty {
+                Text("Keine Module im aktuellen Aufgaben-Tab. Über + ein Modul hinzufügen.")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, Spacing.sm)
+            } else {
+                ScrollView {
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(minimum: 300), spacing: Spacing.md),
+                            GridItem(.flexible(minimum: 300), spacing: Spacing.md)
+                        ],
+                        spacing: Spacing.md
+                    ) {
+                        ForEach(currentWorkspaceModules) { module in
+                            workspaceModuleCard(module)
+                        }
+                    }
+                    .padding(.bottom, Spacing.md)
+                }
+            }
+        }
+        .padding(Spacing.md)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color.tuiPanel.opacity(0.3))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.tuiBorder, lineWidth: 1)
+        )
+    }
+
+    private var availableWorkspacePanels: [AppState.AppPanel] {
+        AppState.AppPanel.allCases.filter { $0 != .dashboard }
+    }
+
+    private func workspaceModuleCard(_ module: WorkspaceModuleConfig) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: module.panel.icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(module.panel.moduleAccentColor)
+
+                Text(module.displayTitle)
+                    .font(.tuiMonoSmall)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Button("Öffnen") {
+                    activateWorkspaceModule(module)
+                }
+                .font(.tuiMonoTiny)
+                .buttonStyle(.tui)
+
+                Button {
+                    removeWorkspaceModule(module.id)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.tuiHover.opacity(0.45))
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("Modul entfernen")
+            }
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
+            .background(Color.tuiHover.opacity(0.35))
+
+            Divider()
+                .background(Color.tuiBorder)
+
+            workspaceModuleContent(module)
+                .frame(minHeight: workspaceModuleMinHeight(for: module.panel))
+        }
+        .background(Color.tuiPanel.opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.tuiBorder.opacity(0.8), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private func workspaceModuleContent(_ module: WorkspaceModuleConfig) -> some View {
+        switch module.panel {
+        case .dashboard:
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("Nutze das Dashboard als zentralen Arbeitsort.")
+                    .font(.tuiMonoSmall)
+                    .foregroundStyle(.secondary)
+                if appState.currentBriefing != nil {
+                    summarySection
+                } else {
+                    sourcesOverview
+                }
+            }
+        case .openClawChat:
+            BriefingChatView()
+        case .slack:
+            SlackPanelView()
+        case .jira:
+            JiraPanelView()
+        case .mail:
+            MailPanelView()
+        case .terminals:
+            TerminalsPanelView()
+        case .settings:
+            NavigationStack {
+                SettingsView()
+            }
+        }
+    }
+
+    private func workspaceModuleMinHeight(for panel: AppState.AppPanel) -> CGFloat {
+        switch panel {
+        case .openClawChat: return 320
+        case .terminals: return 360
+        case .settings: return 340
+        case .dashboard: return 280
+        case .slack, .jira, .mail: return 320
+        }
+    }
+
+    private var workspaceSetupTabs: some View {
+        HStack(spacing: Spacing.md) {
+            Text("AUFGABEN")
+                .font(.tuiMonoTiny)
+                .fontWeight(.bold)
+                .foregroundStyle(.tertiary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Spacing.xs) {
+                    ForEach(workspaceSetups) { setup in
+                        workspaceSetupTabButton(setup)
+                    }
+                }
+            }
+
+            Button {
+                addWorkspaceSetup()
+            } label: {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("Neuer Tab")
+                        .font(.tuiMonoTiny)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.tuiHover.opacity(0.4))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.tuiBorder.opacity(0.6), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .help("Neuen Aufgaben-Tab anlegen")
+        }
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, Spacing.xs)
+        .background(Color.tuiPanel.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.tuiBorder.opacity(0.8), lineWidth: 1)
+        )
+    }
+
+    private func workspaceSetupTabButton(_ setup: WorkspaceTaskSetup) -> some View {
+        let isSelected = selectedWorkspaceSetupID == setup.id
+
+        return Button {
+            withAnimation(.tuiSnappy) {
+                selectedWorkspaceSetupID = setup.id
+            }
+        } label: {
+            VStack(spacing: 3) {
+                HStack(spacing: 4) {
+                    if isSelected {
+                        Circle()
+                            .fill(Color.tuiAccent)
+                            .frame(width: 5, height: 5)
+                    }
+
+                    Text(setup.name.uppercased())
+                        .font(.tuiMonoTiny)
+                        .fontWeight(isSelected ? .bold : .regular)
+                        .lineLimit(1)
+                }
+                .foregroundStyle(isSelected ? Color.primary : Color.secondary.opacity(0.75))
+
+                Rectangle()
+                    .fill(isSelected ? Color.tuiAccent : Color.clear)
+                    .frame(height: 2)
+            }
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color.tuiAccent.opacity(0.09) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isSelected ? Color.tuiAccent.opacity(0.22) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Duplizieren") {
+                duplicateWorkspaceSetup(setup.id)
+            }
+            Button("Tab löschen", role: .destructive) {
+                removeWorkspaceSetup(setup.id)
+            }
+            .disabled(workspaceSetups.count <= 1)
+        }
+    }
+
+    private var selectedWorkspaceSetup: WorkspaceTaskSetup? {
+        guard let selectedWorkspaceSetupID else { return workspaceSetups.first }
+        return workspaceSetups.first { $0.id == selectedWorkspaceSetupID } ?? workspaceSetups.first
+    }
+
+    private var selectedWorkspaceSetupIndex: Int? {
+        guard let setup = selectedWorkspaceSetup else { return nil }
+        return workspaceSetups.firstIndex(where: { $0.id == setup.id })
+    }
+
+    private var currentWorkspaceModules: [WorkspaceModuleConfig] {
+        selectedWorkspaceSetup?.modules ?? []
+    }
+
+    private var selectedWorkspaceTerminalSessionIDs: [UUID] {
+        guard let selectedWorkspaceSetup else { return [] }
+
+        return selectedWorkspaceSetup.modules.compactMap { module in
+            guard module.panel == .terminals,
+                  let terminalSessionID = module.terminalSessionID,
+                  let sessionUUID = UUID(uuidString: terminalSessionID),
+                  terminalSessionManager.sessions.contains(where: { $0.id == sessionUUID }) else {
+                return nil
+            }
+            return sessionUUID
+        }
+    }
+
+    private func addWorkspaceModule(for panel: AppState.AppPanel) {
+        guard let setupIndex = selectedWorkspaceSetupIndex else { return }
+        var modules = workspaceSetups[setupIndex].modules
+
+        switch panel {
+        case .terminals:
+            let terminalIndex = modules.filter { $0.panel == .terminals }.count + 1
+            let label = terminalLabel(for: terminalIndex)
+            let title = "\(workspaceSetups[setupIndex].name) \(label)"
+            let sessionID = terminalSessionManager.openSession(title: title)
+            modules.append(
+                WorkspaceModuleConfig(
+                    panelRawValue: panel.rawValue,
+                    customTitle: label,
+                    terminalSessionID: sessionID.uuidString
+                )
+            )
+        default:
+            modules.append(
+                WorkspaceModuleConfig(panelRawValue: panel.rawValue)
+            )
+        }
+
+        workspaceSetups[setupIndex].modules = modules
+    }
+
+    private func activateWorkspaceModule(_ module: WorkspaceModuleConfig) {
+        if module.panel == .terminals,
+           let terminalSessionID = module.terminalSessionID,
+           let sessionUUID = UUID(uuidString: terminalSessionID) {
+            terminalSessionManager.selectSession(sessionUUID)
+        }
+
+        withAnimation(.tuiSnappy) {
+            appState.selectedPanel = module.panel
+        }
+    }
+
+    private func removeWorkspaceModule(_ moduleID: UUID) {
+        guard let setupIndex = selectedWorkspaceSetupIndex else { return }
+        workspaceSetups[setupIndex].modules.removeAll { $0.id == moduleID }
+    }
+
+    private func addWorkspaceSetup() {
+        let newSetup = WorkspaceTaskSetup(
+            name: nextWorkspaceSetupName(),
+            modules: defaultWorkspaceModules
+        )
+        workspaceSetups.append(newSetup)
+        selectedWorkspaceSetupID = newSetup.id
+        syncSelectedWorkspaceSession()
+    }
+
+    private func duplicateWorkspaceSetup(_ setupID: UUID) {
+        guard let setup = workspaceSetups.first(where: { $0.id == setupID }) else { return }
+        let duplicateName = "\(setup.name) Kopie"
+        let duplicate = WorkspaceTaskSetup(
+            name: duplicateName,
+            modules: duplicatedWorkspaceModules(from: setup.modules, setupName: duplicateName)
+        )
+        workspaceSetups.append(duplicate)
+        selectedWorkspaceSetupID = duplicate.id
+        syncSelectedWorkspaceSession()
+    }
+
+    private func removeWorkspaceSetup(_ setupID: UUID) {
+        guard workspaceSetups.count > 1 else { return }
+        workspaceSetups.removeAll { $0.id == setupID }
+        if selectedWorkspaceSetupID == setupID {
+            selectedWorkspaceSetupID = workspaceSetups.first?.id
+        }
+    }
+
+    private func nextWorkspaceSetupName() -> String {
+        "Aufgaben \(workspaceSetups.count + 1)"
+    }
+
+    private func syncSelectedWorkspaceSession() {
+        guard let selectedWorkspaceSetupID else { return }
+        guard let sessionID = ensureWorkspacePrimaryTerminalSession(for: selectedWorkspaceSetupID) else { return }
+        terminalSessionManager.selectSession(sessionID)
+    }
+
+    @discardableResult
+    private func ensureWorkspacePrimaryTerminalSession(for setupID: UUID) -> UUID? {
+        guard let setupIndex = workspaceSetups.firstIndex(where: { $0.id == setupID }) else { return nil }
+        var setup = workspaceSetups[setupIndex]
+
+        if let terminalModuleIndex = setup.modules.firstIndex(where: { $0.panel == .terminals }) {
+            if let existingSessionID = setup.modules[terminalModuleIndex].terminalSessionID,
+               let sessionUUID = UUID(uuidString: existingSessionID),
+               terminalSessionManager.sessions.contains(where: { $0.id == sessionUUID }) {
+                return sessionUUID
+            }
+
+            let terminalNumber = max(1, setup.modules.filter { $0.panel == .terminals }.count)
+            let label = terminalLabel(for: terminalNumber)
+            let title = "\(setup.name) \(label)"
+            let sessionID = terminalSessionManager.openSession(title: title)
+            setup.modules[terminalModuleIndex].terminalSessionID = sessionID.uuidString
+            if setup.modules[terminalModuleIndex].customTitle?.isEmpty ?? true {
+                setup.modules[terminalModuleIndex].customTitle = label
+            }
+            workspaceSetups[setupIndex] = setup
+            return sessionID
+        }
+
+        let label = terminalLabel(for: 1)
+        let title = "\(setup.name) \(label)"
+        let sessionID = terminalSessionManager.openSession(title: title)
+        setup.modules.append(
+            WorkspaceModuleConfig(
+                panelRawValue: AppState.AppPanel.terminals.rawValue,
+                customTitle: label,
+                terminalSessionID: sessionID.uuidString
+            )
+        )
+        workspaceSetups[setupIndex] = setup
+        return sessionID
+    }
+
+    private func addWorkspaceTerminalSessionFromCockpit() {
+        guard let setupIndex = selectedWorkspaceSetupIndex else { return }
+        let setupName = workspaceSetups[setupIndex].name
+        let terminalIndex = workspaceSetups[setupIndex].modules.filter { $0.panel == .terminals }.count + 1
+        let label = terminalLabel(for: terminalIndex)
+        let title = "\(setupName) \(label)"
+        let sessionID = terminalSessionManager.openSession(title: title)
+
+        workspaceSetups[setupIndex].modules.append(
+            WorkspaceModuleConfig(
+                panelRawValue: AppState.AppPanel.terminals.rawValue,
+                customTitle: label,
+                terminalSessionID: sessionID.uuidString
+            )
+        )
+        terminalSessionManager.selectSession(sessionID)
+        appState.selectedPanel = .terminals
+    }
+
+    private func duplicatedWorkspaceModules(from modules: [WorkspaceModuleConfig], setupName: String) -> [WorkspaceModuleConfig] {
+        var terminalIndex = 1
+
+        return modules.map { module in
+            guard module.panel == .terminals else {
+                return WorkspaceModuleConfig(
+                    panelRawValue: module.panelRawValue,
+                    customTitle: module.customTitle,
+                    terminalSessionID: module.terminalSessionID
+                )
+            }
+
+            let label = module.customTitle?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ? module.customTitle!
+                : terminalLabel(for: terminalIndex)
+            let sessionTitle = "\(setupName) \(label)"
+            let sessionID = terminalSessionManager.openSession(title: sessionTitle)
+            terminalIndex += 1
+
+            return WorkspaceModuleConfig(
+                panelRawValue: module.panelRawValue,
+                customTitle: label,
+                terminalSessionID: sessionID.uuidString
+            )
+        }
+    }
+
+    private func terminalLabel(for index: Int) -> String {
+        "Terminal \(max(1, index))"
+    }
+
+    private func loadWorkspaceLayoutStore() -> WorkspaceLayoutStore {
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: Self.workspaceLayoutsStorageKey),
+           let decoded = try? JSONDecoder().decode(WorkspaceLayoutStore.self, from: data),
+           !decoded.setups.isEmpty {
+            return decoded.normalized()
+        }
+
+        if let legacyData = defaults.data(forKey: Self.legacyWorkspaceModulesStorageKey),
+           let legacyModules = try? JSONDecoder().decode([WorkspaceModuleConfig].self, from: legacyData),
+           !legacyModules.isEmpty {
+            return WorkspaceLayoutStore(
+                selectedSetupID: nil,
+                setups: [
+                    WorkspaceTaskSetup(
+                        name: "Aufgaben 1",
+                        modules: legacyModules
+                    )
+                ]
+            ).normalized()
+        }
+
+        return WorkspaceLayoutStore(
+            selectedSetupID: nil,
+            setups: [
+                WorkspaceTaskSetup(name: "Aufgaben 1", modules: defaultWorkspaceModules)
+            ]
+        ).normalized()
+    }
+
+    private func saveWorkspaceLayoutStore() {
+        guard !workspaceSetups.isEmpty else { return }
+        let defaults = UserDefaults.standard
+        let store = WorkspaceLayoutStore(
+            selectedSetupID: selectedWorkspaceSetupID,
+            setups: workspaceSetups
+        ).normalized()
+        if let data = try? JSONEncoder().encode(store) {
+            defaults.set(data, forKey: Self.workspaceLayoutsStorageKey)
+        }
+    }
+
+    private var defaultWorkspaceModules: [WorkspaceModuleConfig] {
+        defaultWorkspacePanels.map { panel in
+            WorkspaceModuleConfig(panelRawValue: panel.rawValue)
+        }
+    }
+
+    private var defaultWorkspacePanels: [AppState.AppPanel] {
+        [.openClawChat, .slack, .jira, .mail, .terminals]
     }
 
     // MARK: - Chat Panel
@@ -450,6 +1104,12 @@ struct TUIDashboardView: View {
                         Text("press ⌘3 for Slack")
                             .font(.tuiMonoTiny)
                             .foregroundStyle(.quaternary)
+
+                        Button("setup wizard") {
+                            showSetupWizard = true
+                        }
+                        .buttonStyle(.tuiPrimary)
+                        .padding(.top, Spacing.xs)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, Spacing.lg)
@@ -584,6 +1244,15 @@ struct TUIDashboardView: View {
 
             // Content
             switch selectedTab {
+            case .cockpit:
+                CockpitView(
+                    workspaceSetupID: selectedWorkspaceSetup?.id,
+                    workspaceName: selectedWorkspaceSetup?.name,
+                    workspaceTerminalSessionIDs: selectedWorkspaceTerminalSessionIDs,
+                    onCreateWorkspaceTerminalSession: addWorkspaceTerminalSessionFromCockpit
+                )
+            case .workspace:
+                workspaceModules
             case .briefing:
                 briefingContent
             case .history:
@@ -1249,8 +1918,8 @@ struct TUIItemRow: View {
             .onHover { isHovered = $0 }
             .animation(.tuiFast, value: isHovered)
             .contextMenu {
-                Button("An Claude senden") {
-                    _ = ClaudeChatService.shared.openThread(for: item)
+                Button("An OpenClaw senden") {
+                    _ = OpenClawChatService.shared.openThread(for: item)
                 }
                 Button("Im Terminal öffnen") {
                     _ = TerminalSessionManager.shared.openSession(for: item)
@@ -1375,11 +2044,11 @@ struct TUIItemRow: View {
             }
 
             Button {
-                _ = ClaudeChatService.shared.openThread(for: item)
+                _ = OpenClawChatService.shared.openThread(for: item)
             } label: {
                 HStack(spacing: Spacing.xs) {
                     Text("🤖")
-                    Text("An Claude senden")
+                    Text("An OpenClaw senden")
                         .font(.tuiMonoTiny)
                 }
             }
@@ -1497,6 +2166,96 @@ struct AudioKeysModifier: ViewModifier {
                 }
                 return .ignored
             }
+    }
+}
+
+// MARK: - Bento Card & Modules
+
+struct BentoCard<Content: View>: View {
+    let title: String
+    let icon: String
+    let content: Content
+    
+    init(title: String, icon: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.icon = icon
+        self.content = content()
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.tuiAccent)
+                
+                Text(title.uppercased())
+                    .font(.tuiMonoSmall)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.primary)
+                
+                Spacer()
+            }
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
+            .background(Color.tuiHover.opacity(0.3))
+            
+            Divider()
+                .background(Color.tuiBorder)
+            
+            // Content
+            content
+                .padding(Spacing.md)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .background(Color.tuiPanel.opacity(0.4))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.tuiBorder, lineWidth: 1)
+        )
+    }
+}
+
+private struct WorkspaceLayoutStore: Codable, Equatable {
+    var selectedSetupID: UUID?
+    var setups: [WorkspaceTaskSetup]
+
+    func normalized() -> WorkspaceLayoutStore {
+        let safeSetups = setups.isEmpty
+            ? [WorkspaceTaskSetup(name: "Aufgaben 1", modules: [])]
+            : setups
+
+        let selected = safeSetups.contains(where: { $0.id == selectedSetupID })
+            ? selectedSetupID
+            : safeSetups.first?.id
+
+        return WorkspaceLayoutStore(selectedSetupID: selected, setups: safeSetups)
+    }
+}
+
+private struct WorkspaceTaskSetup: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var name: String
+    var modules: [WorkspaceModuleConfig]
+}
+
+private struct WorkspaceModuleConfig: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    let panelRawValue: String
+    var customTitle: String? = nil
+    var terminalSessionID: String? = nil
+
+    var panel: AppState.AppPanel {
+        AppState.AppPanel(rawValue: panelRawValue) ?? .dashboard
+    }
+
+    var displayTitle: String {
+        if let customTitle, !customTitle.isEmpty {
+            return customTitle
+        }
+        return panel.title
     }
 }
 
@@ -1656,7 +2415,7 @@ struct LeftPanelToggleButton: View {
 // MARK: - Legacy Dashboard View (for compatibility)
 
 struct DashboardView: View {
-    @State private var selectedTab: TUIDashboardView.DashboardTab = .briefing
+    @State private var selectedTab: TUIDashboardView.DashboardTab = .workspace
 
     var body: some View {
         TUIDashboardView(selectedTab: $selectedTab)

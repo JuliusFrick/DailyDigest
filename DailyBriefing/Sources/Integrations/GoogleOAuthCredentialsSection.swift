@@ -212,7 +212,7 @@ private struct GoogleSetupWizard: View {
                 .multilineTextAlignment(.center)
             
             HStack {
-                Text("http://127.0.0.1")
+                Text("http://127.0.0.1/oauth/google")
                     .font(.system(.body, design: .monospaced))
                     .padding(8)
                     .background(Color.tuiBackground)
@@ -220,7 +220,7 @@ private struct GoogleSetupWizard: View {
                 
                 Button {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString("http://127.0.0.1", forType: .string)
+                    NSPasteboard.general.setString("http://127.0.0.1/oauth/google", forType: .string)
                 } label: {
                     Image(systemName: "doc.on.doc")
                 }
@@ -228,7 +228,7 @@ private struct GoogleSetupWizard: View {
             }
             
             VStack(spacing: 4) {
-                Text("⚠️ Wichtig: Nur die Adresse ohne Port!")
+                Text("⚠️ Wichtig: Die komplette URI inkl. Pfad eintragen!")
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .bold()

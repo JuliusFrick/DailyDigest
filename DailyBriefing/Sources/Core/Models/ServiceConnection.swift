@@ -78,6 +78,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Codable {
     case gmail = "gmail"
     case slack = "slack"
     case jira = "jira"
+    case granola = "granola"
     case appleMail = "apple_mail"
     case appleReminders = "apple_reminders"
     case appleCalendar = "apple_calendar"
@@ -90,6 +91,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Codable {
         case .gmail: return "Gmail"
         case .slack: return "Slack"
         case .jira: return "Jira"
+        case .granola: return "Granola"
         case .appleMail: return "Apple Mail"
         case .appleReminders: return "Apple Reminders"
         case .appleCalendar: return "Apple Calendar"
@@ -102,6 +104,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Codable {
         case .gmail: return "envelope.fill"
         case .slack: return "bubble.left.and.bubble.right.fill"
         case .jira: return "checkmark.square.fill"
+        case .granola: return "doc.text.magnifyingglass"
         case .appleMail: return "envelope.fill"
         case .appleReminders: return "checklist"
         case .appleCalendar: return "calendar.badge.clock"
@@ -114,6 +117,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Codable {
         case .gmail: return Color(red: 0.91, green: 0.26, blue: 0.21)
         case .slack: return Color(red: 0.32, green: 0.15, blue: 0.46)
         case .jira: return Color(red: 0.03, green: 0.47, blue: 0.95)
+        case .granola: return Color(red: 0.4, green: 0.65, blue: 0.35)
         case .appleMail: return Color(red: 0.0, green: 0.48, blue: 1.0)
         case .appleReminders: return Color(red: 1.0, green: 0.58, blue: 0.0)
         case .appleCalendar: return Color(red: 0.9, green: 0.2, blue: 0.2)
@@ -126,6 +130,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Codable {
         case .gmail: return "E-Mails und wichtige Nachrichten"
         case .slack: return "Nachrichten und Mentions aus deinem Workspace"
         case .jira: return "Issues, Kommentare und Updates"
+        case .granola: return "Meeting-Notizen und Transkripte"
         case .appleMail: return "E-Mails von deinem Mac"
         case .appleReminders: return "Erinnerungen und Aufgaben"
         case .appleCalendar: return "Lokale Kalender Events"
@@ -134,7 +139,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Codable {
 
     var requiresOAuth: Bool {
         switch self {
-        case .googleCalendar, .gmail, .slack, .jira:
+        case .googleCalendar, .gmail, .slack, .jira, .granola:
             return true
         case .appleMail, .appleReminders, .appleCalendar:
             return false
@@ -147,7 +152,7 @@ enum ServiceType: String, CaseIterable, Identifiable, Codable {
             return .communication
         case .slack:
             return .messaging
-        case .jira:
+        case .jira, .granola:
             return .productivity
         case .appleReminders:
             return .tasks

@@ -10,7 +10,7 @@ final class AppState: ObservableObject {
 
     enum AppPanel: String, CaseIterable, Identifiable, Hashable {
         case dashboard
-        case claudeChat
+        case openClawChat
         case slack
         case jira
         case mail
@@ -22,7 +22,7 @@ final class AppState: ObservableObject {
         var title: String {
             switch self {
             case .dashboard: return "Dashboard"
-            case .claudeChat: return "Claude Chat"
+            case .openClawChat: return "OpenClaw Chat"
             case .slack: return "Slack"
             case .jira: return "Jira"
             case .mail: return "Mail"
@@ -34,7 +34,7 @@ final class AppState: ObservableObject {
         var icon: String {
             switch self {
             case .dashboard: return "chart.bar.fill"
-            case .claudeChat: return "brain.head.profile"
+            case .openClawChat: return "brain.head.profile"
             case .slack: return "bubble.left.and.bubble.right.fill"
             case .jira: return "list.bullet.rectangle"
             case .mail: return "envelope.fill"
@@ -45,7 +45,7 @@ final class AppState: ObservableObject {
     }
 
     @Published var selectedPanel: AppPanel = .dashboard
-    @Published var selectedTab: TUIDashboardView.DashboardTab = .briefing
+    @Published var selectedTab: TUIDashboardView.DashboardTab = .cockpit
     @Published var showOnboarding: Bool = false
 
     // MARK: - Briefing State

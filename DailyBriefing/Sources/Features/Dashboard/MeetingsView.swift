@@ -96,7 +96,9 @@ struct MeetingsView: View {
             
             // Floating popup when not connected
             if !hasCalendarConnected && showConnectPopup {
-                CalendarConnectPopup(showPopup: $showConnectPopup)
+                CalendarConnectPopup(showPopup: $showConnectPopup, onOpenSettings: {
+                    appState.selectedPanel = .settings
+                })
             }
         }
         .task(id: hasCalendarConnected) {
@@ -152,6 +154,14 @@ struct MeetingsView: View {
 
 struct CalendarConfigBanner: View {
     @ObservedObject private var connectionManager = ServiceConnectionManager.shared
+    @State private var isConnecting = false
+    @State private var connectionError: String?
+    
+    private var isConfigured: Bool {
+        if !Secrets.googleClientId.isEmpty { return true }
+        let clientId = UserDefaults.standard.string(forKey: "google_client_id") ?? ""
+        return !clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
     
     var body: some View {
         VStack(spacing: Spacing.md) {
@@ -170,15 +180,47 @@ struct CalendarConfigBanner: View {
                 .multilineTextAlignment(.center)
                 .lineSpacing(2)
             
+            if let error = connectionError {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .font(.tuiMonoTiny)
+                        .foregroundStyle(.orange)
+                }
+            }
+            
+            if !isConfigured {
+                Text("Bitte zuerst Google-Konfiguration in Einstellungen > Quellen einrichten.")
+                    .font(.tuiMonoTiny)
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+            }
+            
             Button {
+                guard isConfigured else { return }
+                connectionError = nil
+                isConnecting = true
                 Task {
-                    try? await connectionManager.connect(.googleCalendar)
+                    do {
+                        try await connectionManager.connect(.googleCalendar)
+                    } catch {
+                        connectionError = error.localizedDescription
+                    }
+                    isConnecting = false
                 }
             } label: {
-                HStack(spacing: Spacing.xs) {
-                    Text("+")
-                    Text("Kalender verbinden")
-                        .font(.tuiMonoSmall)
+                Group {
+                    if isConnecting {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else {
+                        HStack(spacing: Spacing.xs) {
+                            Text("+")
+                            Text("Kalender verbinden")
+                                .font(.tuiMonoSmall)
+                        }
+                    }
                 }
                 .padding(.horizontal, Spacing.md)
                 .padding(.vertical, Spacing.sm)
@@ -188,6 +230,7 @@ struct CalendarConfigBanner: View {
                 )
             }
             .buttonStyle(.plain)
+            .disabled(isConnecting || !isConfigured)
             
             Text("────────────────────────")
                 .font(.tuiMonoSmall)
@@ -203,7 +246,16 @@ struct CalendarConfigBanner: View {
 struct CalendarConnectPopup: View {
     @ObservedObject private var connectionManager = ServiceConnectionManager.shared
     @Binding var showPopup: Bool
+    var onOpenSettings: (() -> Void)? = nil
     @State private var isHovered = false
+    @State private var isConnecting = false
+    @State private var connectionError: String?
+    
+    private var isConfigured: Bool {
+        if !Secrets.googleClientId.isEmpty { return true }
+        let clientId = UserDefaults.standard.string(forKey: "google_client_id") ?? ""
+        return !clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -236,19 +288,61 @@ struct CalendarConnectPopup: View {
                     .foregroundStyle(.secondary)
                     .lineSpacing(2)
                 
+                if let error = connectionError {
+                    HStack(spacing: Spacing.xs) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(error)
+                            .font(.tuiMonoTiny)
+                            .foregroundStyle(.orange)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                
+                if !isConfigured {
+                    VStack(spacing: Spacing.xs) {
+                        Text("Bitte richte zuerst die Google-Konfiguration ein.")
+                            .font(.tuiMonoTiny)
+                            .foregroundStyle(.orange)
+                        if let onOpenSettings {
+                            Button("Zu Einstellungen > Quellen") {
+                                showPopup = false
+                                onOpenSettings()
+                            }
+                            .font(.tuiMonoTiny)
+                            .buttonStyle(.link)
+                        }
+                    }
+                }
+                
                 HStack(spacing: Spacing.sm) {
                     Button {
+                        guard isConfigured else { return }
+                        connectionError = nil
+                        isConnecting = true
                         Task {
-                            try? await connectionManager.connect(.googleCalendar)
+                            do {
+                                try await connectionManager.connect(.googleCalendar)
+                                showPopup = false
+                            } catch {
+                                connectionError = error.localizedDescription
+                            }
+                            isConnecting = false
                         }
                     } label: {
-                        HStack(spacing: Spacing.xs) {
-                            Text("+")
-                            Text("Verbinden")
-                                .font(.tuiMonoSmall)
+                        if isConnecting {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            HStack(spacing: Spacing.xs) {
+                                Text("+")
+                                Text("Verbinden")
+                                    .font(.tuiMonoSmall)
+                            }
                         }
                     }
                     .buttonStyle(.tuiPrimary)
+                    .disabled(isConnecting || !isConfigured)
                     
                     Button {
                         withAnimation(.tuiSnappy) {

@@ -106,7 +106,7 @@ struct OnboardingView: View {
                     }
 
                     // Keyboard hint
-                    Text("press ENTER to continue")
+                    Text("ENTER zum Weiter machen")
                         .font(.tuiMonoTiny)
                         .foregroundStyle(.quaternary)
                 }

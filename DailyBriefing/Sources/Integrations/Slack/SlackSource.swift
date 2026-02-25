@@ -20,6 +20,10 @@ final class SlackSource: BriefingSource, ObservableObject {
 
     private let keychain = KeychainService.shared
     private let baseURL = "https://slack.com/api"
+    
+    private var authMethod: SlackAuthMethod {
+        SlackConfig.authMethod
+    }
 
     // MARK: - Configuration
 
@@ -100,7 +104,7 @@ final class SlackSource: BriefingSource, ObservableObject {
         includeReactionsOnOwnMessages = defaults.object(forKey: Self.includeReactionsKey) as? Bool ?? true
         includeSlackReminders = defaults.object(forKey: Self.includeRemindersKey) as? Bool ?? true
 
-        isAuthenticated = oauthService.isAuthenticated
+        isAuthenticated = Self.computeIsAuthenticated(oauthService: oauthService)
         connectionStatus = isAuthenticated ? .connected : .disconnected
     }
 
@@ -143,39 +147,51 @@ final class SlackSource: BriefingSource, ObservableObject {
         defer { isLoading = false }
 
         do {
-            let clientId = SlackConfig.clientId.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !clientId.isEmpty else {
-                throw SourceError.configurationMissing("Slack OAuth Konfiguration fehlt")
-            }
-
-            // Rebuild to pick up latest credentials from UserDefaults
-            oauthService = Self.makeOAuthService()
-            if oauthService.isAuthenticated {
+            switch authMethod {
+            case .userToken:
+                let accessToken = try loadUserToken()
                 do {
-                    _ = try await oauthService.getValidTokens()
-                    try await fetchWorkspaceInfo()
-                    availableChannels = try await fetchChannels()
-                    isAuthenticated = true
-                    connectionStatus = .connected
-                    return
-                } catch OAuthError.notAuthenticated {
-                    // Fall through to interactive login
-                } catch OAuthError.tokenRefreshFailed {
-                    // Fall through to interactive login
-                } catch SourceError.tokenExpired {
-                    // Fall through to interactive login
+                    _ = try await fetchCurrentUserId(accessToken: accessToken)
                 } catch {
-                    throw error
+                    throw SourceError.authenticationFailed("Slack User Token ungültig oder ohne benötigte Scopes")
                 }
+                try await fetchWorkspaceInfo(accessToken: accessToken)
+                availableChannels = try await fetchChannels(accessToken: accessToken)
+
+            case .oauth:
+                let clientId = SlackConfig.clientId.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !clientId.isEmpty else {
+                    throw SourceError.configurationMissing("Slack OAuth Konfiguration fehlt")
+                }
+
+                // Rebuild to pick up latest credentials from UserDefaults
+                oauthService = Self.makeOAuthService()
+                if oauthService.isAuthenticated {
+                    do {
+                        let tokens = try await oauthService.getValidTokens()
+                        try await fetchWorkspaceInfo(accessToken: tokens.accessToken)
+                        availableChannels = try await fetchChannels(accessToken: tokens.accessToken)
+                        isAuthenticated = true
+                        connectionStatus = .connected
+                        return
+                    } catch OAuthError.notAuthenticated {
+                        // Fall through to interactive login
+                    } catch OAuthError.tokenRefreshFailed {
+                        // Fall through to interactive login
+                    } catch SourceError.tokenExpired {
+                        // Fall through to interactive login
+                    } catch {
+                        throw error
+                    }
+                }
+
+                let tokens = try await oauthService.authorize()
+                try await fetchWorkspaceInfo(accessToken: tokens.accessToken)
+                availableChannels = try await fetchChannels(accessToken: tokens.accessToken)
             }
 
-            _ = try await oauthService.authorize()
             isAuthenticated = true
             connectionStatus = .connected
-
-            // Fetch workspace info and channels
-            try await fetchWorkspaceInfo()
-            availableChannels = try await fetchChannels()
         } catch {
             lastError = error
             connectionStatus = .error
@@ -184,12 +200,8 @@ final class SlackSource: BriefingSource, ObservableObject {
     }
 
     func disconnect() async {
-        do {
-            try await oauthService.logout()
-        } catch {
-            // Log to console - cleanup operation
-            print("Slack logout warning: \(error.localizedDescription)")
-        }
+        try? keychain.delete(for: Self.slackUserTokenKey)
+        try? await oauthService.logout()
         isAuthenticated = false
         connectionStatus = .disconnected
         selectedWorkspace = nil
@@ -205,14 +217,14 @@ final class SlackSource: BriefingSource, ObservableObject {
             throw SourceError.authenticationFailed("Nicht mit Slack verbunden")
         }
 
-        let tokens = try await oauthService.getValidTokens()
+        let accessToken = try await resolveAccessToken()
         var items: [BriefingItem] = []
 
         // Fetch current user ID for filtering mentions and reactions
-        let currentUserId = try? await fetchCurrentUserId(accessToken: tokens.accessToken)
+        let currentUserId = try? await fetchCurrentUserId(accessToken: accessToken)
 
         // Fetch conversations (channels and DMs)
-        let conversations = try await fetchConversations(accessToken: tokens.accessToken)
+        let conversations = try await fetchConversations(accessToken: accessToken)
 
         // Fetch recent messages from each conversation
         for conversation in conversations {
@@ -232,7 +244,7 @@ final class SlackSource: BriefingSource, ObservableObject {
                 let messages = try await fetchMessages(
                     conversationId: conversation.id,
                     since: since,
-                    accessToken: tokens.accessToken,
+                    accessToken: accessToken,
                     currentUserId: currentUserId,
                     isDirectMessage: isDirectMessage,
                     filterMentionsOnly: includeMentions,
@@ -247,10 +259,10 @@ final class SlackSource: BriefingSource, ObservableObject {
         if includeStarredMessages {
             let starredItems = try await fetchStarredMessages(
                 since: since,
-                accessToken: tokens.accessToken,
+                accessToken: accessToken,
                 currentUserId: currentUserId,
                 filterMentionsOnly: includeMentions,
-                    includeUserMentions: includeUserMentions,
+                includeUserMentions: includeUserMentions,
                 filterReactions: includeReactionsOnOwnMessages
             )
             items.append(contentsOf: starredItems)
@@ -258,7 +270,7 @@ final class SlackSource: BriefingSource, ObservableObject {
 
         // Fetch Slack reminders if enabled
         if includeSlackReminders {
-            let reminders = try await fetchReminders(since: since, accessToken: tokens.accessToken)
+            let reminders = try await fetchReminders(since: since, accessToken: accessToken)
             items.append(contentsOf: reminders)
         }
 
@@ -274,11 +286,9 @@ final class SlackSource: BriefingSource, ObservableObject {
 
     // MARK: - API Calls
 
-    private func fetchWorkspaceInfo() async throws {
-        let tokens = try await oauthService.getValidTokens()
-
+    private func fetchWorkspaceInfo(accessToken: String) async throws {
         var request = URLRequest(url: URL(string: "\(baseURL)/team.info")!)
-        request.setValue("Bearer \(tokens.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -300,12 +310,12 @@ final class SlackSource: BriefingSource, ObservableObject {
     }
 
     /// Fetches available Slack channels (public and private)
-    func fetchChannels() async throws -> [SlackChannel] {
-        guard isAuthenticated else {
+    func fetchChannels(accessToken: String? = nil) async throws -> [SlackChannel] {
+        guard isAuthenticated || accessToken != nil else {
             throw SourceError.authenticationFailed("Nicht mit Slack verbunden")
         }
 
-        let tokens = try await oauthService.getValidTokens()
+        let activeAccessToken = try await resolveAccessToken(explicitAccessToken: accessToken)
 
         var components = URLComponents(string: "\(baseURL)/conversations.list")!
         components.queryItems = [
@@ -315,7 +325,7 @@ final class SlackSource: BriefingSource, ObservableObject {
         ]
 
         var request = URLRequest(url: components.url!)
-        request.setValue("Bearer \(tokens.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(activeAccessToken)", forHTTPHeaderField: "Authorization")
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -933,7 +943,29 @@ struct SlackReminder: Codable {
 
 // MARK: - Configuration
 
+enum SlackAuthMethod: String, CaseIterable, Identifiable {
+    case userToken = "user_token"
+    case oauth = "oauth"
+
+    var id: String { rawValue }
+}
+
 enum SlackConfig {
+    static let authMethodKey = "slack_auth_method"
+
+    static var authMethod: SlackAuthMethod {
+        if let rawValue = UserDefaults.standard.string(forKey: authMethodKey),
+           let method = SlackAuthMethod(rawValue: rawValue) {
+            return method
+        }
+
+        // Backward compatibility for existing OAuth users.
+        if KeychainService.shared.hasTokens(for: SlackSource.sourceId) {
+            return .oauth
+        }
+        return .userToken
+    }
+
     static var clientId: String {
         let bundled = OAuthClientConfigStore.normalized(OAuthClientConfigStore.shared?.slack?.clientId)
         if !bundled.isEmpty {
@@ -956,6 +988,40 @@ enum SlackConfig {
 }
 
 private extension SlackSource {
+    static let slackUserTokenKey = "slack_user_token"
+
+    static func computeIsAuthenticated(oauthService: OAuthService) -> Bool {
+        switch SlackConfig.authMethod {
+        case .userToken:
+            return KeychainService.shared.exists(for: slackUserTokenKey)
+        case .oauth:
+            return oauthService.isAuthenticated
+        }
+    }
+
+    func resolveAccessToken(explicitAccessToken: String? = nil) async throws -> String {
+        if let explicitAccessToken {
+            return explicitAccessToken
+        }
+
+        switch authMethod {
+        case .userToken:
+            return try loadUserToken()
+        case .oauth:
+            let tokens = try await oauthService.getValidTokens()
+            return tokens.accessToken
+        }
+    }
+
+    func loadUserToken() throws -> String {
+        let token = try keychain.loadString(for: Self.slackUserTokenKey)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else {
+            throw SourceError.configurationMissing("Slack User Token fehlt")
+        }
+        return token
+    }
+
     static func makeOAuthService() -> OAuthService {
         let config = OAuthService.Configuration(
             clientId: SlackConfig.clientId,
@@ -970,9 +1036,11 @@ private extension SlackSource {
                 "groups:read",
                 "im:history",
                 "im:read",
+                "im:write",
                 "mpim:history",
                 "mpim:read",
-                "users:read"
+                "users:read",
+                "chat:write"
             ],
             scopeSeparator: ",",
             additionalAuthorizationQueryItems: [],

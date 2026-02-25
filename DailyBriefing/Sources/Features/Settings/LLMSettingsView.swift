@@ -169,12 +169,18 @@ struct LLMSettingsView: View {
     private var credentialsSection: some View {
         Section {
             if selectedProvider == .openClaw {
-                TextField("OpenClaw Base URL", text: $openClawBaseURL, prompt: Text("http://100.0.0.1:18789"))
-                    .textFieldStyle(.roundedBorder)
-                    .onChange(of: openClawBaseURL) { _, _ in
-                        saveSettings()
-                        testResult = nil
-                    }
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("OpenClaw Base URL", text: $openClawBaseURL, prompt: Text("http://100.0.0.1:18789"))
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: openClawBaseURL) { _, _ in
+                            saveSettings()
+                            testResult = nil
+                        }
+
+                    Text("Tipp: `http://host:port` reicht, `/v1` wird automatisch ergänzt.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if selectedProvider.requiresAPIKey {
@@ -210,7 +216,12 @@ struct LLMSettingsView: View {
             Text(selectedProvider.requiresAPIKey ? "API-Schlüssel" : "Verbindung")
         } footer: {
             if selectedProvider.requiresAPIKey {
-                Text("Der API-Schlüssel wird sicher in der macOS Keychain gespeichert.")
+                if let validation = openClawValidationMessage {
+                    Text(validation)
+                        .foregroundStyle(.orange)
+                } else {
+                    Text("Der API-Schlüssel wird sicher in der macOS Keychain gespeichert.")
+                }
             } else {
                 Text("Ollama muss lokal installiert und gestartet sein.")
             }
@@ -248,7 +259,8 @@ struct LLMSettingsView: View {
             if selectedProvider == .openClaw {
                 return !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
                     !openClawBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-                    !selectedModelId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    !selectedModelId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                    isValidOpenClawURL(openClawBaseURL)
             }
             return !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
@@ -270,13 +282,24 @@ struct LLMSettingsView: View {
             let resolvedOpenClawModel = selectedProvider == .openClaw
                 ? (normalizedOpenClawAgentId.isEmpty ? "default" : normalizedOpenClawAgentId)
                 : normalizedModelId
+            let resolvedOpenClawBaseURL = selectedProvider == .openClaw
+                ? (normalizedOpenClawBaseURL.isEmpty ? "http://100.0.0.1:18789" : normalizedOpenClawBaseURL)
+                : normalizedOpenClawBaseURL
+
+            if selectedProvider == .openClaw && !isValidOpenClawURL(resolvedOpenClawBaseURL) {
+                await MainActor.run {
+                    testResult = .failure("OpenClaw Base URL ist ungültig. Bitte prüfe das Format.")
+                    isTestingConnection = false
+                }
+                return
+            }
 
             let service = LLMServiceFactory.create(
                 provider: selectedProvider,
                 apiKey: normalizedAPIKey,
                 modelId: resolvedOpenClawModel,
                 ollamaBaseURL: normalizedOllamaURL,
-                openClawBaseURL: normalizedOpenClawBaseURL,
+                openClawBaseURL: resolvedOpenClawBaseURL,
                 openClawAgentId: resolvedOpenClawModel
             )
 
@@ -425,6 +448,31 @@ struct LLMSettingsView: View {
             selectedModelId = openClawAgentId
         }
     }
+
+    // MARK: - OpenClaw Validation
+
+    private var openClawValidationMessage: String? {
+        guard selectedProvider == .openClaw else { return nil }
+
+        let baseURL = openClawBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveBaseURL = baseURL.isEmpty ? "http://100.0.0.1:18789" : baseURL
+
+        if !isValidOpenClawURL(effectiveBaseURL) {
+            return "Die OpenClaw Base URL ist ungültig. Beispiel: http://100.0.0.1:18789"
+        }
+
+        return nil
+    }
+
+    private func isValidOpenClawURL(_ value: String) -> Bool {
+        guard let url = URL(string: value.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host != nil else {
+            return false
+        }
+        return true
+    }
 }
 
 // MARK: - Provider Row
@@ -526,4 +574,3 @@ private struct ConnectionTestResultView: View {
         .padding(.vertical, 4)
     }
 }
-

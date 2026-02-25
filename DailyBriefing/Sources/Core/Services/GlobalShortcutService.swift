@@ -34,8 +34,10 @@ final class GlobalShortcutService: ObservableObject {
     }
 
     deinit {
-        Task { @MainActor in
-            unregisterHotKey()
+        if let ref = hotKeyRef {
+            Task { @MainActor in
+                UnregisterEventHotKey(ref)
+            }
         }
     }
 

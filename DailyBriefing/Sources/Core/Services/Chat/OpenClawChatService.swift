@@ -1,11 +1,11 @@
 import Foundation
 
-/// Threaded chat session for the dedicated Claude panel.
+/// Threaded chat session for the dedicated OpenClaw panel.
 @MainActor
-final class ClaudeChatService: ObservableObject {
-    static let shared = ClaudeChatService()
+final class OpenClawChatService: ObservableObject {
+    static let shared = OpenClawChatService()
 
-    @Published private(set) var threads: [ClaudeChatThread] = []
+    @Published private(set) var threads: [OpenClawChatThread] = []
     @Published private(set) var activeThreadID: UUID?
     @Published private(set) var isLoading: Bool = false
     @Published var lastError: Error?
@@ -28,7 +28,7 @@ final class ClaudeChatService: ObservableObject {
     }
 
     /// Return the currently active thread.
-    var activeThread: ClaudeChatThread? {
+    var activeThread: OpenClawChatThread? {
         guard let activeID = activeThreadID else { return threads.first }
         return threads.first(where: { $0.id == activeID }) ?? threads.first
     }
@@ -49,7 +49,7 @@ final class ClaudeChatService: ObservableObject {
             ? (context?.title.isEmpty == false ? context?.title ?? "Neuer Chat" : "Neuer Chat")
             : trimmedTitle
 
-        let newThread = ClaudeChatThread(
+        let newThread = OpenClawChatThread(
             id: UUID(),
             title: threadTitle,
             createdAt: Date(),
@@ -70,10 +70,12 @@ final class ClaudeChatService: ObservableObject {
 
     @discardableResult
     func openThread(for contextProvider: TaskContextProvider) -> UUID {
-        createThread(
+        let threadID = createThread(
             title: contextProvider.taskContext.title,
             context: contextProvider.taskContext
         )
+        AppState.shared.selectedPanel = .openClawChat
+        return threadID
     }
 
     /// Activate an existing thread.
@@ -127,7 +129,7 @@ final class ClaudeChatService: ObservableObject {
         }
 
         guard let threadIndex = threads.firstIndex(where: { $0.id == targetID }) else {
-            throw ClaudeChatError.threadNotFound
+            throw OpenClawChatError.threadNotFound
         }
 
         threads[threadIndex].messages.append(ChatMessage(role: .user, content: normalized))
@@ -149,23 +151,25 @@ final class ClaudeChatService: ObservableObject {
         }
     }
 
-    private func generateResponse(for thread: ClaudeChatThread) async throws -> String {
+    private func generateResponse(for thread: OpenClawChatThread) async throws -> String {
         let config = loadLLMConfiguration()
-        let provider = config.provider
-        let modelId = resolvedModelId(for: provider, from: config)
-        let apiKey = keychain.loadLLMAPIKey(for: provider.rawValue)
+        let apiKey = keychain.loadLLMAPIKey(for: LLMProvider.openClaw.rawValue)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if provider.requiresAPIKey && (apiKey?.isEmpty ?? true) {
-            throw ClaudeChatError.providerNotConfigured
+        guard let apiKey, !apiKey.isEmpty else {
+            throw OpenClawChatError.providerNotConfigured
         }
 
+        let effectiveOpenClawBaseURL = try normalizedOpenClawBaseURL(config.openClawBaseURL)
+        let effectiveOpenClawAgentId = normalizedOpenClawAgentId(config.openClawAgentId)
+
         let service = LLMServiceFactory.create(
-            provider: provider,
+            provider: .openClaw,
             apiKey: apiKey,
-            modelId: modelId,
+            modelId: effectiveOpenClawAgentId,
             ollamaBaseURL: config.ollamaBaseURL,
-            openClawBaseURL: config.openClawBaseURL,
-            openClawAgentId: config.openClawAgentId
+            openClawBaseURL: effectiveOpenClawBaseURL,
+            openClawAgentId: effectiveOpenClawAgentId
         )
 
         let systemPrompt = buildSystemPrompt(from: thread.context)
@@ -173,20 +177,38 @@ final class ClaudeChatService: ObservableObject {
         return try await service.complete(prompt: prompt, systemPrompt: systemPrompt)
     }
 
-    private func resolvedModelId(for provider: LLMProvider, from config: LLMConfiguration) -> String {
-        if provider == .openClaw {
-            let normalizedAgent = config.openClawAgentId
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return normalizedAgent.isEmpty ? "default" : normalizedAgent
+    private let fallbackOpenClawBaseURL = "http://100.0.0.1:18789"
+    private let fallbackOpenClawAgentId = "default"
+
+    private func normalizedOpenClawBaseURL(_ value: String) throws -> String {
+        let trimmed = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        if trimmed.isEmpty {
+            return fallbackOpenClawBaseURL
         }
 
-        let trimmedModel = config.modelId.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedModel.isEmpty ? provider.defaultModel.id : trimmedModel
+        guard let parsedURL = URL(string: trimmed),
+              let scheme = parsedURL.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              parsedURL.host != nil else {
+            throw OpenClawChatError.invalidOpenClawConfiguration(
+                "Die OpenClaw Base URL ist ungültig. Bitte prüfe das Format, zum Beispiel http://127.0.0.1:18789."
+            )
+        }
+
+        return trimmed
+    }
+
+    private func normalizedOpenClawAgentId(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? fallbackOpenClawAgentId : trimmed
     }
 
     private func buildSystemPrompt(from context: ClaudeTaskContext?) -> String {
         var systemPrompt = """
-        Du bist der dedizierte Claude-Assistent des Produktivitäts-Hubs.
+        Du bist der dedizierte OpenClaw-Assistent des Produktivitäts-Hubs.
         Antworte auf Deutsch, kurz und handlungsorientiert.
         Nutze keine unnötigen Floskeln.
         """
@@ -219,13 +241,13 @@ final class ClaudeChatService: ObservableObject {
             case .user:
                 lines.append("Benutzer: \(message.content)")
             case .assistant:
-                lines.append("Claude: \(message.content)")
+                lines.append("OpenClaw: \(message.content)")
             case .system:
                 lines.append("System: \(message.content)")
             }
         }
 
-        lines.append("Claude:")
+        lines.append("OpenClaw:")
         return lines.joined(separator: "\n")
     }
 
@@ -244,7 +266,7 @@ final class ClaudeChatService: ObservableObject {
     }
 }
 
-struct ClaudeChatThread: Identifiable, Equatable {
+struct OpenClawChatThread: Identifiable, Equatable {
     let id: UUID
     var title: String
     var createdAt: Date
@@ -253,16 +275,19 @@ struct ClaudeChatThread: Identifiable, Equatable {
     var messages: [ChatMessage]
 }
 
-enum ClaudeChatError: LocalizedError {
+enum OpenClawChatError: LocalizedError {
     case threadNotFound
     case providerNotConfigured
+    case invalidOpenClawConfiguration(String)
 
     var errorDescription: String? {
         switch self {
         case .threadNotFound:
             return "Kein Chat-Thread gefunden."
         case .providerNotConfigured:
-            return "LLM-Provider fehlt die Konfiguration."
+            return "OpenClaw Token fehlt. Bitte hinterlege ihn in den LLM-Einstellungen."
+        case .invalidOpenClawConfiguration(let message):
+            return message
         }
     }
 }

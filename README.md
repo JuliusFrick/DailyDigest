@@ -76,9 +76,10 @@ Output:
 VERSION=0.1.0 BUILD_NUMBER=1 ./scripts/package-dmg.sh
 ```
 
-### Configuration (OAuth)
+### Configuration (OAuth + Tokens)
 
 OAuth secrets are injected at build time (so they don't live in Git). The app looks for a bundled `oauth_clients.json` inside the app bundle.
+This is required for Google/Granola and optional for Slack (if you choose OAuth instead of User Token).
 
 You can provide it in three ways:
 
@@ -89,20 +90,20 @@ OAUTH_CLIENTS_JSON_PATH="/secure/path/oauth_clients.json" ./scripts/run-app.sh
 
 2) **Inline JSON**:
 ```bash
-OAUTH_CLIENTS_JSON='{"google":{"clientId":"...","clientSecret":"..."},"slack":{"clientId":"...","clientSecret":"..."},"jira":{"clientId":"...","clientSecret":"..."}}' ./scripts/package-release.sh
+OAUTH_CLIENTS_JSON='{"google":{"clientId":"...","clientSecret":"..."},"slack":{"clientId":"...","clientSecret":"..."}}' ./scripts/package-release.sh
 ```
 
 3) **Per-provider env vars**:
 ```bash
 OAUTH_GOOGLE_CLIENT_ID="..." OAUTH_GOOGLE_CLIENT_SECRET="..." \
 OAUTH_SLACK_CLIENT_ID="..." OAUTH_SLACK_CLIENT_SECRET="..." \
-OAUTH_JIRA_CLIENT_ID="..." OAUTH_JIRA_CLIENT_SECRET="..." \
 ./scripts/package-release.sh
 ```
 
 Template (do not commit secrets): `DailyBriefing/Sources/Resources/oauth_clients.template.json`
 
 LLM/TTS provider API keys are stored in the system keychain by the app (see Settings).
+Jira uses API token auth in Settings, and Slack is recommended via User Token in Settings.
 
 ### Automatic Releases via GitHub Actions
 
@@ -211,4 +212,3 @@ xcrun stapler staple "dist/DailyBriefing.app"
 ```
 
 If you add entitlements, hardened runtime exceptions, or additional bundled resources, adjust signing accordingly.
-

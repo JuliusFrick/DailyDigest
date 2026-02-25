@@ -61,10 +61,17 @@ struct ServiceIntegrationsView: View {
             ) {
                 openService(.jira)
             }
+
+            ServiceRow(
+                serviceType: .granola,
+                connectionManager: connectionManager
+            ) {
+                openService(.granola)
+            }
         } header: {
             Text("Cloud-Dienste")
         } footer: {
-            Text("Diese Dienste benötigen OAuth-Anmeldung. Deine Zugangsdaten werden sicher in der macOS Keychain gespeichert.")
+            Text("Diese Dienste nutzen API- oder OAuth-Anmeldung. Tokens werden sicher in der macOS Keychain gespeichert.")
         }
     }
 
@@ -260,6 +267,13 @@ struct ServiceDetailView: View {
             case .jira:
                 if let source = connectionManager.jiraSource {
                     JiraConfigView(source: source)
+                } else {
+                    ServiceNotConnectedView(serviceType: serviceType)
+                }
+
+            case .granola:
+                if let source = connectionManager.granolaSource {
+                    GranolaConfigView(source: source)
                 } else {
                     ServiceNotConnectedView(serviceType: serviceType)
                 }

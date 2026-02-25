@@ -22,6 +22,7 @@ final class ServiceConnectionManager: ObservableObject {
     @Published var gmailSource: GmailSource?
     @Published var slackSource: SlackSource?
     @Published var jiraSource: JiraSource?
+    @Published var granolaSource: GranolaSource?
     @Published var appleMailSource: AppleMailSource?
     @Published var appleRemindersSource: AppleRemindersSource?
     @Published var appleCalendarSource: AppleCalendarSource?
@@ -89,6 +90,12 @@ final class ServiceConnectionManager: ObservableObject {
                 }
                 try await jiraSource?.authenticate()
 
+            case .granola:
+                if granolaSource == nil {
+                    granolaSource = GranolaSource()
+                }
+                try await granolaSource?.authenticate()
+
             case .appleMail:
                 if appleMailSource == nil {
                     appleMailSource = AppleMailSource()
@@ -135,6 +142,10 @@ final class ServiceConnectionManager: ObservableObject {
             await jiraSource?.disconnect()
             jiraSource = nil
 
+        case .granola:
+            await granolaSource?.disconnect()
+            granolaSource = nil
+
         case .appleMail:
             await appleMailSource?.disconnect()
             appleMailSource = nil
@@ -169,6 +180,8 @@ final class ServiceConnectionManager: ObservableObject {
             if slackSource == nil { slackSource = SlackSource() }
         case .jira:
             if jiraSource == nil { jiraSource = JiraSource() }
+        case .granola:
+            if granolaSource == nil { granolaSource = GranolaSource() }
         case .appleMail:
             if appleMailSource == nil { appleMailSource = AppleMailSource() }
         case .appleReminders:
@@ -185,6 +198,7 @@ final class ServiceConnectionManager: ObservableObject {
         case .gmail: return gmailSource
         case .slack: return slackSource
         case .jira: return jiraSource
+        case .granola: return granolaSource
         case .appleMail: return appleMailSource
         case .appleReminders: return appleRemindersSource
         case .appleCalendar: return appleCalendarSource
@@ -198,6 +212,7 @@ final class ServiceConnectionManager: ObservableObject {
         if let source = gmailSource, source.isAuthenticated { sources.append(source) }
         if let source = slackSource, source.isAuthenticated { sources.append(source) }
         if let source = jiraSource, source.isAuthenticated { sources.append(source) }
+        if let source = granolaSource, source.isAuthenticated { sources.append(source) }
         if let source = appleMailSource, source.isAuthenticated { sources.append(source) }
         if let source = appleRemindersSource, source.isAuthenticated { sources.append(source) }
         if let source = appleCalendarSource, source.isAuthenticated { sources.append(source) }
@@ -279,6 +294,8 @@ final class ServiceConnectionManager: ObservableObject {
                 slackSource = SlackSource()
             case .jira:
                 jiraSource = JiraSource()
+            case .granola:
+                granolaSource = GranolaSource()
             case .appleMail:
                 appleMailSource = AppleMailSource()
             case .appleReminders:

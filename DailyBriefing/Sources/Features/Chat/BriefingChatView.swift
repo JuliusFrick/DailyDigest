@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Chat view for interacting with Claude with thread-based sessions.
+/// Chat view for interacting with OpenClaw with thread-based sessions.
 struct BriefingChatView: View {
-    @StateObject private var chatService = ClaudeChatService.shared
+    @StateObject private var chatService = OpenClawChatService.shared
     @State private var inputText = ""
     @FocusState private var textFieldFocused: Bool
 
@@ -42,7 +42,7 @@ struct BriefingChatView: View {
 
     private var chatHeader: some View {
         HStack {
-            Text("CLAUDE CHAT")
+            Text("OPENCLAW CHAT")
                 .font(.tuiMonoTiny)
                 .fontWeight(.bold)
                 .foregroundStyle(.tertiary)
@@ -263,7 +263,7 @@ struct BriefingChatView: View {
 
     // MARK: - Actions
 
-    private func sendMessage(using thread: ClaudeChatThread?) async {
+    private func sendMessage(using thread: OpenClawChatThread?) async {
         let message = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !message.isEmpty else { return }
 
@@ -283,7 +283,7 @@ struct BriefingChatView: View {
 // MARK: - Thread Tab
 
 private struct ThreadTab: View {
-    let thread: ClaudeChatThread
+    let thread: OpenClawChatThread
     let isActive: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
@@ -354,7 +354,7 @@ struct BriefingChatMessageRow: View {
     private var rolePrefix: String {
         switch message.role {
         case .user: return "Du:"
-        case .assistant: return "Claude:"
+        case .assistant: return "OpenClaw:"
         case .system: return "SYS:"
         }
     }

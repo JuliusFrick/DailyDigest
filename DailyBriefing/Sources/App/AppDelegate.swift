@@ -6,6 +6,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Ensure the main window is visible on first launch.
         MainWindowCoordinator.shared.openMainWindow()
+        Task {
+            await ExternalBridgeService.shared.startIfEnabled()
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        ExternalBridgeService.shared.stop()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

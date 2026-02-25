@@ -227,7 +227,7 @@ final class ActionItemStore: ObservableObject {
     func exportToJira(_ items: [ActionItem]) async throws {
         // TODO: Implement Jira API integration
         // Required setup:
-        // 1. Jira OAuth credentials in Keychain
+        // 1. Jira API token credentials in Keychain
         // 2. Project/Board selection UI
         // 3. Issue creation via Jira REST API
         //

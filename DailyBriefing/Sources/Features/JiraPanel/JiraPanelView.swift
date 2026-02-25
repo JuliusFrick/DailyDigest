@@ -9,6 +9,7 @@ struct JiraPanelView: View {
     @State private var selectedItemId: BriefingItem.ID?
     @State private var lastRefresh = Date()
     @State private var showFilter = false
+    @State private var showSetupWizard = false
 
     private var selectedItem: BriefingItem? {
         guard let id = selectedItemId else { return nil }
@@ -36,6 +37,9 @@ struct JiraPanelView: View {
         .refreshable {
             lastRefresh = Date()
             await loadItems()
+        }
+        .sheet(isPresented: $showSetupWizard) {
+            IntegrationSetupWizardView()
         }
     }
 
@@ -123,6 +127,11 @@ struct JiraPanelView: View {
                 .font(.tuiMonoTiny)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
+
+            Button("Setup-Wizard öffnen") {
+                showSetupWizard = true
+            }
+            .buttonStyle(.tuiPrimary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(Spacing.xl)
@@ -239,8 +248,8 @@ private struct JiraPanelItemRow: View {
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .contextMenu {
-            Button("An Claude senden") {
-                _ = ClaudeChatService.shared.openThread(for: item)
+            Button("An OpenClaw senden") {
+                _ = OpenClawChatService.shared.openThread(for: item)
             }
             Button("Im Terminal öffnen") {
                 _ = TerminalSessionManager.shared.openSession(for: item)
@@ -314,8 +323,8 @@ struct JiraDetailView: View {
         .background(Color.tuiBackground)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button("An Claude senden") {
-                    _ = ClaudeChatService.shared.openThread(for: item)
+                Button("An OpenClaw senden") {
+                    _ = OpenClawChatService.shared.openThread(for: item)
                 }
                 Button("Im Terminal öffnen") {
                     _ = TerminalSessionManager.shared.openSession(for: item)

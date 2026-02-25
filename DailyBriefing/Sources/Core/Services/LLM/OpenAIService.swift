@@ -21,13 +21,14 @@ final class OpenAIService: LLMService {
             return .failure("API-Schlüssel fehlt")
         }
 
-        let url = URL(string: "\(baseURL)/chat/completions")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let request: URLRequest
+        do {
+            request = try makeRequest()
+        } catch {
+            return .failure("Ungültige URL")
+        }
 
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "model": modelId,
             "messages": [
                 ["role": "user", "content": "Say 'OK' and nothing else."]
@@ -35,10 +36,12 @@ final class OpenAIService: LLMService {
             "max_tokens": 5
         ]
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        applyProviderSpecificBody(to: &body)
+        var mutableRequest = request
+        mutableRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: mutableRequest)
             let responseTime = Date().timeIntervalSince(startTime)
 
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -57,6 +60,9 @@ final class OpenAIService: LLMService {
                 return .failure("Ungültiger API-Schlüssel")
 
             case 404:
+                if provider == .openClaw {
+                    return .failure(openClawEndpointErrorMessage)
+                }
                 return .failure("Modell '\(modelId)' nicht gefunden")
 
             case 429:
@@ -76,11 +82,7 @@ final class OpenAIService: LLMService {
             throw LLMError.invalidAPIKey
         }
 
-        let url = URL(string: "\(baseURL)/chat/completions")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var request = try makeRequest()
 
         var messages: [[String: String]] = []
         if let systemPrompt = systemPrompt {
@@ -88,11 +90,12 @@ final class OpenAIService: LLMService {
         }
         messages.append(["role": "user", "content": prompt])
 
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "model": modelId,
             "messages": messages
         ]
 
+        applyProviderSpecificBody(to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -115,6 +118,12 @@ final class OpenAIService: LLMService {
         case 401:
             throw LLMError.invalidAPIKey
 
+        case 404:
+            if provider == .openClaw {
+                throw LLMError.serverError(404, openClawEndpointErrorMessage)
+            }
+            throw LLMError.modelNotFound(modelId)
+
         case 429:
             throw LLMError.rateLimited
 
@@ -124,12 +133,83 @@ final class OpenAIService: LLMService {
         }
     }
 
+    private func makeRequest() throws -> URLRequest {
+        let url = try chatCompletionsURL()
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyProviderSpecificHeaders(to: &request)
+        return request
+    }
+
+    private func chatCompletionsURL() throws -> URL {
+        let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, var components = URLComponents(string: trimmed) else {
+            throw LLMError.invalidURL
+        }
+
+        var path = components.path
+        if path == "/" {
+            path = ""
+        } else if path.hasSuffix("/") {
+            path.removeLast()
+        }
+
+        if !path.hasSuffix("/chat/completions") {
+            path += "/chat/completions"
+        }
+
+        components.path = path
+        guard let url = components.url else {
+            throw LLMError.invalidURL
+        }
+        return url
+    }
+
+    private func applyProviderSpecificHeaders(to request: inout URLRequest) {
+        guard provider == .openClaw,
+              let agentID = openClawAgentID else {
+            return
+        }
+
+        request.setValue(agentID, forHTTPHeaderField: "x-openclaw-agent-id")
+    }
+
+    private func applyProviderSpecificBody(to body: inout [String: Any]) {
+        guard provider == .openClaw else { return }
+
+        if body["user"] == nil {
+            body["user"] = "dailybriefing-app"
+        }
+    }
+
+    private var openClawAgentID: String? {
+        guard provider == .openClaw else { return nil }
+        guard modelId.lowercased().hasPrefix("openclaw:") else { return nil }
+        let rawAgent = String(modelId.dropFirst("openclaw:".count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return rawAgent.isEmpty ? nil : rawAgent
+    }
+
+    private var openClawEndpointErrorMessage: String {
+        "OpenClaw Endpoint nicht gefunden. Prüfe Base URL und aktiviere gateway.http.endpoints.chatCompletions.enabled."
+    }
+
     private func parseErrorMessage(from data: Data) -> String? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let error = json["error"] as? [String: Any],
-              let message = error["message"] as? String else {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
         }
-        return message
+
+        if let error = json["error"] as? [String: Any],
+           let message = error["message"] as? String {
+            return message
+        }
+
+        if let message = json["message"] as? String {
+            return message
+        }
+
+        return nil
     }
 }

@@ -228,3 +228,27 @@ extension KeychainService {
         }
     }
 }
+
+// MARK: - OpenClaw Bridge Shared Secret
+
+extension KeychainService {
+    private var externalBridgeSecretIdentifier: String {
+        "dailybriefing.externalbridge.secret"
+    }
+
+    func saveExternalBridgeSecret(_ secret: String) throws {
+        try save(secret, for: externalBridgeSecretIdentifier)
+    }
+
+    func loadExternalBridgeSecret() -> String? {
+        try? loadString(for: externalBridgeSecretIdentifier)
+    }
+
+    func deleteExternalBridgeSecret() throws {
+        try delete(for: externalBridgeSecretIdentifier)
+    }
+
+    func hasExternalBridgeSecret() -> Bool {
+        exists(for: externalBridgeSecretIdentifier)
+    }
+}

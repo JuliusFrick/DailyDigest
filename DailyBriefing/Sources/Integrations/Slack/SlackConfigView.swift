@@ -3,15 +3,35 @@ import SwiftUI
 /// Configuration view for Slack integration
 struct SlackConfigView: View {
     @ObservedObject var source: SlackSource
+    @AppStorage("slack_auth_method") private var slackAuthMethodRaw: String = ""
     @State private var channelSearchText = ""
+    @State private var slackUserToken: String = ""
+    @State private var didLoadUserToken = false
+
+    private var authMethod: SlackAuthMethod {
+        if let method = SlackAuthMethod(rawValue: slackAuthMethodRaw), !slackAuthMethodRaw.isEmpty {
+            return method
+        }
+        return SlackConfig.authMethod
+    }
 
     private var canConnect: Bool {
-        !SlackConfig.clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        switch authMethod {
+        case .userToken:
+            return !slackUserToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .oauth:
+            return !SlackConfig.clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
     }
 
     var body: some View {
         Form {
-            oauthCredentialsSection
+            authMethodSection
+            if authMethod == .userToken {
+                userTokenSection
+            } else {
+                oauthCredentialsSection
+            }
             connectionSection
             if source.isAuthenticated {
                 workspaceSection
@@ -21,6 +41,23 @@ struct SlackConfigView: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            guard !didLoadUserToken else { return }
+            slackUserToken = (try? KeychainService.shared.loadString(for: "slack_user_token")) ?? ""
+            didLoadUserToken = true
+        }
+        .onChange(of: slackUserToken) { _, newValue in
+            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            do {
+                if trimmed.isEmpty {
+                    try? KeychainService.shared.delete(for: "slack_user_token")
+                } else {
+                    try KeychainService.shared.save(trimmed, for: "slack_user_token")
+                }
+            } catch {
+                // Ignore UI persistence errors
+            }
+        }
     }
 
     /// Channels filtered by search text
@@ -36,6 +73,29 @@ struct SlackConfigView: View {
     /// Number of selected channels
     private var selectedChannelCount: Int {
         source.selectedChannelIds.count
+    }
+
+    private var authMethodBinding: Binding<String> {
+        Binding(
+            get: { authMethod.rawValue },
+            set: { slackAuthMethodRaw = $0 }
+        )
+    }
+
+    // MARK: - Auth Method Section
+
+    private var authMethodSection: some View {
+        Section {
+            Picker("Anmelde-Methode", selection: authMethodBinding) {
+                Text("User Token (Empfohlen)").tag(SlackAuthMethod.userToken.rawValue)
+                Text("OAuth").tag(SlackAuthMethod.oauth.rawValue)
+            }
+            .pickerStyle(.segmented)
+        } header: {
+            Text("Login-Methode")
+        } footer: {
+            Text("User Token ist am einfachsten und erlaubt dir später auch Antworten auf Nachrichten.")
+        }
     }
 
     // MARK: - Connection Section
@@ -89,7 +149,39 @@ struct SlackConfigView: View {
         } header: {
             Text("Verbindung")
         } footer: {
-            Text("Verbinde deinen Slack-Workspace um Nachrichten und Mentions in deinem Briefing zu sehen.")
+            if authMethod == .userToken {
+                Text("Verbinde deinen Slack-Workspace per User Token für Nachrichten, Mentions und Antworten.")
+            } else {
+                Text("Verbinde deinen Slack-Workspace per OAuth um Nachrichten und Mentions zu sehen.")
+            }
+        }
+    }
+
+    // MARK: - User Token Section
+
+    private var userTokenSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Slack User Token")
+                    .font(.caption)
+                SecureField("xoxp-... oder xoxc-...", text: $slackUserToken)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Empfohlene Scopes")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("channels:history, channels:read, groups:history, groups:read, im:history, im:read, mpim:history, mpim:read, users:read, chat:write")
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+            }
+
+            Link("Token-Typen & Scopes ansehen", destination: URL(string: "https://api.slack.com/authentication/token-types")!)
+        } header: {
+            Text("User Token")
+        } footer: {
+            Text("Nutze einen User Token für direkten Zugriff auf deine Nachrichten. Mit `chat:write` kannst du auch Antworten senden.")
         }
     }
 
@@ -124,9 +216,9 @@ struct SlackConfigView: View {
 
             Link("Slack Apps öffnen", destination: URL(string: "https://api.slack.com/apps")!)
         } header: {
-            Text("OAuth")
+            Text("OAuth (Optional)")
         } footer: {
-            Text("Für den Login wird eine gültige Slack Client ID benötigt.")
+            Text("Für OAuth wird eine gültige Slack Client ID benötigt.")
         }
     }
 

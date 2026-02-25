@@ -25,8 +25,8 @@ final class MainWindowController {
             let hostingController = NSHostingController(rootView: contentView)
             let window = NSWindow(contentViewController: hostingController)
             window.title = "Daily Briefing"
-            window.setContentSize(NSSize(width: 700, height: 500))
-            window.minSize = NSSize(width: 500, height: 400)
+            window.setContentSize(NSSize(width: 900, height: 620))
+            window.minSize = NSSize(width: 360, height: 280)
             window.titleVisibility = .hidden
             window.titlebarAppearsTransparent = true
             window.isReleasedWhenClosed = false

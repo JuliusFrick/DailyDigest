@@ -351,7 +351,7 @@ struct AddSourceSheet: View {
         NavigationStack {
             List {
                 Section("Cloud") {
-                    ForEach([ServiceType.googleCalendar, .gmail, .slack, .jira]) { serviceType in
+                    ForEach([ServiceType.googleCalendar, .gmail, .slack, .jira, .granola]) { serviceType in
                         if !connectionManager.isConnected(serviceType) {
                             AvailableSourceRowNew(
                                 serviceType: serviceType,

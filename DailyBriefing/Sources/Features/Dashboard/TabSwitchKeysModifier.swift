@@ -11,13 +11,32 @@ struct TabSwitchKeysModifier: ViewModifier {
                 withAnimation(.tuiSnappy) {
                     // Toggle between tabs using Cmd+T
                     switch selectedTab {
+                    case .cockpit:
+                        selectedTab = .workspace
+                    case .workspace:
+                        selectedTab = .briefing
                     case .briefing:
                         selectedTab = .calendar
                     case .calendar:
                         selectedTab = .recordings
-                    case .recordings, .history:
-                        selectedTab = .briefing
+                    case .recordings:
+                        selectedTab = .history
+                    case .history:
+                        selectedTab = .cockpit
                     }
+                }
+                return .handled
+            }
+            .onKeyPress("0", modifiers: .command) {
+                withAnimation(.tuiSnappy) {
+                    selectedTab = .cockpit
+                }
+                return .handled
+            }
+            .onKeyPress("w", modifiers: .command) {
+                withAnimation(.tuiSnappy) {
+                    // Switch to workspace tab
+                    selectedTab = .workspace
                 }
                 return .handled
             }
@@ -35,7 +54,14 @@ struct TabSwitchKeysModifier: ViewModifier {
                 }
                 return .handled
             }
-            .onKeyPress("r", modifiers: .command) {
+            .onKeyPress("h", modifiers: .command) {
+                withAnimation(.tuiSnappy) {
+                    // Switch to history tab
+                    selectedTab = .history
+                }
+                return .handled
+            }
+            .onKeyPress("r", modifiers: [.command, .shift]) {
                 withAnimation(.tuiSnappy) {
                     // Switch to recordings tab
                     selectedTab = .recordings
